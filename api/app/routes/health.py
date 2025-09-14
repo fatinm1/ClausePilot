@@ -1,5 +1,8 @@
 from flask import Blueprint, jsonify
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 health_bp = Blueprint('health', __name__)
 
@@ -29,10 +32,20 @@ def debug_info():
     # Test if we can create OpenAI client directly
     try:
         from openai import OpenAI
+        # Check what parameters are being passed
+        import inspect
+        sig = inspect.signature(OpenAI.__init__)
+        params = list(sig.parameters.keys())
+        logger.info(f"OpenAI.__init__ parameters: {params}")
+        
         test_client = OpenAI(api_key=api_key)
         client_test = 'success'
     except Exception as e:
         client_test = f'failed: {str(e)}'
+        # Try to get more details about the error
+        import traceback
+        error_details = traceback.format_exc()
+        client_test += f" | Details: {error_details}"
     
     # Check for proxy-related environment variables
     proxy_vars = {k: v for k, v in os.environ.items() if 'proxy' in k.lower() or 'PROXY' in k}
@@ -53,5 +66,6 @@ def debug_info():
         'client_test': client_test,
         'proxy_vars': proxy_vars,
         'openai_related_vars': openai_related_vars,
+        'openai_params': params if 'params' in locals() else 'not_available',
         'safe_mode': 'Yes - using mock mode for all AI calls'
     })
