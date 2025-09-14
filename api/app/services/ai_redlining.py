@@ -16,6 +16,10 @@ class AIRedliningService:
     def __init__(self):
         try:
             api_key = os.getenv('OPENAI_API_KEY')
+            logger.info(f"OpenAI API key status: {'Set' if api_key else 'Not set'}")
+            logger.info(f"API key length: {len(api_key) if api_key else 0}")
+            logger.info(f"API key starts with: {api_key[:10] if api_key and len(api_key) > 10 else 'N/A'}")
+            
             if not api_key or api_key == 'mock-key-for-development':
                 # Use mock mode for development
                 self.client = None
@@ -74,6 +78,8 @@ class AIRedliningService:
     def _mock_analysis(self, document_text: str, custom_rules: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Provide mock analysis for development/testing"""
         logger.info("Running mock AI analysis")
+        logger.info(f"Document text length: {len(document_text)} characters")
+        logger.info(f"Number of custom rules: {len(custom_rules)}")
         
         # Create realistic mock redlining instructions based on custom rules
         mock_modifications = []
@@ -81,39 +87,34 @@ class AIRedliningService:
         for rule in custom_rules:
             rule_name = rule.get('name', '').lower()
             rule_instruction = rule.get('instruction', '')
+            logger.info(f"Processing rule: {rule_name}")
             
             # Create specific modifications based on rule type
-            if 'duration' in rule_name or 'term' in rule_name:
-                # Target the 5-year term
-                if 'five (5) years' in document_text:
-                    mock_modifications.append({
-                        "type": "TEXT_REPLACE",
-                        "section": "term",
-                        "current_text": "five (5) years",
-                        "new_text": "three (3) years",
-                        "reason": rule_instruction,
-                        "location_hint": "Section 5, line 38"
-                    })
-                # Also try the shorter version
-                elif '5 years' in document_text:
-                    mock_modifications.append({
-                        "type": "TEXT_REPLACE",
-                        "section": "term",
-                        "current_text": "5 years",
-                        "new_text": "3 years",
-                        "reason": rule_instruction,
-                        "location_hint": "Section 5, line 38"
-                    })
-                # Target the 3-year survival period
-                if 'three (3) years' in document_text and 'additional period' in document_text:
-                    mock_modifications.append({
-                        "type": "TEXT_REPLACE",
-                        "section": "term",
-                        "current_text": "three (3) years",
-                        "new_text": "two (2) years",
-                        "reason": rule_instruction,
-                        "location_hint": "Section 5, line 38"
-                    })
+            if 'duration' in rule_name or 'term' in rule_name or 'confidentiality' in rule_name:
+                # Look for various year patterns in the document
+                year_patterns = [
+                    ('five (5) years', 'two (2) years'),
+                    ('5 years', '2 years'),
+                    ('three (3) years', 'two (2) years'),
+                    ('3 years', '2 years'),
+                    ('four (4) years', 'two (2) years'),
+                    ('4 years', '2 years'),
+                    ('ten (10) years', 'two (2) years'),
+                    ('10 years', '2 years')
+                ]
+                
+                for current_pattern, new_pattern in year_patterns:
+                    if current_pattern in document_text.lower():
+                        mock_modifications.append({
+                            "type": "TEXT_REPLACE",
+                            "section": "term",
+                            "current_text": current_pattern,
+                            "new_text": new_pattern,
+                            "reason": rule_instruction,
+                            "location_hint": "Confidentiality term section"
+                        })
+                        logger.info(f"Found year pattern: {current_pattern} -> {new_pattern}")
+                        break
             
             elif 'liability' in rule_name or 'damage' in rule_name:
                 # Add liability cap clause
@@ -125,7 +126,29 @@ class AIRedliningService:
                     "location_hint": "After Section 8, Remedies"
                 })
             
-            elif 'firm' in rule_name or 'party' in rule_name:
+            elif 'firm' in rule_name or 'party' in rule_name or 'parties' in rule_name or 'name' in rule_name:
+                # Look for party name patterns
+                party_patterns = [
+                    ('Angle Advisors LLC', 'Welch Capital Partners Inc. (WCP)'),
+                    ('Company', 'Company (name to be provided upon execution)'),
+                    ('Recipient', 'JMC Investment LLC (Recipient)'),
+                    ('Disclosing Party', 'Welch Capital Partners Inc. (WCP)'),
+                    ('Receiving Party', 'JMC Investment LLC (Recipient)')
+                ]
+                
+                for current_pattern, new_pattern in party_patterns:
+                    if current_pattern in document_text:
+                        mock_modifications.append({
+                            "type": "TEXT_REPLACE",
+                            "section": "parties",
+                            "current_text": current_pattern,
+                            "new_text": new_pattern,
+                            "reason": rule_instruction,
+                            "location_hint": "Parties section"
+                        })
+                        logger.info(f"Found party pattern: {current_pattern} -> {new_pattern}")
+                        break
+                
                 # Replace firm placeholders
                 if '[FIRM_NAME]' in document_text:
                     mock_modifications.append({
@@ -154,6 +177,51 @@ class AIRedliningService:
                         "reason": rule_instruction,
                         "location_hint": "Section 11, line 56"
                     })
+            
+            # Add more flexible pattern matching for other rule types
+            elif 'governing' in rule_name or 'law' in rule_name:
+                # Look for governing law patterns
+                law_patterns = [
+                    ('State of Delaware', 'State of New York'),
+                    ('Delaware', 'New York'),
+                    ('Delaware courts', 'New York courts')
+                ]
+                
+                for current_pattern, new_pattern in law_patterns:
+                    if current_pattern in document_text:
+                        mock_modifications.append({
+                            "type": "TEXT_REPLACE",
+                            "section": "governing_law",
+                            "current_text": current_pattern,
+                            "new_text": new_pattern,
+                            "reason": rule_instruction,
+                            "location_hint": "Governing law section"
+                        })
+                        logger.info(f"Found law pattern: {current_pattern} -> {new_pattern}")
+                        break
+            
+            elif 'signature' in rule_name or 'block' in rule_name:
+                # Add signature block completion
+                mock_modifications.append({
+                    "type": "TEXT_INSERT",
+                    "section": "signatures",
+                    "new_text": "Signed: [handwritten signature]\nBy: John Bagge\nTitle: Vice President\nDate: [current date]\nFor: JMC Investment LLC",
+                    "reason": rule_instruction,
+                    "location_hint": "Signature block"
+                })
+                logger.info("Added signature block completion")
+        
+        # If no modifications were found, create a generic one based on the first rule
+        if not mock_modifications and custom_rules:
+            first_rule = custom_rules[0]
+            mock_modifications.append({
+                "type": "TEXT_INSERT",
+                "section": "general",
+                "new_text": f"[Modification based on rule: {first_rule.get('name', 'Unknown')}]",
+                "reason": first_rule.get('instruction', 'Rule application'),
+                "location_hint": "Document beginning"
+            })
+            logger.info("Added fallback modification")
         
         return {
             'success': True,
