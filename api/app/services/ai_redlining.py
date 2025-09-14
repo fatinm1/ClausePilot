@@ -42,14 +42,26 @@ class AIRedliningService:
                 except Exception as init_error:
                     logger.error(f"Error during OpenAI client initialization: {str(init_error)}")
                     logger.error(f"Error type: {type(init_error).__name__}")
-                    # Try alternative initialization
+                    # Try alternative initialization with explicit parameters
                     try:
-                        self.client = OpenAI(api_key=api_key, timeout=30.0)
+                        import openai
+                        self.client = openai.OpenAI(
+                            api_key=api_key,
+                            timeout=30.0,
+                            max_retries=3
+                        )
                         self.model = "gpt-3.5-turbo"
-                        logger.info("OpenAI client initialized with timeout parameter")
+                        logger.info("OpenAI client initialized with explicit parameters")
                     except Exception as alt_error:
                         logger.error(f"Alternative initialization also failed: {str(alt_error)}")
-                        raise alt_error
+                        # Try one more time with just the API key
+                        try:
+                            self.client = openai.OpenAI(api_key=api_key)
+                            self.model = "gpt-3.5-turbo"
+                            logger.info("OpenAI client initialized with just API key")
+                        except Exception as final_error:
+                            logger.error(f"Final initialization attempt failed: {str(final_error)}")
+                            raise final_error
         except Exception as e:
             logger.error(f"Error initializing OpenAI client: {str(e)}")
             self.client = None
