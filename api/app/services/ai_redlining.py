@@ -745,7 +745,7 @@ class DocumentProcessor:
     def _replace_text_in_paragraph(self, paragraph, old_text: str, new_text: str):
         """Replace text in a paragraph while preserving formatting"""
         try:
-            # Find the run containing the text
+            # First, try to find and replace in individual runs
             for run in paragraph.runs:
                 if old_text in run.text:
                     # Replace the text in the run
@@ -754,34 +754,49 @@ class DocumentProcessor:
                     # Add redlining formatting
                     run.font.underline = True
                     run.font.color.rgb = RGBColor(255, 0, 0)  # Red for additions
+                    logger.info(f"Replaced text in run: '{old_text}' -> '{new_text}'")
                     return True
             
             # If not found in individual runs, try paragraph-level replacement
             if old_text in paragraph.text:
+                logger.info(f"Text found in paragraph, doing paragraph-level replacement")
+                
+                # Store original text
+                original_text = paragraph.text
+                
                 # Clear all runs and create new ones
                 paragraph.clear()
                 
                 # Split text around the old_text and create runs
-                parts = paragraph.text.split(old_text)
+                parts = original_text.split(old_text)
+                logger.info(f"Split into {len(parts)} parts: {parts}")
+                
                 for i, part in enumerate(parts):
                     if part:  # Add non-empty parts
                         run = paragraph.add_run(part)
-                        if i > 0:  # This is after a replacement
-                            run.font.underline = True
-                            run.font.color.rgb = RGBColor(255, 0, 0)
+                        # Don't add redlining to original text
                     
-                    if i < len(parts) - 1:  # Add the new text
+                    if i < len(parts) - 1:  # Add the new text (not the last part)
                         run = paragraph.add_run(new_text)
                         run.font.underline = True
-                        run.font.color.rgb = RGBColor(255, 0, 0)
+                        run.font.color.rgb = RGBColor(255, 0, 0)  # Red for additions
+                        logger.info(f"Added new text run: '{new_text}'")
                 
+                logger.info(f"Final paragraph text: {paragraph.text}")
                 return True
+            else:
+                logger.warning(f"Text '{old_text}' not found in paragraph: '{paragraph.text}'")
                 
         except Exception as e:
             logger.error(f"Error replacing text in paragraph: {str(e)}")
             # Fallback to simple replacement
-            paragraph.text = paragraph.text.replace(old_text, new_text)
-            return True
+            try:
+                paragraph.text = paragraph.text.replace(old_text, new_text)
+                logger.info(f"Fallback replacement successful: '{old_text}' -> '{new_text}'")
+                return True
+            except Exception as fallback_error:
+                logger.error(f"Fallback replacement failed: {str(fallback_error)}")
+                return False
         
         return False
     
