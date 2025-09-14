@@ -708,17 +708,17 @@ class DocumentProcessor:
         logger.info(f"Attempting to replace '{old_text}' with '{new_text}'")
         replaced = False
         
+        # First, try exact match
         for paragraph in doc.paragraphs:
             if old_text in paragraph.text:
-                logger.info(f"Found text to replace in paragraph: {paragraph.text}")
-                
-                # Replace text while preserving formatting
-                self._replace_text_in_paragraph(paragraph, old_text, new_text)
-                logger.info(f"Replaced text. New paragraph: {paragraph.text}")
-                replaced = True
-                    
+                logger.info(f"Found exact match in paragraph: {paragraph.text}")
+                if self._replace_text_in_paragraph(paragraph, old_text, new_text):
+                    logger.info(f"Successfully replaced. New paragraph: {paragraph.text}")
+                    replaced = True
+                    break
+        
         if not replaced:
-            logger.warning(f"Text '{old_text}' not found in document for replacement")
+            logger.warning(f"Exact text '{old_text}' not found, trying variations")
             # Try partial matches for common variations
             variations = [
                 old_text.replace("5", "five (5)"),
@@ -728,19 +728,30 @@ class DocumentProcessor:
                 "five (5) years",  # Common legal format
                 "five years",
                 "5 year",
-                "five year"
+                "five year",
+                # For company name variations
+                old_text.replace("For: ", ""),
+                old_text.replace("Company (name to be provided upon execution)", "Company"),
+                "Company",
+                "For: Company"
             ]
             
             for variation in variations:
-                for paragraph in doc.paragraphs:
-                    if variation in paragraph.text:
-                        logger.info(f"Found variation '{variation}' in paragraph: {paragraph.text}")
-                        self._replace_text_in_paragraph(paragraph, variation, new_text)
-                        logger.info(f"Replaced variation. New paragraph: {paragraph.text}")
-                        replaced = True
+                if variation and variation != old_text:  # Skip empty or duplicate variations
+                    for paragraph in doc.paragraphs:
+                        if variation in paragraph.text:
+                            logger.info(f"Found variation '{variation}' in paragraph: {paragraph.text}")
+                            if self._replace_text_in_paragraph(paragraph, variation, new_text):
+                                logger.info(f"Successfully replaced variation. New paragraph: {paragraph.text}")
+                                replaced = True
+                                break
+                    if replaced:
                         break
-                if replaced:
-                    break
+        
+        if not replaced:
+            logger.error(f"Failed to replace '{old_text}' with '{new_text}' - no matches found")
+        else:
+            logger.info(f"Successfully replaced '{old_text}' with '{new_text}'")
     
     def _replace_text_in_paragraph(self, paragraph, old_text: str, new_text: str):
         """Replace text in a paragraph while preserving formatting"""
@@ -786,6 +797,15 @@ class DocumentProcessor:
                 return True
             else:
                 logger.warning(f"Text '{old_text}' not found in paragraph: '{paragraph.text}'")
+                # Try case-insensitive search
+                if old_text.lower() in paragraph.text.lower():
+                    logger.info(f"Found case-insensitive match, trying replacement")
+                    # Simple fallback for case-insensitive matches
+                    paragraph.text = paragraph.text.replace(old_text.lower(), new_text)
+                    paragraph.text = paragraph.text.replace(old_text.upper(), new_text)
+                    paragraph.text = paragraph.text.replace(old_text.title(), new_text)
+                    logger.info(f"Case-insensitive replacement successful: '{old_text}' -> '{new_text}'")
+                    return True
                 
         except Exception as e:
             logger.error(f"Error replacing text in paragraph: {str(e)}")
