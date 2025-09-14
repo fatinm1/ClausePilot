@@ -273,15 +273,35 @@ class AIRedliningService:
                         break
             
             elif 'signature' in rule_name or 'block' in rule_name:
-                # Add signature block completion
-                mock_modifications.append({
-                    "type": "TEXT_INSERT",
-                    "section": "signatures",
-                    "new_text": "Signed: [handwritten signature]\nBy: John Bagge\nTitle: Vice President\nDate: [current date]\nFor: JMC Investment LLC",
-                    "reason": rule_instruction,
-                    "location_hint": "Signature block"
-                })
-                logger.info("Added signature block completion")
+                # Replace signature placeholders instead of inserting new content
+                signature_replacements = [
+                    {
+                        "type": "TEXT_REPLACE",
+                        "section": "signatures",
+                        "current_text": "For: Company (name to be provided upon execution)",
+                        "new_text": "For: JMC Investment LLC",
+                        "reason": rule_instruction,
+                        "location_hint": "Signature block company name"
+                    },
+                    {
+                        "type": "TEXT_REPLACE",
+                        "section": "signatures",
+                        "current_text": "By:",
+                        "new_text": "By: John Bagge",
+                        "reason": rule_instruction,
+                        "location_hint": "Signature block signer name"
+                    },
+                    {
+                        "type": "TEXT_REPLACE",
+                        "section": "signatures",
+                        "current_text": "Title:",
+                        "new_text": "Title: Vice President",
+                        "reason": rule_instruction,
+                        "location_hint": "Signature block title"
+                    }
+                ]
+                mock_modifications.extend(signature_replacements)
+                logger.info("Added signature block replacements")
         
         # If no modifications were found, create a generic one based on the first rule
         if not mock_modifications and custom_rules:
@@ -316,6 +336,8 @@ class AIRedliningService:
         3. Focus on the specific areas mentioned in the rules
         4. Apply firm details exactly as provided
         5. Be conservative - only change what is explicitly requested
+        6. REPLACE existing placeholders - do NOT create new fields or sections
+        7. For signature blocks, replace "By:" with "By: [Name]", "Title:" with "Title: [Title]", etc.
         
         REDLINING PRINCIPLES:
         - Replace specific text with exact matches
@@ -386,7 +408,13 @@ COMMON PATTERNS TO LOOK FOR:
 - "five year"
 - "Company (name to be provided upon execution)"
 - "State of Delaware" or "Delaware"
-- Signature blocks and party definitions
+- Signature blocks: "By:", "Title:", "For: Company (name to be provided upon execution)"
+
+SIGNATURE BLOCK HANDLING:
+- Replace "By:" with "By: [Name]" (don't create new lines)
+- Replace "Title:" with "Title: [Title]" (don't create new lines)
+- Replace "For: Company (name to be provided upon execution)" with "For: [Company Name]"
+- Do NOT insert new signature blocks or create new fields
 
 IMPORTANT: Only make the specific changes requested in the custom rules. Do not over-redline or make unnecessary changes.
 
