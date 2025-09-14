@@ -34,9 +34,22 @@ class AIRedliningService:
             else:
                 # Try to initialize real OpenAI client
                 logger.info("Attempting to initialize OpenAI client with real API key")
-                self.client = OpenAI(api_key=api_key)
-                self.model = "gpt-3.5-turbo"  # Use cheaper model to avoid quota issues
-                logger.info("OpenAI client initialized successfully with real API")
+                try:
+                    # Try minimal initialization first
+                    self.client = OpenAI(api_key=api_key)
+                    self.model = "gpt-3.5-turbo"  # Use cheaper model to avoid quota issues
+                    logger.info("OpenAI client initialized successfully with real API")
+                except Exception as init_error:
+                    logger.error(f"Error during OpenAI client initialization: {str(init_error)}")
+                    logger.error(f"Error type: {type(init_error).__name__}")
+                    # Try alternative initialization
+                    try:
+                        self.client = OpenAI(api_key=api_key, timeout=30.0)
+                        self.model = "gpt-3.5-turbo"
+                        logger.info("OpenAI client initialized with timeout parameter")
+                    except Exception as alt_error:
+                        logger.error(f"Alternative initialization also failed: {str(alt_error)}")
+                        raise alt_error
         except Exception as e:
             logger.error(f"Error initializing OpenAI client: {str(e)}")
             self.client = None
