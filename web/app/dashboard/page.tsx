@@ -56,6 +56,7 @@ export default function Dashboard() {
 
   // Custom rules state
   const [customRules, setCustomRules] = useState<CustomRule[]>([]);
+  const [selectedRules, setSelectedRules] = useState<number[]>([]);
   
   // System statistics state
   const [systemStats, setSystemStats] = useState<{
@@ -157,11 +158,21 @@ export default function Dashboard() {
     try {
       const response = await apiClient.listRules(user?.id?.toString() || '');
       setCustomRules(response.rules);
+      // Select all rules by default
+      setSelectedRules(response.rules.map((rule: any) => rule.id));
     } catch (error) {
       console.error('Error loading existing rules:', error);
       // Start with empty rules if backend fails
       setCustomRules([]);
     }
+  };
+
+  const toggleRuleSelection = (ruleId: number) => {
+    setSelectedRules(prev => 
+      prev.includes(ruleId) 
+        ? prev.filter(id => id !== ruleId)
+        : [...prev, ruleId]
+    );
   };
 
   const loadSystemStats = async () => {
@@ -231,6 +242,11 @@ export default function Dashboard() {
   const startProcessing = async () => {
     if (!uploadedFile || !uploadedDocument) return;
     
+    if (selectedRules.length === 0) {
+      setError('Please select at least one rule to apply.');
+      return;
+    }
+    
     setIsProcessing(true);
     setError(null);
     setSuccess(null);
@@ -259,9 +275,10 @@ export default function Dashboard() {
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       // Call the real backend API for processing
+      const selectedRulesData = customRules.filter(rule => rule.id && selectedRules.includes(rule.id));
       const result = await apiClient.processDocument(
         uploadedDocument.id,
-        customRules,
+        selectedRulesData,
         firmDetails,
         user?.id?.toString() || '',
         signatureFile || undefined
@@ -652,10 +669,16 @@ export default function Dashboard() {
                 {/* Display custom rules */}
                 {customRules.length > 0 ? (
                   <div className="space-y-2">
-                    <h3 className="text-sm font-medium text-[#E5E7EB]/80">Active Rules:</h3>
+                    <h3 className="text-sm font-medium text-[#E5E7EB]/80">Select Rules to Apply:</h3>
                     {customRules.map((rule, index) => (
                       <div key={index} className="flex items-center justify-between bg-[#1F2937] rounded-lg p-3">
                         <div className="flex items-center space-x-3">
+                          <input
+                            type="checkbox"
+                            checked={rule.id ? selectedRules.includes(rule.id) : false}
+                            onChange={() => rule.id && toggleRuleSelection(rule.id)}
+                            className="w-4 h-4 text-[#60A5FA] bg-gray-700 border-gray-600 rounded focus:ring-[#60A5FA] focus:ring-2"
+                          />
                           {getCategoryIcon(rule.category)}
                           <div>
                             {rule.name && (
@@ -815,7 +838,7 @@ export default function Dashboard() {
                           className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
                         >
                           Remove
-                        </button>
+                </button>
                       )}
                     </div>
                     <p className="text-xs text-[#E5E7EB]/60 mt-1">
