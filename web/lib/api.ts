@@ -88,8 +88,16 @@ class ApiClient {
     documentId: number,
     customRules: CustomRule[],
     firmDetails: FirmDetails,
-    userId: string
+    userId: string,
+    signatureFile?: File
   ): Promise<{ message: string; document: Document; processing_result: any }> {
+    // If signature file is provided, upload it first
+    let signaturePath = null;
+    if (signatureFile) {
+      const signatureUpload = await this.uploadSignature(signatureFile, userId);
+      signaturePath = signatureUpload.signature_path;
+    }
+
     return this.request<{ message: string; document: Document; processing_result: any }>(
       `/v1/documents/${documentId}/process`,
       {
@@ -101,9 +109,23 @@ class ApiClient {
         body: JSON.stringify({
           custom_rules: customRules,
           firm_details: firmDetails,
+          signature_path: signaturePath,
         }),
       }
     );
+  }
+
+  async uploadSignature(file: File, userId: string): Promise<{ message: string; signature_path: string }> {
+    const formData = new FormData();
+    formData.append('signature', file);
+    
+    return this.request<{ message: string; signature_path: string }>('/v1/signatures/upload', {
+      method: 'POST',
+      headers: {
+        'X-User-ID': userId,
+      },
+      body: formData,
+    });
   }
 
   async getDocument(documentId: number, userId: string): Promise<{ document: Document; processing_jobs: any[] }> { // ProcessingJob interface removed, so using 'any' for now

@@ -77,6 +77,11 @@ export default function Dashboard() {
     phone: ''
   });
 
+  // Signature state
+  const [signatureFile, setSignatureFile] = useState<File | null>(null);
+  const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+
   // Modal states
   const [showAdminRuleModal, setShowAdminRuleModal] = useState(false);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
@@ -193,6 +198,36 @@ export default function Dashboard() {
     }
   };
 
+  const handleSignatureUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (file.type.startsWith('image/')) {
+        setSignatureFile(file);
+        
+        // Create preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setSignaturePreview(e.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+        
+        setError(null);
+        setSuccess('Signature uploaded successfully!');
+        setTimeout(() => setSuccess(null), 3000);
+      } else {
+        setError('Please select a valid image file (PNG, JPG, etc.)');
+      }
+    }
+  };
+
+  const removeSignature = () => {
+    setSignatureFile(null);
+    setSignaturePreview(null);
+    setSuccess('Signature removed');
+    setTimeout(() => setSuccess(null), 3000);
+  };
+
   const startProcessing = async () => {
     if (!uploadedFile || !uploadedDocument) return;
     
@@ -228,7 +263,8 @@ export default function Dashboard() {
         uploadedDocument.id,
         customRules,
         firmDetails,
-        user?.id?.toString() || ''
+        user?.id?.toString() || '',
+        signatureFile || undefined
       );
 
       setProcessingResult(result.processing_result);
@@ -745,6 +781,61 @@ export default function Dashboard() {
                     placeholder="Enter phone number"
                     className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-[#E5E7EB]/40 focus:outline-none focus:border-[#60A5FA]"
                   />
+                </div>
+              </div>
+
+              {/* Signature Upload Section */}
+              <div className="mt-6 pt-6 border-t border-white/10">
+                <h3 className="text-lg font-medium text-white mb-4 flex items-center">
+                  <PenTool className="w-5 h-5 mr-2 text-[#60A5FA]" />
+                  Digital Signature
+                </h3>
+                
+                <div className="space-y-4">
+                  {/* Signature Upload */}
+                  <div>
+                    <label className="block text-sm text-[#E5E7EB]/60 mb-2">Upload Signature Image</label>
+                    <div className="flex items-center space-x-4">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleSignatureUpload}
+                        className="hidden"
+                        id="signature-upload"
+                      />
+                      <label
+                        htmlFor="signature-upload"
+                        className="px-4 py-2 bg-[#60A5FA] text-white rounded-md hover:bg-[#3B82F6] cursor-pointer transition-colors"
+                      >
+                        Choose Signature
+                      </label>
+                      {signatureFile && (
+                        <button
+                          onClick={removeSignature}
+                          className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-[#E5E7EB]/60 mt-1">
+                      Upload a PNG, JPG, or other image format of your signature
+                    </p>
+                  </div>
+
+                  {/* Signature Preview */}
+                  {signaturePreview && (
+                    <div>
+                      <label className="block text-sm text-[#E5E7EB]/60 mb-2">Signature Preview</label>
+                      <div className="border-2 border-dashed border-white/20 rounded-lg p-4 bg-white/5">
+                        <img
+                          src={signaturePreview}
+                          alt="Signature preview"
+                          className="max-h-32 max-w-full object-contain"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

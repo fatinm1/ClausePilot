@@ -1,0 +1,1 @@
+This is a test document for NDA redlining. It contains some sample text that should be processed by the AI system.

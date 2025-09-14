@@ -159,10 +159,11 @@ def process_document(user, document_id):
     if document.user_id != user.id:
         return jsonify({'error': 'Unauthorized'}), 403
     
-    # Get request data for custom rules and firm details
+    # Get request data for custom rules, firm details, and signature
     data = request.get_json() or {}
     custom_rules = data.get('custom_rules', [])
     firm_details = data.get('firm_details', {})
+    signature_path = data.get('signature_path')
     
     # Update status to processing
     document.status = 'processing'
@@ -205,7 +206,7 @@ def process_document(user, document_id):
         # Process document with AI and apply modifications
         # The DocumentProcessor now handles large files automatically
         processor = DocumentProcessor(ai_service)
-        result = processor.process_document(document.file_path, custom_rules, firm_details)
+        result = processor.process_document(document.file_path, custom_rules, firm_details, signature_path)
         
         if not result.get('success'):
             raise Exception(result.get('error', 'Document processing failed'))

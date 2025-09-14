@@ -44,6 +44,10 @@ export default function UserDashboard() {
     email: '',
     phone: ''
   });
+
+  // Signature state
+  const [signatureFile, setSignatureFile] = useState<File | null>(null);
+  const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [processingResult, setProcessingResult] = useState<ProcessingResult | null>(null);
@@ -120,6 +124,36 @@ export default function UserDashboard() {
     } else {
       setError('Please upload a valid .docx file');
     }
+  };
+
+  const handleSignatureUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (file.type.startsWith('image/')) {
+        setSignatureFile(file);
+        
+        // Create preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setSignaturePreview(e.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+        
+        setError(null);
+        setSuccess('Signature uploaded successfully!');
+        setTimeout(() => setSuccess(null), 3000);
+      } else {
+        setError('Please select a valid image file (PNG, JPG, etc.)');
+      }
+    }
+  };
+
+  const removeSignature = () => {
+    setSignatureFile(null);
+    setSignaturePreview(null);
+    setSuccess('Signature removed');
+    setTimeout(() => setSuccess(null), 3000);
   };
 
   const startProcessing = async () => {

@@ -41,12 +41,14 @@ def create_app(config_class=Config):
     from app.routes.documents import documents_bp
     from app.routes.rules import rules_bp
     from app.routes.admin import admin_bp
+    from app.routes.signatures import signatures_bp
     
     app.register_blueprint(health_bp)
     app.register_blueprint(auth_bp, url_prefix='/v1/auth')
     app.register_blueprint(documents_bp, url_prefix='/v1/documents')
     app.register_blueprint(rules_bp, url_prefix='/v1/rules')
     app.register_blueprint(admin_bp, url_prefix='/v1/admin')
+    app.register_blueprint(signatures_bp, url_prefix='/v1/signatures')
     
     # Serve frontend static files
     @app.route('/')

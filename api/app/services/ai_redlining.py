@@ -260,7 +260,7 @@ class DocumentProcessor:
         self.ai_service = ai_service
     
     def process_document(self, doc_path: str, custom_rules: List[Dict[str, Any]], 
-                        firm_details: Dict[str, Any]) -> Dict[str, Any]:
+                        firm_details: Dict[str, Any], signature_path: str = None) -> Dict[str, Any]:
         """
         Process a Word document with AI redlining and return the modified document
         Optimized for large files with memory efficiency
@@ -272,9 +272,9 @@ class DocumentProcessor:
             
             # For large files (>100KB), use chunked processing
             if file_size > 100 * 1024:  # 100KB threshold
-                return self._process_large_document(doc_path, custom_rules, firm_details)
+                return self._process_large_document(doc_path, custom_rules, firm_details, signature_path)
             else:
-                return self._process_small_document(doc_path, custom_rules, firm_details)
+                return self._process_small_document(doc_path, custom_rules, firm_details, signature_path)
             
         except Exception as e:
             logger.error(f"Error processing document: {str(e)}")
@@ -284,7 +284,7 @@ class DocumentProcessor:
             }
     
     def _process_small_document(self, doc_path: str, custom_rules: List[Dict[str, Any]], 
-                               firm_details: Dict[str, Any]) -> Dict[str, Any]:
+                               firm_details: Dict[str, Any], signature_path: str = None) -> Dict[str, Any]:
         """Process small documents (<100KB) using standard method"""
         try:
             # Load the document
@@ -314,6 +314,10 @@ class DocumentProcessor:
             # Apply firm details
             self._apply_firm_details(doc, firm_details)
             
+            # Apply signature if provided
+            if signature_path and os.path.exists(signature_path):
+                self._apply_signature(doc, signature_path)
+            
             # Generate output path
             output_path = self._generate_output_path(doc_path)
             
@@ -338,7 +342,7 @@ class DocumentProcessor:
             }
     
     def _process_large_document(self, doc_path: str, custom_rules: List[Dict[str, Any]], 
-                               firm_details: Dict[str, Any]) -> Dict[str, Any]:
+                               firm_details: Dict[str, Any], signature_path: str = None) -> Dict[str, Any]:
         """Process large documents (>100KB) using memory-efficient chunked method"""
         try:
             logger.info("Processing large document with chunked method")
@@ -369,6 +373,10 @@ class DocumentProcessor:
             
             # Apply firm details
             self._apply_firm_details_chunked(doc, firm_details)
+            
+            # Apply signature if provided
+            if signature_path and os.path.exists(signature_path):
+                self._apply_signature(doc, signature_path)
             
             # Generate output path
             output_path = self._generate_output_path(doc_path)
@@ -682,6 +690,52 @@ class DocumentProcessor:
             if total_paragraphs > 10000:
                 progress = (chunk_end / total_paragraphs) * 100
                 logger.info(f"Firm details progress: {progress:.1f}%")
+    
+    def _apply_signature(self, doc: DocxDocument, signature_path: str):
+        """Apply signature image to the document"""
+        try:
+            from docx.shared import Inches
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            
+            logger.info(f"Applying signature from: {signature_path}")
+            
+            # Find signature placeholder or add signature section
+            signature_added = False
+            
+            # Look for signature placeholders
+            for paragraph in doc.paragraphs:
+                if '[SIGNATURE]' in paragraph.text or 'signature' in paragraph.text.lower():
+                    # Replace placeholder with signature
+                    paragraph.text = paragraph.text.replace('[SIGNATURE]', '')
+                    
+                    # Add signature image
+                    run = paragraph.runs[0] if paragraph.runs else paragraph.add_run()
+                    run.add_picture(signature_path, width=Inches(2.0))
+                    
+                    # Center the signature
+                    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    signature_added = True
+                    break
+            
+            # If no signature placeholder found, add signature at the end
+            if not signature_added:
+                # Add a new paragraph for signature
+                signature_paragraph = doc.add_paragraph()
+                signature_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                
+                # Add signature image
+                signature_paragraph.add_run().add_picture(signature_path, width=Inches(2.0))
+                
+                # Add some spacing
+                doc.add_paragraph()  # Empty line
+                
+                logger.info("Signature added to end of document")
+            
+            logger.info("Signature applied successfully")
+            
+        except Exception as e:
+            logger.error(f"Error applying signature: {str(e)}")
+            # Don't raise exception - signature is optional
     
     def _generate_output_path(self, input_path: str) -> str:
         """Generate output path for the processed document"""
