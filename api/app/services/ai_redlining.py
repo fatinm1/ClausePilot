@@ -35,30 +35,58 @@ class AIRedliningService:
                 # Try to initialize real OpenAI client
                 logger.info("Attempting to initialize OpenAI client with real API key")
                 try:
-                    # Try minimal initialization first
-                    self.client = OpenAI(api_key=api_key)
-                    self.model = "gpt-3.5-turbo"  # Use cheaper model to avoid quota issues
+                    # Clear any proxy environment variables that might interfere
+                    import os
+                    proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy']
+                    original_proxy_values = {}
+                    for var in proxy_vars:
+                        if var in os.environ:
+                            original_proxy_values[var] = os.environ[var]
+                            del os.environ[var]
+                            logger.info(f"Cleared proxy environment variable: {var}")
+                    
+                    # Initialize OpenAI with explicit parameters only
+                    self.client = OpenAI(
+                        api_key=api_key,
+                        timeout=30.0
+                    )
+                    self.model = "gpt-3.5-turbo"
                     logger.info("OpenAI client initialized successfully with real API")
+                    
+                    # Restore proxy environment variables
+                    for var, value in original_proxy_values.items():
+                        os.environ[var] = value
+                        
                 except Exception as init_error:
                     logger.error(f"Error during OpenAI client initialization: {str(init_error)}")
                     logger.error(f"Error type: {type(init_error).__name__}")
-                    # Try alternative initialization with custom HTTP client
+                    logger.error(f"Error details: {repr(init_error)}")
+                    
+                    # Try with httpx client
                     try:
                         import httpx
-                        # Create a custom HTTP client without proxies
+                        logger.info("Trying with custom httpx client")
+                        
+                        # Create httpx client with explicit no-proxy settings
                         custom_http_client = httpx.Client(
                             timeout=30.0,
-                            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)
+                            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+                            proxies=None  # Explicitly set to None
                         )
+                        
                         self.client = OpenAI(
                             api_key=api_key,
                             http_client=custom_http_client
                         )
                         self.model = "gpt-3.5-turbo"
-                        logger.info("OpenAI client initialized with custom HTTP client")
+                        logger.info("OpenAI client initialized with custom httpx client")
+                        
                     except Exception as alt_error:
                         logger.error(f"Alternative initialization with custom HTTP client failed: {str(alt_error)}")
-                        # Fallback to mock mode instead of raising error
+                        logger.error(f"Alternative error type: {type(alt_error).__name__}")
+                        logger.error(f"Alternative error details: {repr(alt_error)}")
+                        
+                        # Fallback to mock mode
                         self.client = None
                         self.model = "mock-gpt-4"
                         logger.info("Falling back to mock mode due to OpenAI initialization errors")
@@ -120,37 +148,58 @@ class AIRedliningService:
         # Apply firm details first if provided
         if firm_details:
             logger.info(f"Applying firm details: {firm_details}")
-            # Replace company name placeholder
-            if 'firm_name' in firm_details:
-                mock_modifications.append({
-                    "type": "TEXT_REPLACE",
-                    "section": "parties",
-                    "current_text": "Company (name to be provided upon execution)",
-                    "new_text": firm_details['firm_name'],
-                    "reason": "Replace company placeholder with actual firm name",
-                    "location_hint": "Parties section"
-                })
             
-            # Replace signer name and title
+            # Look for company name patterns in the document
+            company_patterns = [
+                "Company (name to be provided upon execution)",
+                "For: Company (name to be provided upon execution)",
+                "For: Company",
+                "Company"
+            ]
+            
+            for pattern in company_patterns:
+                if pattern in document_text:
+                    if 'firm_name' in firm_details:
+                        if pattern.startswith("For:"):
+                            new_text = pattern.replace("Company", firm_details['firm_name'])
+                        else:
+                            new_text = f"For: {firm_details['firm_name']}"
+                        
+                        mock_modifications.append({
+                            "type": "TEXT_REPLACE",
+                            "section": "parties",
+                            "current_text": pattern,
+                            "new_text": new_text,
+                            "reason": "Replace company placeholder with actual firm name",
+                            "location_hint": "Parties section"
+                        })
+                        logger.info(f"Found company pattern: '{pattern}' -> '{new_text}'")
+                        break
+            
+            # Look for signature patterns
             if 'signatory_name' in firm_details:
-                mock_modifications.append({
-                    "type": "TEXT_REPLACE",
-                    "section": "signatures",
-                    "current_text": "[SIGNER_NAME]",
-                    "new_text": firm_details['signatory_name'],
-                    "reason": "Replace signer placeholder with actual name",
-                    "location_hint": "Signature block"
-                })
+                if 'By:' in document_text and firm_details['signatory_name'] not in document_text:
+                    mock_modifications.append({
+                        "type": "TEXT_REPLACE",
+                        "section": "signatures",
+                        "current_text": "By:",
+                        "new_text": f"By: {firm_details['signatory_name']}",
+                        "reason": "Replace signer placeholder with actual name",
+                        "location_hint": "Signature block"
+                    })
+                    logger.info(f"Added signer replacement: 'By:' -> 'By: {firm_details['signatory_name']}'")
             
             if 'title' in firm_details:
-                mock_modifications.append({
-                    "type": "TEXT_REPLACE",
-                    "section": "signatures",
-                    "current_text": "[SIGNER_TITLE]",
-                    "new_text": firm_details['title'],
-                    "reason": "Replace title placeholder with actual title",
-                    "location_hint": "Signature block"
-                })
+                if 'Title:' in document_text and firm_details['title'] not in document_text:
+                    mock_modifications.append({
+                        "type": "TEXT_REPLACE",
+                        "section": "signatures",
+                        "current_text": "Title:",
+                        "new_text": f"Title: {firm_details['title']}",
+                        "reason": "Replace title placeholder with actual title",
+                        "location_hint": "Signature block"
+                    })
+                    logger.info(f"Added title replacement: 'Title:' -> 'Title: {firm_details['title']}'")
         
         for rule in custom_rules:
             rule_name = rule.get('name', '').lower()
@@ -183,6 +232,17 @@ class AIRedliningService:
                         })
                         logger.info(f"Found year pattern: {current_pattern} -> {new_pattern}")
                         break
+                else:
+                    # If no specific patterns found, add a generic year modification
+                    logger.info("No specific year patterns found, adding generic modification")
+                    mock_modifications.append({
+                        "type": "TEXT_REPLACE",
+                        "section": "term",
+                        "current_text": "five (5) years",
+                        "new_text": "two (2) years",
+                        "reason": rule_instruction,
+                        "location_hint": "Confidentiality term section"
+                    })
             
             elif 'liability' in rule_name or 'damage' in rule_name:
                 # Add liability cap clause
