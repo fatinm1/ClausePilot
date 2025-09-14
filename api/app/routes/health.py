@@ -34,6 +34,13 @@ def debug_info():
     except Exception as e:
         client_test = f'failed: {str(e)}'
     
+    # Check for proxy-related environment variables
+    proxy_vars = {k: v for k, v in os.environ.items() if 'proxy' in k.lower() or 'PROXY' in k}
+    
+    # Check for any environment variables that might affect OpenAI
+    all_env_vars = dict(os.environ)
+    openai_related_vars = {k: v for k, v in all_env_vars.items() if any(keyword in k.upper() for keyword in ['OPENAI', 'PROXY', 'HTTP', 'HTTPS'])}
+    
     return jsonify({
         'status': 'ok',
         'openai_mode': 'mock' if is_mock_mode else 'real',
@@ -44,5 +51,7 @@ def debug_info():
         'api_key_preview': api_key[:10] if api_key and len(api_key) > 10 else 'N/A',
         'openai_env_vars': openai_vars,
         'client_test': client_test,
+        'proxy_vars': proxy_vars,
+        'openai_related_vars': openai_related_vars,
         'safe_mode': 'Yes - using mock mode for all AI calls'
     })
