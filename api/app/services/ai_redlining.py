@@ -20,20 +20,41 @@ class AIRedliningService:
             logger.info(f"API key length: {len(api_key) if api_key else 0}")
             logger.info(f"API key starts with: {api_key[:10] if api_key and len(api_key) > 10 else 'N/A'}")
             
-            if not api_key or api_key == 'mock-key-for-development':
-                # Use mock mode for development
+            # Check if we should use real API
+            if not api_key:
+                logger.warning("No OpenAI API key found in environment variables")
+                self.client = None
+                self.model = "mock-gpt-4"
+                logger.info("Running in mock mode - no OpenAI API calls will be made")
+            elif api_key == 'mock-key-for-development':
+                logger.info("Mock API key detected")
                 self.client = None
                 self.model = "mock-gpt-4"
                 logger.info("Running in mock mode - no OpenAI API calls will be made")
             else:
+                # Try to initialize real OpenAI client
+                logger.info("Attempting to initialize OpenAI client with real API key")
                 self.client = OpenAI(api_key=api_key)
                 self.model = "gpt-3.5-turbo"  # Use cheaper model to avoid quota issues
-                logger.info("OpenAI client initialized successfully")
+                
+                # Test the API key with a simple call
+                try:
+                    test_response = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[{"role": "user", "content": "Hello"}],
+                        max_tokens=5
+                    )
+                    logger.info("OpenAI API key test successful - real API is working")
+                except Exception as test_error:
+                    logger.error(f"OpenAI API key test failed: {str(test_error)}")
+                    raise test_error
+                
+                logger.info("OpenAI client initialized successfully with real API")
         except Exception as e:
             logger.error(f"Error initializing OpenAI client: {str(e)}")
             self.client = None
             self.model = "mock-gpt-4"
-            logger.info("Falling back to mock mode")
+            logger.info("Falling back to mock mode due to error")
         
     def analyze_document(self, document_text: str, custom_rules: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
