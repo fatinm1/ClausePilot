@@ -72,18 +72,18 @@ class AIRedliningService:
             self.model = "mock-gpt-4"
             logger.info("Falling back to mock mode due to error")
         
-    def analyze_document(self, document_text: str, custom_rules: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def analyze_document(self, document_text: str, custom_rules: List[Dict[str, Any]], firm_details: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Analyze the document using OpenAI GPT-4 and return redlining instructions
         """
         try:
             # Check if we're in mock mode
             if not self.client:
-                return self._mock_analysis(document_text, custom_rules)
+                return self._mock_analysis(document_text, custom_rules, firm_details)
             
             # Prepare the prompt for GPT-4
-            system_prompt = self._build_system_prompt(custom_rules)
-            user_prompt = self._build_user_prompt(document_text, custom_rules)
+            system_prompt = self._build_system_prompt(custom_rules, firm_details)
+            user_prompt = self._build_user_prompt(document_text, custom_rules, firm_details)
             
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -92,7 +92,7 @@ class AIRedliningService:
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.1,  # Low temperature for consistent legal work
-                max_tokens=1000  # Reduced to avoid quota issues
+                max_tokens=2000  # Increased for more detailed responses
             )
             
             # Parse the AI response
@@ -112,7 +112,7 @@ class AIRedliningService:
                 'error': str(e)
             }
     
-    def _mock_analysis(self, document_text: str, custom_rules: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _mock_analysis(self, document_text: str, custom_rules: List[Dict[str, Any]], firm_details: Dict[str, Any] = None) -> Dict[str, Any]:
         """Provide mock analysis for development/testing"""
         logger.info("Running mock AI analysis")
         logger.info(f"Document text length: {len(document_text)} characters")
@@ -120,6 +120,41 @@ class AIRedliningService:
         
         # Create realistic mock redlining instructions based on custom rules
         mock_modifications = []
+        
+        # Apply firm details first if provided
+        if firm_details:
+            logger.info(f"Applying firm details: {firm_details}")
+            # Replace company name placeholder
+            if 'firm_name' in firm_details:
+                mock_modifications.append({
+                    "type": "TEXT_REPLACE",
+                    "section": "parties",
+                    "current_text": "Company (name to be provided upon execution)",
+                    "new_text": firm_details['firm_name'],
+                    "reason": "Replace company placeholder with actual firm name",
+                    "location_hint": "Parties section"
+                })
+            
+            # Replace signer name and title
+            if 'signatory_name' in firm_details:
+                mock_modifications.append({
+                    "type": "TEXT_REPLACE",
+                    "section": "signatures",
+                    "current_text": "[SIGNER_NAME]",
+                    "new_text": firm_details['signatory_name'],
+                    "reason": "Replace signer placeholder with actual name",
+                    "location_hint": "Signature block"
+                })
+            
+            if 'title' in firm_details:
+                mock_modifications.append({
+                    "type": "TEXT_REPLACE",
+                    "section": "signatures",
+                    "current_text": "[SIGNER_TITLE]",
+                    "new_text": firm_details['title'],
+                    "reason": "Replace title placeholder with actual title",
+                    "location_hint": "Signature block"
+                })
         
         for rule in custom_rules:
             rule_name = rule.get('name', '').lower()
@@ -167,7 +202,7 @@ class AIRedliningService:
                 # Look for party name patterns
                 party_patterns = [
                     ('Angle Advisors LLC', 'Welch Capital Partners Inc. (WCP)'),
-                    ('Company', 'Company (name to be provided upon execution)'),
+                    ('Company (name to be provided upon execution)', 'JMC Investment LLC'),
                     ('Recipient', 'JMC Investment LLC (Recipient)'),
                     ('Disclosing Party', 'Welch Capital Partners Inc. (WCP)'),
                     ('Receiving Party', 'JMC Investment LLC (Recipient)')
@@ -201,7 +236,7 @@ class AIRedliningService:
                         "type": "TEXT_REPLACE",
                         "section": "signatures",
                         "current_text": "[SIGNER_NAME]",
-                        "new_text": "Sarah Chen",
+                        "new_text": "John Bagge",
                         "reason": rule_instruction,
                         "location_hint": "Section 11, line 55"
                     })
@@ -210,7 +245,7 @@ class AIRedliningService:
                         "type": "TEXT_REPLACE",
                         "section": "signatures",
                         "current_text": "[SIGNER_TITLE]",
-                        "new_text": "Managing Partner",
+                        "new_text": "Vice President",
                         "reason": rule_instruction,
                         "location_hint": "Section 11, line 56"
                     })
@@ -270,27 +305,30 @@ class AIRedliningService:
             'ai_analysis': f"Mock AI analysis generated {len(mock_modifications)} redlining suggestions based on the provided rules. In production, this would be generated by OpenAI GPT-4."
         }
     
-    def _build_system_prompt(self, custom_rules: List[Dict[str, Any]]) -> str:
+    def _build_system_prompt(self, custom_rules: List[Dict[str, Any]], firm_details: Dict[str, Any] = None) -> str:
         """Build the system prompt for GPT-4"""
         base_prompt = """You are an expert legal AI assistant specializing in NDA (Non-Disclosure Agreement) redlining. 
-        Your task is to analyze NDA documents and provide specific, actionable redlining instructions.
+        Your task is to analyze NDA documents and provide PRECISE, TARGETED redlining instructions.
         
-        You must:
-        1. Identify areas that need modification based on the provided rules
-        2. Provide specific text changes with EXACT text matches from the document
-        3. Ensure all modifications maintain legal validity
-        4. Focus on confidentiality terms, party definitions, liability clauses, and firm details
-        5. Return your response in a structured JSON format
+        CRITICAL INSTRUCTIONS:
+        1. Make ONLY the specific changes requested in the rules - do NOT over-redline
+        2. Use EXACT text matches from the document for current_text
+        3. Focus on the specific areas mentioned in the rules
+        4. Apply firm details exactly as provided
+        5. Be conservative - only change what is explicitly requested
         
-        IMPORTANT: When providing current_text, use the EXACT text as it appears in the document, including punctuation and formatting.
+        REDLINING PRINCIPLES:
+        - Replace specific text with exact matches
+        - Insert new text only where specified
+        - Delete text only when explicitly requested
+        - Maintain legal document structure
+        - Use professional legal language
         
         Available modification types:
-        - TEXT_REPLACE: Replace specific text
+        - TEXT_REPLACE: Replace specific text (most common)
         - TEXT_INSERT: Insert new text at specific locations
         - TEXT_DELETE: Remove specific text
         - CLAUSE_ADD: Add entire new clauses
-        - TERM_MODIFY: Modify time-based terms
-        - PARTY_ADD: Add new parties to definitions
         
         Return your analysis in this exact JSON format:
         {
@@ -298,8 +336,8 @@ class AIRedliningService:
                 {
                     "type": "TEXT_REPLACE",
                     "section": "confidentiality_term",
-                    "current_text": "5 years",
-                    "new_text": "2 years",
+                    "current_text": "five (5) years",
+                    "new_text": "two (2) years",
                     "reason": "Term exceeds maximum allowed duration",
                     "location_hint": "Section 3.1, line 15"
                 }
@@ -309,30 +347,48 @@ class AIRedliningService:
         }"""
         
         if custom_rules:
-            rules_text = "\n\nCustom Rules to Apply:\n"
+            rules_text = "\n\nCUSTOM RULES TO APPLY (follow these exactly):\n"
             for rule in custom_rules:
                 rules_text += f"- {rule['instruction']}\n"
             base_prompt += rules_text
         
+        if firm_details:
+            firm_text = "\n\nFIRM DETAILS TO APPLY:\n"
+            for key, value in firm_details.items():
+                firm_text += f"- {key}: {value}\n"
+            base_prompt += firm_text
+        
         return base_prompt
     
-    def _build_user_prompt(self, document_text: str, custom_rules: List[Dict[str, Any]]) -> str:
+    def _build_user_prompt(self, document_text: str, custom_rules: List[Dict[str, Any]], firm_details: Dict[str, Any] = None) -> str:
         """Build the user prompt with document content"""
-        prompt = f"""Please analyze the following NDA document and provide redlining instructions based on the custom rules.
+        # Use more of the document text for better analysis
+        text_limit = 4000  # Increased from 2000
+        document_preview = document_text[:text_limit]
+        
+        prompt = f"""Please analyze the following NDA document and provide PRECISE redlining instructions based on the custom rules.
 
-Document Content:
-{document_text[:2000]}  # Limit to first 2000 chars to stay within token limits
+DOCUMENT CONTENT:
+{document_preview}
 
-CRITICAL: When providing current_text in your modifications, you MUST copy the EXACT text as it appears in the document above.
-For example, if the document says "five (5) years", your current_text must be "five (5) years", not "5 years" or "five years".
-Look carefully at the exact wording, punctuation, and formatting in the document.
+CRITICAL REQUIREMENTS:
+1. When providing current_text, copy the EXACT text as it appears in the document above
+2. For example, if the document says "five (5) years", your current_text must be "five (5) years", not "5 years" or "five years"
+3. Look carefully at the exact wording, punctuation, and formatting
+4. Make ONLY the changes specified in the rules - be conservative
+5. Focus on the specific areas mentioned in the custom rules
 
-IMPORTANT: Search for these common variations in the document:
+COMMON PATTERNS TO LOOK FOR:
 - "five (5) years" (most common in legal documents)
 - "five years" 
 - "5 years"
 - "five (5) year"
 - "five year"
+- "Company (name to be provided upon execution)"
+- "State of Delaware" or "Delaware"
+- Signature blocks and party definitions
+
+IMPORTANT: Only make the specific changes requested in the custom rules. Do not over-redline or make unnecessary changes.
 
 Please provide your analysis in the specified JSON format."""
 
@@ -399,7 +455,7 @@ class DocumentProcessor:
             document_text = self._extract_document_text(doc)
             
             # Get AI redlining instructions
-            ai_result = self.ai_service.analyze_document(document_text, custom_rules)
+            ai_result = self.ai_service.analyze_document(document_text, custom_rules, firm_details)
             
             if not ai_result['success']:
                 return {
@@ -459,7 +515,7 @@ class DocumentProcessor:
             document_text = self._extract_document_text_chunked(doc)
             
             # Get AI redlining instructions
-            ai_result = self.ai_service.analyze_document(document_text, custom_rules)
+            ai_result = self.ai_service.analyze_document(document_text, custom_rules, firm_details)
             
             if not ai_result['success']:
                 return {
