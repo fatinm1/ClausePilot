@@ -54,6 +54,12 @@ def debug_info():
     all_env_vars = dict(os.environ)
     openai_related_vars = {k: v for k, v in all_env_vars.items() if any(keyword in k.upper() for keyword in ['OPENAI', 'PROXY', 'HTTP', 'HTTPS'])}
     
+    # Check specifically for HTTP proxy environment variables
+    http_proxy_vars = {k: v for k, v in all_env_vars.items() if k.upper() in ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'NO_PROXY', 'no_proxy']}
+    
+    # Check for any environment variables that might be passed to httpx
+    httpx_vars = {k: v for k, v in all_env_vars.items() if 'httpx' in k.lower() or 'HTTPX' in k}
+    
     return jsonify({
         'status': 'ok',
         'openai_mode': 'mock' if is_mock_mode else 'real',
@@ -67,5 +73,7 @@ def debug_info():
         'proxy_vars': proxy_vars,
         'openai_related_vars': openai_related_vars,
         'openai_params': params if 'params' in locals() else 'not_available',
+        'http_proxy_vars': http_proxy_vars,
+        'httpx_vars': httpx_vars,
         'safe_mode': 'Yes - using mock mode for all AI calls'
     })
