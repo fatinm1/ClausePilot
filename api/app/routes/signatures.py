@@ -1,9 +1,28 @@
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
+from functools import wraps
 import os
 import uuid
 from datetime import datetime
-from app.middleware import require_auth
+
+def require_auth(f):
+    """Decorator to require authentication"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Get user ID from header
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify({'error': 'User ID required'}), 401
+        
+        # Create a mock user object for compatibility
+        class MockUser:
+            def __init__(self, user_id):
+                self.id = int(user_id)
+                self.role = 'USER'  # Default role
+        
+        user = MockUser(user_id)
+        return f(user, *args, **kwargs)
+    return decorated_function
 
 signatures_bp = Blueprint('signatures', __name__)
 
