@@ -277,15 +277,26 @@ class AIRedliningService:
                 signature_replacements = []
                 
                 # Look for specific signature patterns in the document
-                if 'For: Company (name to be provided upon execution)' in document_text:
-                    signature_replacements.append({
-                        "type": "TEXT_REPLACE",
-                        "section": "signatures",
-                        "current_text": "For: Company (name to be provided upon execution)",
-                        "new_text": "For: JMC Investment LLC",
-                        "reason": rule_instruction,
-                        "location_hint": "Signature block company name"
-                    })
+                # Try multiple variations of the company placeholder
+                company_patterns = [
+                    "For: Company (name to be provided upon execution)",
+                    "For: Company",
+                    "Company (name to be provided upon execution)",
+                    "Company"
+                ]
+                
+                for pattern in company_patterns:
+                    if pattern in document_text:
+                        signature_replacements.append({
+                            "type": "TEXT_REPLACE",
+                            "section": "signatures",
+                            "current_text": pattern,
+                            "new_text": "For: JMC Investment LLC" if not pattern.startswith("For:") else pattern.replace("Company", "JMC Investment LLC"),
+                            "reason": rule_instruction,
+                            "location_hint": "Signature block company name"
+                        })
+                        logger.info(f"Found company pattern: {pattern}")
+                        break
                 
                 if 'By:' in document_text and 'John Bagge' not in document_text:
                     signature_replacements.append({
@@ -428,15 +439,18 @@ COMMON PATTERNS TO LOOK FOR:
 - "5 years"
 - "five (5) year"
 - "five year"
-- "Company (name to be provided upon execution)"
+- "Company (name to be provided upon execution)" or just "Company"
+- "For: Company" or "For: Company (name to be provided upon execution)"
 - "State of Delaware" or "Delaware"
-- Signature blocks: "By:", "Title:", "For: Company (name to be provided upon execution)"
+- Signature blocks: "By:", "Title:", "For: Company"
 
 SIGNATURE BLOCK HANDLING:
 - ONLY use TEXT_REPLACE for signature blocks - NEVER use TEXT_INSERT
 - Replace "By:" with "By: [Name]" (don't create new lines)
 - Replace "Title:" with "Title: [Title]" (don't create new lines)
-- Replace "For: Company (name to be provided upon execution)" with "For: [Company Name]"
+- Replace "For: Company" with "For: JMC Investment LLC"
+- Replace "Company (name to be provided upon execution)" with "JMC Investment LLC"
+- Replace just "Company" with "JMC Investment LLC" if it's in a "For:" context
 - Do NOT insert new signature blocks or create new fields
 - Do NOT duplicate existing signature lines
 - Find existing placeholders and replace them in place
