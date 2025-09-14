@@ -36,24 +36,6 @@ class AIRedliningService:
                 logger.info("Attempting to initialize OpenAI client with real API key")
                 self.client = OpenAI(api_key=api_key)
                 self.model = "gpt-3.5-turbo"  # Use cheaper model to avoid quota issues
-                
-                # Test the API key with a simple call
-                try:
-                    test_response = self.client.chat.completions.create(
-                        model=self.model,
-                        messages=[{"role": "user", "content": "Hello"}],
-                        max_tokens=5
-                    )
-                    logger.info("OpenAI API key test successful - real API is working")
-                except Exception as test_error:
-                    logger.error(f"OpenAI API key test failed: {str(test_error)}")
-                    logger.error(f"Error type: {type(test_error).__name__}")
-                    # Don't raise the error, just log it and continue with mock mode
-                    logger.warning("Continuing with mock mode due to API test failure")
-                    self.client = None
-                    self.model = "mock-gpt-4"
-                    return
-                
                 logger.info("OpenAI client initialized successfully with real API")
         except Exception as e:
             logger.error(f"Error initializing OpenAI client: {str(e)}")
