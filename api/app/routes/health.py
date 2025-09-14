@@ -23,11 +23,17 @@ def debug_info():
     except Exception as e:
         actual_mode = 'error'
     
+    # Check all environment variables that start with OPENAI
+    openai_vars = {k: v for k, v in os.environ.items() if 'OPENAI' in k.upper()}
+    
     return jsonify({
         'status': 'ok',
         'openai_mode': 'mock' if is_mock_mode else 'real',
         'actual_mode': actual_mode,
         'api_key_set': bool(api_key),
         'api_key_is_mock': api_key == 'mock-key-for-development' if api_key else True,
+        'api_key_length': len(api_key) if api_key else 0,
+        'api_key_preview': api_key[:10] if api_key and len(api_key) > 10 else 'N/A',
+        'openai_env_vars': openai_vars,
         'safe_mode': 'Yes - using mock mode for all AI calls'
     })
