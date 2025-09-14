@@ -26,6 +26,14 @@ def debug_info():
     # Check all environment variables that start with OPENAI
     openai_vars = {k: v for k, v in os.environ.items() if 'OPENAI' in k.upper()}
     
+    # Test if we can create OpenAI client directly
+    try:
+        from openai import OpenAI
+        test_client = OpenAI(api_key=api_key)
+        client_test = 'success'
+    except Exception as e:
+        client_test = f'failed: {str(e)}'
+    
     return jsonify({
         'status': 'ok',
         'openai_mode': 'mock' if is_mock_mode else 'real',
@@ -35,5 +43,6 @@ def debug_info():
         'api_key_length': len(api_key) if api_key else 0,
         'api_key_preview': api_key[:10] if api_key and len(api_key) > 10 else 'N/A',
         'openai_env_vars': openai_vars,
+        'client_test': client_test,
         'safe_mode': 'Yes - using mock mode for all AI calls'
     })
