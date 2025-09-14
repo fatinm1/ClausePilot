@@ -42,21 +42,25 @@ class AIRedliningService:
                 except Exception as init_error:
                     logger.error(f"Error during OpenAI client initialization: {str(init_error)}")
                     logger.error(f"Error type: {type(init_error).__name__}")
-                    # Try alternative initialization with explicit parameters
+                    # Try alternative initialization with custom HTTP client
                     try:
-                        import openai
-                        self.client = openai.OpenAI(
-                            api_key=api_key,
+                        import httpx
+                        # Create a custom HTTP client without proxies
+                        custom_http_client = httpx.Client(
                             timeout=30.0,
-                            max_retries=3
+                            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)
+                        )
+                        self.client = OpenAI(
+                            api_key=api_key,
+                            http_client=custom_http_client
                         )
                         self.model = "gpt-3.5-turbo"
-                        logger.info("OpenAI client initialized with explicit parameters")
+                        logger.info("OpenAI client initialized with custom HTTP client")
                     except Exception as alt_error:
-                        logger.error(f"Alternative initialization also failed: {str(alt_error)}")
+                        logger.error(f"Alternative initialization with custom HTTP client failed: {str(alt_error)}")
                         # Try one more time with just the API key
                         try:
-                            self.client = openai.OpenAI(api_key=api_key)
+                            self.client = OpenAI(api_key=api_key)
                             self.model = "gpt-3.5-turbo"
                             logger.info("OpenAI client initialized with just API key")
                         except Exception as final_error:
