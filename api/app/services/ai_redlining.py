@@ -645,18 +645,10 @@ class DocumentProcessor:
             if old_text in paragraph.text:
                 logger.info(f"Found text to replace in paragraph: {paragraph.text}")
                 
-                # Create a professional redlined version
-                # Replace the text first
-                paragraph.text = paragraph.text.replace(old_text, new_text)
+                # Replace text while preserving formatting
+                self._replace_text_in_paragraph(paragraph, old_text, new_text)
                 logger.info(f"Replaced text. New paragraph: {paragraph.text}")
                 replaced = True
-                
-                # Add professional redlining formatting
-                for run in paragraph.runs:
-                    if new_text in run.text:
-                        # Underline the new text to show it's an addition
-                        run.font.underline = True
-                        run.font.color.rgb = RGBColor(255, 0, 0)  # Red for additions
                     
         if not replaced:
             logger.warning(f"Text '{old_text}' not found in document for replacement")
@@ -676,18 +668,55 @@ class DocumentProcessor:
                 for paragraph in doc.paragraphs:
                     if variation in paragraph.text:
                         logger.info(f"Found variation '{variation}' in paragraph: {paragraph.text}")
-                        paragraph.text = paragraph.text.replace(variation, new_text)
+                        self._replace_text_in_paragraph(paragraph, variation, new_text)
                         logger.info(f"Replaced variation. New paragraph: {paragraph.text}")
                         replaced = True
-                        
-                        # Add professional redlining formatting
-                        for run in paragraph.runs:
-                            if new_text in run.text:
-                                run.font.underline = True
-                                run.font.color.rgb = RGBColor(255, 0, 0)  # Red for additions
                         break
                 if replaced:
                     break
+    
+    def _replace_text_in_paragraph(self, paragraph, old_text: str, new_text: str):
+        """Replace text in a paragraph while preserving formatting"""
+        try:
+            # Find the run containing the text
+            for run in paragraph.runs:
+                if old_text in run.text:
+                    # Replace the text in the run
+                    run.text = run.text.replace(old_text, new_text)
+                    
+                    # Add redlining formatting
+                    run.font.underline = True
+                    run.font.color.rgb = RGBColor(255, 0, 0)  # Red for additions
+                    return True
+            
+            # If not found in individual runs, try paragraph-level replacement
+            if old_text in paragraph.text:
+                # Clear all runs and create new ones
+                paragraph.clear()
+                
+                # Split text around the old_text and create runs
+                parts = paragraph.text.split(old_text)
+                for i, part in enumerate(parts):
+                    if part:  # Add non-empty parts
+                        run = paragraph.add_run(part)
+                        if i > 0:  # This is after a replacement
+                            run.font.underline = True
+                            run.font.color.rgb = RGBColor(255, 0, 0)
+                    
+                    if i < len(parts) - 1:  # Add the new text
+                        run = paragraph.add_run(new_text)
+                        run.font.underline = True
+                        run.font.color.rgb = RGBColor(255, 0, 0)
+                
+                return True
+                
+        except Exception as e:
+            logger.error(f"Error replacing text in paragraph: {str(e)}")
+            # Fallback to simple replacement
+            paragraph.text = paragraph.text.replace(old_text, new_text)
+            return True
+        
+        return False
     
     def _replace_text_chunked(self, doc: DocxDocument, old_text: str, new_text: str):
         """Replace text in large documents with chunked processing for memory efficiency"""
@@ -705,15 +734,9 @@ class DocumentProcessor:
                     if old_text in paragraph.text:
                         logger.info(f"Found text to replace in paragraph {j}: {paragraph.text[:100]}...")
                         
-                        # Replace the text
-                        paragraph.text = paragraph.text.replace(old_text, new_text)
+                        # Replace text while preserving formatting
+                        self._replace_text_in_paragraph(paragraph, old_text, new_text)
                         replaced = True
-                        
-                        # Add professional redlining formatting
-                        for run in paragraph.runs:
-                            if new_text in run.text:
-                                run.font.underline = True
-                                run.font.color.rgb = RGBColor(255, 0, 0)  # Red for additions
                         break
             
             if replaced:
