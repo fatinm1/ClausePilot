@@ -972,33 +972,31 @@ class DocumentProcessor:
                 if 'Signed:' in paragraph.text:
                     logger.info(f"Found 'Signed:' in paragraph: {paragraph.text}")
                     
-                    # Find the run containing "Signed:"
-                    for i, run in enumerate(paragraph.runs):
-                        if 'Signed:' in run.text:
-                            # Split the run at "Signed:"
-                            text_parts = run.text.split('Signed:', 1)
-                            
-                            # Update the run to contain only the text before "Signed:"
-                            run.text = text_parts[0]
-                            
-                            # Add "Signed:" as a new run
-                            signed_run = paragraph.runs[i] if i < len(paragraph.runs) else paragraph.add_run()
-                            signed_run.text = "Signed:"
-                            
-                            # Add signature image right after "Signed:"
-                            signature_run = paragraph.add_run()
-                            signature_run.add_picture(signature_path, width=Inches(1.5))
-                            
-                            # Add any remaining text after "Signed:"
-                            if len(text_parts) > 1 and text_parts[1].strip():
-                                remaining_run = paragraph.add_run(text_parts[1])
-                            
-                            signature_added = True
-                            logger.info("Signature added right after 'Signed:'")
-                            break
+                    # Clear the paragraph and rebuild it with proper signature placement
+                    original_text = paragraph.text
+                    paragraph.clear()
                     
-                    if signature_added:
-                        break
+                    # Split text around "Signed:"
+                    parts = original_text.split('Signed:', 1)
+                    
+                    # Add text before "Signed:"
+                    if parts[0].strip():
+                        before_run = paragraph.add_run(parts[0])
+                    
+                    # Add "Signed:" text
+                    signed_run = paragraph.add_run("Signed: ")
+                    
+                    # Add signature image immediately after "Signed:"
+                    signature_run = paragraph.add_run()
+                    signature_run.add_picture(signature_path, width=Inches(1.2))
+                    
+                    # Add any remaining text after "Signed:"
+                    if len(parts) > 1 and parts[1].strip():
+                        remaining_run = paragraph.add_run(parts[1])
+                    
+                    signature_added = True
+                    logger.info("Signature added right next to 'Signed:' text")
+                    break
             
             # If no "Signed:" found, look for signature placeholders
             if not signature_added:
@@ -1019,14 +1017,13 @@ class DocumentProcessor:
             if not signature_added:
                 # Add a new paragraph for signature
                 signature_paragraph = doc.add_paragraph()
-                signature_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 
                 # Add "Signed:" text
                 signed_run = signature_paragraph.add_run("Signed: ")
                 
-                # Add signature image
+                # Add signature image right next to "Signed:"
                 signature_run = signature_paragraph.add_run()
-                signature_run.add_picture(signature_path, width=Inches(1.5))
+                signature_run.add_picture(signature_path, width=Inches(1.2))
                 
                 signature_added = True
                 logger.info("Signature added at end of document")
