@@ -274,34 +274,44 @@ class AIRedliningService:
             
             elif 'signature' in rule_name or 'block' in rule_name:
                 # Replace signature placeholders instead of inserting new content
-                signature_replacements = [
-                    {
+                signature_replacements = []
+                
+                # Look for specific signature patterns in the document
+                if 'For: Company (name to be provided upon execution)' in document_text:
+                    signature_replacements.append({
                         "type": "TEXT_REPLACE",
                         "section": "signatures",
                         "current_text": "For: Company (name to be provided upon execution)",
                         "new_text": "For: JMC Investment LLC",
                         "reason": rule_instruction,
                         "location_hint": "Signature block company name"
-                    },
-                    {
+                    })
+                
+                if 'By:' in document_text and 'John Bagge' not in document_text:
+                    signature_replacements.append({
                         "type": "TEXT_REPLACE",
                         "section": "signatures",
                         "current_text": "By:",
                         "new_text": "By: John Bagge",
                         "reason": rule_instruction,
                         "location_hint": "Signature block signer name"
-                    },
-                    {
+                    })
+                
+                if 'Title:' in document_text and 'Vice President' not in document_text:
+                    signature_replacements.append({
                         "type": "TEXT_REPLACE",
                         "section": "signatures",
                         "current_text": "Title:",
                         "new_text": "Title: Vice President",
                         "reason": rule_instruction,
                         "location_hint": "Signature block title"
-                    }
-                ]
-                mock_modifications.extend(signature_replacements)
-                logger.info("Added signature block replacements")
+                    })
+                
+                if signature_replacements:
+                    mock_modifications.extend(signature_replacements)
+                    logger.info(f"Added {len(signature_replacements)} signature block replacements")
+                else:
+                    logger.info("No signature placeholders found to replace")
         
         # If no modifications were found, create a generic one based on the first rule
         if not mock_modifications and custom_rules:
@@ -337,7 +347,9 @@ class AIRedliningService:
         4. Apply firm details exactly as provided
         5. Be conservative - only change what is explicitly requested
         6. REPLACE existing placeholders - do NOT create new fields or sections
-        7. For signature blocks, replace "By:" with "By: [Name]", "Title:" with "Title: [Title]", etc.
+        7. For signature blocks, ONLY use TEXT_REPLACE - NEVER use TEXT_INSERT
+        8. Replace "By:" with "By: [Name]", "Title:" with "Title: [Title]", etc.
+        9. Do NOT add new signature lines or duplicate existing ones
         
         REDLINING PRINCIPLES:
         - Replace specific text with exact matches
@@ -362,11 +374,21 @@ class AIRedliningService:
                     "new_text": "two (2) years",
                     "reason": "Term exceeds maximum allowed duration",
                     "location_hint": "Section 3.1, line 15"
+                },
+                {
+                    "type": "TEXT_REPLACE",
+                    "section": "signature_block",
+                    "current_text": "By:",
+                    "new_text": "By: John Bagge",
+                    "reason": "Complete signature block with signer name",
+                    "location_hint": "Signature section"
                 }
             ],
             "summary": "Brief summary of all changes",
             "risk_assessment": "Assessment of any legal risks in modifications"
-        }"""
+        }
+        
+        IMPORTANT: For signature blocks, always use TEXT_REPLACE to fill in existing placeholders. Never use TEXT_INSERT to create new signature fields."""
         
         if custom_rules:
             rules_text = "\n\nCUSTOM RULES TO APPLY (follow these exactly):\n"
@@ -411,10 +433,13 @@ COMMON PATTERNS TO LOOK FOR:
 - Signature blocks: "By:", "Title:", "For: Company (name to be provided upon execution)"
 
 SIGNATURE BLOCK HANDLING:
+- ONLY use TEXT_REPLACE for signature blocks - NEVER use TEXT_INSERT
 - Replace "By:" with "By: [Name]" (don't create new lines)
 - Replace "Title:" with "Title: [Title]" (don't create new lines)
 - Replace "For: Company (name to be provided upon execution)" with "For: [Company Name]"
 - Do NOT insert new signature blocks or create new fields
+- Do NOT duplicate existing signature lines
+- Find existing placeholders and replace them in place
 
 IMPORTANT: Only make the specific changes requested in the custom rules. Do not over-redline or make unnecessary changes.
 
