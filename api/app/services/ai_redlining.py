@@ -58,14 +58,10 @@ class AIRedliningService:
                         logger.info("OpenAI client initialized with custom HTTP client")
                     except Exception as alt_error:
                         logger.error(f"Alternative initialization with custom HTTP client failed: {str(alt_error)}")
-                        # Try one more time with just the API key
-                        try:
-                            self.client = OpenAI(api_key=api_key)
-                            self.model = "gpt-3.5-turbo"
-                            logger.info("OpenAI client initialized with just API key")
-                        except Exception as final_error:
-                            logger.error(f"Final initialization attempt failed: {str(final_error)}")
-                            raise final_error
+                        # Fallback to mock mode instead of raising error
+                        self.client = None
+                        self.model = "mock-gpt-4"
+                        logger.info("Falling back to mock mode due to OpenAI initialization errors")
         except Exception as e:
             logger.error(f"Error initializing OpenAI client: {str(e)}")
             self.client = None
@@ -287,15 +283,21 @@ class AIRedliningService:
                 
                 for pattern in company_patterns:
                     if pattern in document_text:
+                        # Determine the replacement text based on the pattern
+                        if pattern.startswith("For:"):
+                            new_text = pattern.replace("Company", "JMC Investment LLC")
+                        else:
+                            new_text = "For: JMC Investment LLC"
+                        
                         signature_replacements.append({
                             "type": "TEXT_REPLACE",
                             "section": "signatures",
                             "current_text": pattern,
-                            "new_text": "For: JMC Investment LLC" if not pattern.startswith("For:") else pattern.replace("Company", "JMC Investment LLC"),
+                            "new_text": new_text,
                             "reason": rule_instruction,
                             "location_hint": "Signature block company name"
                         })
-                        logger.info(f"Found company pattern: {pattern}")
+                        logger.info(f"Found company pattern: '{pattern}' -> '{new_text}'")
                         break
                 
                 if 'By:' in document_text and 'John Bagge' not in document_text:
