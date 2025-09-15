@@ -807,9 +807,22 @@ class DocumentProcessor:
         replaced = False
         
         # Log first few paragraphs to see what text is actually in the document
-        logger.info("First 5 paragraphs in document:")
-        for i, para in enumerate(doc.paragraphs[:5]):
+        logger.info("First 10 paragraphs in document:")
+        for i, para in enumerate(doc.paragraphs[:10]):
             logger.info(f"Paragraph {i+1}: '{para.text}'")
+        
+        # Also search for common patterns to see what's actually in the document
+        logger.info("Searching for common patterns in document:")
+        common_patterns = ["For:", "Company", "Dear", "NAME", "Title:", "By:"]
+        for pattern in common_patterns:
+            found_paragraphs = []
+            for i, para in enumerate(doc.paragraphs):
+                if pattern.lower() in para.text.lower():
+                    found_paragraphs.append(f"Para {i+1}: '{para.text}'")
+            if found_paragraphs:
+                logger.info(f"Found '{pattern}' in: {found_paragraphs}")
+            else:
+                logger.info(f"'{pattern}' not found in document")
         
         # First, try exact match
         for paragraph in doc.paragraphs:
