@@ -163,9 +163,9 @@ class AIRedliningService:
                 "Company"
             ]
             
-            for pattern in company_patterns:
-                if pattern in document_text:
-                    if 'firm_name' in firm_details:
+            if 'firm_name' in firm_details:
+                for pattern in company_patterns:
+                    if pattern in document_text:
                         if pattern.startswith("For:"):
                             new_text = pattern.replace("Company", firm_details['firm_name'])
                         else:
@@ -181,6 +181,17 @@ class AIRedliningService:
                         })
                         logger.info(f"Found company pattern: '{pattern}' -> '{new_text}'")
                         break
+                else:
+                    # If no patterns found, add a generic company replacement
+                    logger.info("No company patterns found, adding generic company replacement")
+                    mock_modifications.append({
+                        "type": "TEXT_REPLACE",
+                        "section": "parties",
+                        "current_text": "Company",
+                        "new_text": f"For: {firm_details['firm_name']}",
+                        "reason": "Replace company placeholder with actual firm name",
+                        "location_hint": "Parties section"
+                    })
             
             # Look for signature patterns
             if 'signatory_name' in firm_details:
@@ -223,9 +234,12 @@ class AIRedliningService:
                     ('four (4) years', 'two (2) years'),
                     ('4 years', '2 years'),
                     ('ten (10) years', 'two (2) years'),
-                    ('10 years', '2 years')
+                    ('10 years', '2 years'),
+                    ('three years', 'two (2) years'),
+                    ('five years', 'two (2) years')
                 ]
                 
+                found_pattern = False
                 for current_pattern, new_pattern in year_patterns:
                     if current_pattern in document_text.lower():
                         mock_modifications.append({
@@ -237,14 +251,16 @@ class AIRedliningService:
                             "location_hint": "Confidentiality term section"
                         })
                         logger.info(f"Found year pattern: {current_pattern} -> {new_pattern}")
+                        found_pattern = True
                         break
-                else:
+                
+                if not found_pattern:
                     # If no specific patterns found, add a generic year modification
                     logger.info("No specific year patterns found, adding generic modification")
                     mock_modifications.append({
                         "type": "TEXT_REPLACE",
                         "section": "term",
-                        "current_text": "five (5) years",
+                        "current_text": "three years",
                         "new_text": "two (2) years",
                         "reason": rule_instruction,
                         "location_hint": "Confidentiality term section"
