@@ -807,12 +807,12 @@ class DocumentProcessor:
         replaced = False
         
         # Log first few paragraphs to see what text is actually in the document
-        logger.info("First 10 paragraphs in document:")
+        logger.warning("First 10 paragraphs in document:")
         for i, para in enumerate(doc.paragraphs[:10]):
-            logger.info(f"Paragraph {i+1}: '{para.text}'")
+            logger.warning(f"Paragraph {i+1}: '{para.text}'")
         
         # Also search for common patterns to see what's actually in the document
-        logger.info("Searching for common patterns in document:")
+        logger.warning("Searching for common patterns in document:")
         common_patterns = ["For:", "Company", "Dear", "NAME", "Title:", "By:"]
         for pattern in common_patterns:
             found_paragraphs = []
@@ -820,12 +820,12 @@ class DocumentProcessor:
                 if pattern.lower() in para.text.lower():
                     found_paragraphs.append(f"Para {i+1}: '{para.text}'")
             if found_paragraphs:
-                logger.info(f"Found '{pattern}' in: {found_paragraphs}")
+                logger.warning(f"Found '{pattern}' in: {found_paragraphs}")
             else:
-                logger.info(f"'{pattern}' not found in document")
+                logger.warning(f"'{pattern}' not found in document")
         
         # Search for variations of the specific text we're trying to replace
-        logger.info(f"Searching for variations of '{old_text}':")
+        logger.warning(f"Searching for variations of '{old_text}':")
         variations_to_search = [
             old_text,
             old_text.replace(" ", ""),  # No spaces
@@ -839,6 +839,14 @@ class DocumentProcessor:
             "For Company",   # No colon
             "for: company",  # All lowercase
             "FOR: COMPANY",  # All uppercase
+            # Handle multiple whitespace variations
+            "For:  Company",  # Double space
+            "For:   Company", # Triple space
+            "For:    Company", # Quadruple space
+            "For:\tCompany",  # Tab after colon
+            "For: \tCompany", # Space and tab
+            "For:\t Company", # Tab and space
+            "For: \t Company", # Space, tab, space
         ]
         for variation in variations_to_search:
             found_paragraphs = []
@@ -846,18 +854,34 @@ class DocumentProcessor:
                 if variation.lower() in para.text.lower():
                     found_paragraphs.append(f"Para {i+1}: '{para.text}'")
             if found_paragraphs:
-                logger.info(f"Found variation '{variation}' in: {found_paragraphs}")
+                logger.warning(f"Found variation '{variation}' in: {found_paragraphs}")
             else:
-                logger.info(f"Variation '{variation}' not found in document")
+                logger.warning(f"Variation '{variation}' not found in document")
         
         # First, try exact match
         for paragraph in doc.paragraphs:
             if old_text in paragraph.text:
-                logger.info(f"Found exact match in paragraph: {paragraph.text}")
+                logger.warning(f"Found exact match in paragraph: {paragraph.text}")
                 if self._replace_text_in_paragraph(paragraph, old_text, new_text):
-                    logger.info(f"Successfully replaced. New paragraph: {paragraph.text}")
+                    logger.warning(f"Successfully replaced. New paragraph: {paragraph.text}")
                     replaced = True
                     break
+        
+        # If exact match failed, try normalized whitespace matching
+        if not replaced:
+            logger.warning("Trying normalized whitespace matching")
+            import re
+            # Normalize whitespace in the old text (replace multiple spaces/tabs with single space)
+            normalized_old = re.sub(r'\s+', ' ', old_text.strip())
+            for paragraph in doc.paragraphs:
+                # Normalize whitespace in paragraph text
+                normalized_para = re.sub(r'\s+', ' ', paragraph.text.strip())
+                if normalized_old.lower() in normalized_para.lower():
+                    logger.warning(f"Found normalized match in paragraph: {paragraph.text}")
+                    if self._replace_text_in_paragraph(paragraph, old_text, new_text):
+                        logger.warning(f"Successfully replaced with normalized matching. New paragraph: {paragraph.text}")
+                        replaced = True
+                        break
         
         if not replaced:
             logger.warning(f"Exact text '{old_text}' not found, trying variations")
