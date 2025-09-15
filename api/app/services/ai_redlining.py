@@ -62,6 +62,7 @@ class AIRedliningService:
         try:
             # Check if we're in mock mode
             if not self.client:
+                logger.info("Using mock analysis - OpenAI client not available")
                 return self._mock_analysis(document_text, custom_rules, firm_details)
             
             # Prepare the prompt for GPT-4
@@ -372,6 +373,10 @@ class AIRedliningService:
                 "location_hint": "Document beginning"
             })
             logger.info("Added fallback modification")
+        
+        logger.info(f"Mock analysis complete. Generated {len(mock_modifications)} modifications:")
+        for i, mod in enumerate(mock_modifications):
+            logger.info(f"  {i+1}. {mod['type']}: '{mod['current_text']}' -> '{mod['new_text']}'")
         
         return {
             'success': True,
