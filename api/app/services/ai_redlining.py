@@ -35,67 +35,20 @@ class AIRedliningService:
                 # Try to initialize real OpenAI client
                 logger.info("Attempting to initialize OpenAI client with real API key")
                 try:
-                    # Clear any proxy environment variables that might interfere
-                    import os
-                    proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy']
-                    original_proxy_values = {}
-                    for var in proxy_vars:
-                        if var in os.environ:
-                            original_proxy_values[var] = os.environ[var]
-                            del os.environ[var]
-                            logger.info(f"Cleared proxy environment variable: {var}")
-                    
-                    # Also clear any httpx-related environment variables
-                    httpx_vars = [k for k in os.environ.keys() if 'httpx' in k.lower() or 'HTTPX' in k]
-                    for var in httpx_vars:
-                        if var in os.environ:
-                            original_proxy_values[var] = os.environ[var]
-                            del os.environ[var]
-                            logger.info(f"Cleared httpx environment variable: {var}")
-                    
                     # Initialize OpenAI with minimal parameters
                     self.client = OpenAI(api_key=api_key)
                     self.model = "gpt-3.5-turbo"
                     logger.info("OpenAI client initialized successfully with real API")
-                    
-                    # Restore proxy environment variables
-                    for var, value in original_proxy_values.items():
-                        os.environ[var] = value
                         
                 except Exception as init_error:
                     logger.error(f"Error during OpenAI client initialization: {str(init_error)}")
                     logger.error(f"Error type: {type(init_error).__name__}")
                     logger.error(f"Error details: {repr(init_error)}")
                     
-                    # Try with requests-based client
-                    try:
-                        import requests
-                        from openai import OpenAI
-                        logger.info("Trying with requests-based approach")
-                        
-                        # Create a custom session with no proxies
-                        session = requests.Session()
-                        session.proxies = {}
-                        session.trust_env = False
-                        
-                        # Try to create OpenAI client with minimal parameters
-                        self.client = OpenAI(
-                            api_key=api_key,
-                            timeout=30.0,
-                            max_retries=0  # Disable retries to avoid proxy issues
-                        )
-                        self.model = "gpt-3.5-turbo"
-                        logger.info("OpenAI client initialized with requests-based approach")
-                        
-                    except Exception as alt_error:
-                        logger.error(f"Alternative initialization with custom HTTP client failed: {str(alt_error)}")
-                        logger.error(f"Alternative error type: {type(alt_error).__name__}")
-                        logger.error(f"Alternative error details: {repr(alt_error)}")
-                        
-                        # Fallback to mock mode
-                        self.client = None
-                        self.model = "mock-gpt-4"
-                        logger.info("Falling back to mock mode due to OpenAI initialization errors")
+                    # Fallback to mock mode
+                    self.client = None
+                    self.model = "mock-gpt-4"
+                    logger.info("Falling back to mock mode due to OpenAI initialization errors")
         except Exception as e:
             logger.error(f"Error initializing OpenAI client: {str(e)}")
             self.client = None
