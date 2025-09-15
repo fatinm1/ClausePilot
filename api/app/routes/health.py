@@ -53,7 +53,7 @@ def debug_info():
                 original_proxy_values[var] = os.environ[var]
                 del os.environ[var]
         
-        test_client = OpenAI(api_key=api_key, timeout=30.0)
+        test_client = OpenAI(api_key=api_key)
         client_test = 'success'
         
         # Restore proxy environment variables

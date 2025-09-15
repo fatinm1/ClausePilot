@@ -53,11 +53,8 @@ class AIRedliningService:
                             del os.environ[var]
                             logger.info(f"Cleared httpx environment variable: {var}")
                     
-                    # Initialize OpenAI with explicit parameters only
-                    self.client = OpenAI(
-                        api_key=api_key,
-                        timeout=30.0
-                    )
+                    # Initialize OpenAI with minimal parameters
+                    self.client = OpenAI(api_key=api_key)
                     self.model = "gpt-3.5-turbo"
                     logger.info("OpenAI client initialized successfully with real API")
                     
@@ -70,24 +67,25 @@ class AIRedliningService:
                     logger.error(f"Error type: {type(init_error).__name__}")
                     logger.error(f"Error details: {repr(init_error)}")
                     
-                    # Try with httpx client
+                    # Try with requests-based client
                     try:
-                        import httpx
-                        logger.info("Trying with custom httpx client")
+                        import requests
+                        from openai import OpenAI
+                        logger.info("Trying with requests-based approach")
                         
-                        # Create httpx client with explicit no-proxy settings
-                        custom_http_client = httpx.Client(
-                            timeout=30.0,
-                            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
-                            proxies=None  # Explicitly set to None
-                        )
+                        # Create a custom session with no proxies
+                        session = requests.Session()
+                        session.proxies = {}
+                        session.trust_env = False
                         
+                        # Try to create OpenAI client with minimal parameters
                         self.client = OpenAI(
                             api_key=api_key,
-                            http_client=custom_http_client
+                            timeout=30.0,
+                            max_retries=0  # Disable retries to avoid proxy issues
                         )
                         self.model = "gpt-3.5-turbo"
-                        logger.info("OpenAI client initialized with custom httpx client")
+                        logger.info("OpenAI client initialized with requests-based approach")
                         
                     except Exception as alt_error:
                         logger.error(f"Alternative initialization with custom HTTP client failed: {str(alt_error)}")
