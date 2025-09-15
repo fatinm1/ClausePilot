@@ -38,8 +38,28 @@ def debug_info():
         params = list(sig.parameters.keys())
         logger.info(f"OpenAI.__init__ parameters: {params}")
         
-        test_client = OpenAI(api_key=api_key)
+        # Clear proxy environment variables before testing
+        proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy']
+        original_proxy_values = {}
+        for var in proxy_vars:
+            if var in os.environ:
+                original_proxy_values[var] = os.environ[var]
+                del os.environ[var]
+        
+        # Also clear any httpx-related environment variables
+        httpx_vars = [k for k in os.environ.keys() if 'httpx' in k.lower() or 'HTTPX' in k]
+        for var in httpx_vars:
+            if var in os.environ:
+                original_proxy_values[var] = os.environ[var]
+                del os.environ[var]
+        
+        test_client = OpenAI(api_key=api_key, timeout=30.0)
         client_test = 'success'
+        
+        # Restore proxy environment variables
+        for var, value in original_proxy_values.items():
+            os.environ[var] = value
+            
     except Exception as e:
         client_test = f'failed: {str(e)}'
         # Try to get more details about the error

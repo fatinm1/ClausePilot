@@ -37,13 +37,21 @@ class AIRedliningService:
                 try:
                     # Clear any proxy environment variables that might interfere
                     import os
-                    proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy']
+                    proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy']
                     original_proxy_values = {}
                     for var in proxy_vars:
                         if var in os.environ:
                             original_proxy_values[var] = os.environ[var]
                             del os.environ[var]
                             logger.info(f"Cleared proxy environment variable: {var}")
+                    
+                    # Also clear any httpx-related environment variables
+                    httpx_vars = [k for k in os.environ.keys() if 'httpx' in k.lower() or 'HTTPX' in k]
+                    for var in httpx_vars:
+                        if var in os.environ:
+                            original_proxy_values[var] = os.environ[var]
+                            del os.environ[var]
+                            logger.info(f"Cleared httpx environment variable: {var}")
                     
                     # Initialize OpenAI with explicit parameters only
                     self.client = OpenAI(
