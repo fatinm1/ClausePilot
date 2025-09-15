@@ -84,12 +84,16 @@ class AIRedliningService:
             ai_response = response.choices[0].message.content
             logger.info(f"AI Response: {ai_response}")
             logger.info(f"AI Response length: {len(ai_response)} characters")
-            redlining_instructions = self._parse_ai_response(ai_response)
-            logger.info(f"Parsed modifications: {len(redlining_instructions.get('modifications', []))}")
+            modifications = self._parse_ai_response(ai_response)
+            logger.info(f"Parsed modifications: {len(modifications)}")
             
             return {
                 'success': True,
-                'redlining_instructions': redlining_instructions,
+                'redlining_instructions': {
+                    'modifications': modifications,
+                    'summary': f"AI analysis generated {len(modifications)} modifications",
+                    'risk_assessment': "AI-generated risk assessment"
+                },
                 'ai_analysis': ai_response
             }
             
