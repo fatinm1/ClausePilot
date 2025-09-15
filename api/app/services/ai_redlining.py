@@ -418,10 +418,26 @@ class AIRedliningService:
                 {
                     "type": "TEXT_REPLACE",
                     "section": "confidentiality_term",
-                    "current_text": "five (5) years",
+                    "current_text": "three years",
                     "new_text": "two (2) years",
                     "reason": "Term exceeds maximum allowed duration",
-                    "location_hint": "Section 3.1, line 15"
+                    "location_hint": "Term section"
+                },
+                {
+                    "type": "TEXT_REPLACE",
+                    "section": "recipient",
+                    "current_text": "Dear NAME:",
+                    "new_text": "Dear John Bagge:",
+                    "reason": "Replace recipient name placeholder",
+                    "location_hint": "Salutation"
+                },
+                {
+                    "type": "TEXT_REPLACE",
+                    "section": "signature_block",
+                    "current_text": "For: Company",
+                    "new_text": "For: JMC Investment LLC",
+                    "reason": "Replace company name placeholder",
+                    "location_hint": "Signature block"
                 },
                 {
                     "type": "TEXT_REPLACE",
@@ -476,17 +492,33 @@ COMMON PATTERNS TO LOOK FOR:
 - "5 years"
 - "five (5) year"
 - "five year"
+- "three years" or "three (3) years"
 - "Company (name to be provided upon execution)" or just "Company"
 - "For: Company" or "For: Company (name to be provided upon execution)"
+- "Dear NAME:" or "Dear [Name]:" (for recipient names)
 - "State of Delaware" or "Delaware"
 - Signature blocks: "By:", "Title:", "For: Company"
 
+CRITICAL: When replacing text, use the EXACT text as it appears in the document.
+For example:
+- If document says "For: Company", replace with "For: JMC Investment LLC"
+- If document says "Dear NAME:", replace with "Dear John Bagge:"
+- If document says "three years", replace with "two (2) years"
+
+SPECIFIC REPLACEMENTS NEEDED:
+- Replace "NAME" in "Dear NAME:" with "John Bagge" → "Dear John Bagge:"
+- Replace "Company" in "For: Company" with "JMC Investment LLC" → "For: JMC Investment LLC"
+- Replace "three years" with "two (2) years"
+- Replace "By:" with "By: John Bagge"
+- Replace "Title:" with "Title: Vice President"
+
 SIGNATURE BLOCK HANDLING:
 - ONLY use TEXT_REPLACE for signature blocks - NEVER use TEXT_INSERT
-- Replace "By:" with "By: [Name]" (don't create new lines)
-- Replace "Title:" with "Title: [Title]" (don't create new lines)
+- Replace "By:" with "By: John Bagge" (don't create new lines)
+- Replace "Title:" with "Title: Vice President" (don't create new lines)
 - Replace "For: Company" with "For: JMC Investment LLC"
 - Replace "Company (name to be provided upon execution)" with "JMC Investment LLC"
+- Replace "Dear NAME:" with "Dear John Bagge:"
 - Replace just "Company" with "JMC Investment LLC" if it's in a "For:" context
 - Do NOT insert new signature blocks or create new fields
 - Do NOT duplicate existing signature lines
