@@ -61,8 +61,10 @@ class AIRedliningService:
         """
         try:
             # Check if we're in mock mode
+            logger.warning(f"AI Service - Client available: {self.client is not None}")
+            logger.warning(f"AI Service - Model: {self.model}")
             if not self.client:
-                logger.info("Using mock analysis - OpenAI client not available")
+                logger.warning("Using mock analysis - OpenAI client not available")
                 return self._mock_analysis(document_text, custom_rules, firm_details)
             
             # Prepare the prompt for GPT-4
