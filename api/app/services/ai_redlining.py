@@ -66,6 +66,7 @@ class AIRedliningService:
                 return self._mock_analysis(document_text, custom_rules, firm_details)
             
             # Prepare the prompt for GPT-4
+            logger.info("Using REAL OpenAI API for analysis")
             system_prompt = self._build_system_prompt(custom_rules, firm_details)
             user_prompt = self._build_user_prompt(document_text, custom_rules, firm_details)
             
@@ -81,7 +82,10 @@ class AIRedliningService:
             
             # Parse the AI response
             ai_response = response.choices[0].message.content
+            logger.info(f"AI Response: {ai_response}")
+            logger.info(f"AI Response length: {len(ai_response)} characters")
             redlining_instructions = self._parse_ai_response(ai_response)
+            logger.info(f"Parsed modifications: {len(redlining_instructions.get('modifications', []))}")
             
             return {
                 'success': True,
