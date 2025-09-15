@@ -611,6 +611,11 @@ class DocumentProcessor:
             if isinstance(modifications, dict) and 'modifications' in modifications:
                 modifications = modifications['modifications']
             
+            logger.info(f"AI generated {len(modifications) if modifications else 0} modifications")
+            if modifications:
+                for i, mod in enumerate(modifications):
+                    logger.info(f"Modification {i+1}: {mod}")
+            
             # Apply modifications if we have any
             if modifications:
                 self._apply_modifications(doc, modifications)
@@ -782,6 +787,7 @@ class DocumentProcessor:
     def _replace_text(self, doc: DocxDocument, old_text: str, new_text: str):
         """Replace text in the document with professional redlining"""
         logger.info(f"Attempting to replace '{old_text}' with '{new_text}'")
+        logger.info(f"Document has {len(doc.paragraphs)} paragraphs")
         replaced = False
         
         # First, try exact match
