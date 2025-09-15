@@ -201,7 +201,10 @@ def process_document(user, document_id):
         from app.services.ai_redlining import AIRedliningService, DocumentProcessor
         
         # Initialize AI service
+        logger.warning("Initializing AI service for document processing...")
         ai_service = AIRedliningService()
+        logger.warning(f"AI service initialized - Client available: {ai_service.client is not None}")
+        logger.warning(f"AI service model: {ai_service.model}")
         
         # Process document with AI and apply modifications
         # The DocumentProcessor now handles large files automatically
