@@ -824,6 +824,32 @@ class DocumentProcessor:
             else:
                 logger.info(f"'{pattern}' not found in document")
         
+        # Search for variations of the specific text we're trying to replace
+        logger.info(f"Searching for variations of '{old_text}':")
+        variations_to_search = [
+            old_text,
+            old_text.replace(" ", ""),  # No spaces
+            old_text.replace(":", ""),  # No colon
+            old_text.lower(),           # Lowercase
+            old_text.upper(),           # Uppercase
+            old_text.replace("Company", "Comapny"),  # Common typo
+            old_text.replace("Company", "company"),  # Case variation
+            "For: Company",  # Common pattern
+            "For:Company",   # No space after colon
+            "For Company",   # No colon
+            "for: company",  # All lowercase
+            "FOR: COMPANY",  # All uppercase
+        ]
+        for variation in variations_to_search:
+            found_paragraphs = []
+            for i, para in enumerate(doc.paragraphs):
+                if variation.lower() in para.text.lower():
+                    found_paragraphs.append(f"Para {i+1}: '{para.text}'")
+            if found_paragraphs:
+                logger.info(f"Found variation '{variation}' in: {found_paragraphs}")
+            else:
+                logger.info(f"Variation '{variation}' not found in document")
+        
         # First, try exact match
         for paragraph in doc.paragraphs:
             if old_text in paragraph.text:
