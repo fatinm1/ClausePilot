@@ -506,11 +506,18 @@ For example:
 - If document says "three years", replace with "two (2) years"
 
 SPECIFIC REPLACEMENTS NEEDED:
-- Replace "NAME" in "Dear NAME:" with "John Bagge" → "Dear John Bagge:"
-- Replace "Company" in "For: Company" with "JMC Investment LLC" → "For: JMC Investment LLC"
+- Replace "Dear NAME:" with "Dear John Bagge:" (replace entire phrase)
+- Replace "For: Company" with "For: JMC Investment LLC" (replace entire phrase)
 - Replace "three years" with "two (2) years"
 - Replace "By:" with "By: John Bagge"
 - Replace "Title:" with "Title: Vice President"
+
+IMPORTANT: Use the FULL PHRASE as current_text, not just the placeholder word.
+For example:
+- Use "Dear NAME:" not just "NAME"
+- Use "For: Company" not just "Company"
+- Use "By:" not just "By"
+- Use "Title:" not just "Title"
 
 SIGNATURE BLOCK HANDLING:
 - ONLY use TEXT_REPLACE for signature blocks - NEVER use TEXT_INSERT
@@ -804,7 +811,11 @@ class DocumentProcessor:
                 "Company",
                 "For: Company",
                 "Company (name to be provided upon execution)",
-                "For: Company (name to be provided upon execution)"
+                "For: Company (name to be provided upon execution)",
+                # Additional variations for better matching
+                "For: " + old_text,
+                old_text + " (name to be provided upon execution)",
+                "For: " + old_text + " (name to be provided upon execution)"
             ]
             
             for variation in variations:
