@@ -770,7 +770,9 @@ class DocumentProcessor:
                 old_text.replace("For: ", ""),
                 old_text.replace("Company (name to be provided upon execution)", "Company"),
                 "Company",
-                "For: Company"
+                "For: Company",
+                "Company (name to be provided upon execution)",
+                "For: Company (name to be provided upon execution)"
             ]
             
             for variation in variations:
@@ -784,6 +786,17 @@ class DocumentProcessor:
                                 break
                     if replaced:
                         break
+            
+            # If still not found, try case-insensitive search
+            if not replaced:
+                logger.info("Trying case-insensitive search")
+                for paragraph in doc.paragraphs:
+                    if old_text.lower() in paragraph.text.lower():
+                        logger.info(f"Found case-insensitive match in paragraph: {paragraph.text}")
+                        if self._replace_text_in_paragraph(paragraph, old_text, new_text):
+                            logger.info(f"Successfully replaced case-insensitive. New paragraph: {paragraph.text}")
+                            replaced = True
+                            break
         
         if not replaced:
             logger.error(f"Failed to replace '{old_text}' with '{new_text}' - no matches found")
