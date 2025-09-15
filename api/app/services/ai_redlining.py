@@ -878,10 +878,24 @@ class DocumentProcessor:
                 normalized_para = re.sub(r'\s+', ' ', paragraph.text.strip())
                 if normalized_old.lower() in normalized_para.lower():
                     logger.warning(f"Found normalized match in paragraph: {paragraph.text}")
-                    if self._replace_text_in_paragraph(paragraph, old_text, new_text):
-                        logger.warning(f"Successfully replaced with normalized matching. New paragraph: {paragraph.text}")
-                        replaced = True
-                        break
+                    # Try to find the actual text in the paragraph and replace it
+                    if old_text in paragraph.text:
+                        if self._replace_text_in_paragraph(paragraph, old_text, new_text):
+                            logger.warning(f"Successfully replaced with normalized matching. New paragraph: {paragraph.text}")
+                            replaced = True
+                            break
+                    else:
+                        # If exact text not found, try to find and replace the normalized version
+                        # Find the actual text pattern in the paragraph
+                        for variation in variations_to_search:
+                            if variation in paragraph.text:
+                                logger.warning(f"Found variation '{variation}' in paragraph, replacing with '{new_text}'")
+                                if self._replace_text_in_paragraph(paragraph, variation, new_text):
+                                    logger.warning(f"Successfully replaced variation. New paragraph: {paragraph.text}")
+                                    replaced = True
+                                    break
+                        if replaced:
+                            break
         
         if not replaced:
             logger.warning(f"Exact text '{old_text}' not found, trying variations")
