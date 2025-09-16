@@ -76,5 +76,5 @@ def debug_info():
         'openai_params': params if 'params' in locals() else 'not_available',
         'http_proxy_vars': http_proxy_vars,
         'httpx_vars': httpx_vars,
-        'safe_mode': 'Yes - using mock mode for all AI calls'
+        'safe_mode': 'Yes - using mock mode for all AI calls' if actual_mode == 'mock' else 'No - using real OpenAI API'
     })

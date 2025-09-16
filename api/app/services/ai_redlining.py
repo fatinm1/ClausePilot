@@ -25,35 +25,44 @@ class AIRedliningService:
                 logger.warning("No OpenAI API key found in environment variables")
                 self.client = None
                 self.model = "mock-gpt-4"
-                logger.info("Running in mock mode - no OpenAI API calls will be made")
+                logger.warning("Running in mock mode - no OpenAI API calls will be made")
             elif api_key == 'mock-key-for-development':
-                logger.info("Mock API key detected")
+                logger.warning("Mock API key detected")
                 self.client = None
                 self.model = "mock-gpt-4"
-                logger.info("Running in mock mode - no OpenAI API calls will be made")
+                logger.warning("Running in mock mode - no OpenAI API calls will be made")
             else:
                 # Try to initialize real OpenAI client
-                logger.info("Attempting to initialize OpenAI client with real API key")
+                logger.warning("Attempting to initialize OpenAI client with real API key")
+                logger.warning(f"API key length: {len(api_key)}")
+                logger.warning(f"API key starts with: {api_key[:10]}")
+                
                 try:
                     # Initialize OpenAI with minimal parameters
+                    logger.warning("Creating OpenAI client...")
                     self.client = OpenAI(api_key=api_key)
                     self.model = "gpt-3.5-turbo"
-                    logger.info("OpenAI client initialized successfully with real API")
+                    logger.warning("OpenAI client initialized successfully with real API")
                         
                 except Exception as init_error:
                     logger.error(f"Error during OpenAI client initialization: {str(init_error)}")
                     logger.error(f"Error type: {type(init_error).__name__}")
                     logger.error(f"Error details: {repr(init_error)}")
+                    import traceback
+                    logger.error(f"Traceback: {traceback.format_exc()}")
                     
                     # Fallback to mock mode
                     self.client = None
                     self.model = "mock-gpt-4"
-                    logger.info("Falling back to mock mode due to OpenAI initialization errors")
+                    logger.warning("Falling back to mock mode due to OpenAI initialization errors")
         except Exception as e:
             logger.error(f"Error initializing OpenAI client: {str(e)}")
+            logger.error(f"Error type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             self.client = None
             self.model = "mock-gpt-4"
-            logger.info("Falling back to mock mode due to error")
+            logger.warning("Falling back to mock mode due to error")
         
     def analyze_document(self, document_text: str, custom_rules: List[Dict[str, Any]], firm_details: Dict[str, Any] = None) -> Dict[str, Any]:
         """
