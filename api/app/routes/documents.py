@@ -229,8 +229,16 @@ def process_document(user, document_id):
         
         # Process document with AI and apply modifications
         # The DocumentProcessor now handles large files automatically
+        logger.warning("Creating DocumentProcessor with AI service")
+        logger.warning(f"AI service client available: {ai_service.client is not None}")
+        logger.warning(f"AI service model: {ai_service.model}")
+        
         processor = DocumentProcessor(ai_service)
+        logger.warning("DocumentProcessor created successfully")
+        
+        logger.warning("Starting document processing...")
         result = processor.process_document(document.file_path, custom_rules, firm_details, signature_path)
+        logger.warning(f"Document processing completed. Result: {result}")
         
         if not result.get('success'):
             raise Exception(result.get('error', 'Document processing failed'))
