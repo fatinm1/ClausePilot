@@ -121,44 +121,48 @@ class AIRedliningService:
             logger.warning(f"Firm details keys: {list(firm_details.keys())}")
             if 'title' in firm_details:
                 logger.warning(f"Title from firm details: '{firm_details['title']}'")
-            
-            # Look for company name patterns in the document
-            company_patterns = [
-                "Company (name to be provided upon execution)",
-                "For: Company (name to be provided upon execution)",
-                "For: Company",
-                "Company"
-            ]
-            
-            if 'firm_name' in firm_details:
-                for pattern in company_patterns:
-                    if pattern in document_text:
-                        if pattern.startswith("For:"):
-                            new_text = pattern.replace("Company", firm_details['firm_name'])
-                        else:
-                            new_text = f"For: {firm_details['firm_name']}"
-                        
-                        mock_modifications.append({
-                            "type": "TEXT_REPLACE",
-                            "section": "parties",
-                            "current_text": pattern,
-                            "new_text": new_text,
-                            "reason": "Replace company placeholder with actual firm name",
-                            "location_hint": "Parties section"
-                        })
-                        logger.info(f"Found company pattern: '{pattern}' -> '{new_text}'")
-                        break
-                else:
-                    # If no patterns found, add a generic company replacement
-                    logger.info("No company patterns found, adding generic company replacement")
+            else:
+                logger.warning("No 'title' key in firm details")
+        else:
+            logger.warning("No firm details provided to mock analysis")
+        
+        # Look for company name patterns in the document
+        company_patterns = [
+            "Company (name to be provided upon execution)",
+            "For: Company (name to be provided upon execution)",
+            "For: Company",
+            "Company"
+        ]
+        
+        if firm_details and 'firm_name' in firm_details:
+            for pattern in company_patterns:
+                if pattern in document_text:
+                    if pattern.startswith("For:"):
+                        new_text = pattern.replace("Company", firm_details['firm_name'])
+                    else:
+                        new_text = f"For: {firm_details['firm_name']}"
+                    
                     mock_modifications.append({
                         "type": "TEXT_REPLACE",
                         "section": "parties",
-                        "current_text": "Company",
-                        "new_text": f"For: {firm_details['firm_name']}",
+                        "current_text": pattern,
+                        "new_text": new_text,
                         "reason": "Replace company placeholder with actual firm name",
                         "location_hint": "Parties section"
                     })
+                    logger.info(f"Found company pattern: '{pattern}' -> '{new_text}'")
+                    break
+            else:
+                # If no patterns found, add a generic company replacement
+                logger.info("No company patterns found, adding generic company replacement")
+                mock_modifications.append({
+                    "type": "TEXT_REPLACE",
+                    "section": "parties",
+                    "current_text": "Company",
+                    "new_text": f"For: {firm_details['firm_name']}",
+                    "reason": "Replace company placeholder with actual firm name",
+                    "location_hint": "Parties section"
+                })
             
             # Look for signature patterns
             if 'signatory_name' in firm_details:
