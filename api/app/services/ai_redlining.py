@@ -137,6 +137,16 @@ class AIRedliningService:
         else:
             logger.warning("No firm details provided to mock analysis")
         
+        # Check if title field exists in document
+        if 'Title:' in document_text:
+            logger.warning("Found 'Title:' in document text")
+            if 'Title: \t_______________________________' in document_text:
+                logger.warning("Found 'Title: \t_______________________________' pattern in document")
+            else:
+                logger.warning("'Title: \t_______________________________' pattern not found in document")
+        else:
+            logger.warning("'Title:' not found in document text")
+        
         # Look for company name patterns in the document
         company_patterns = [
             "Company (name to be provided upon execution)",
@@ -189,6 +199,7 @@ class AIRedliningService:
                     logger.info(f"Added signer replacement: 'By:' -> 'By: {firm_details['signatory_name']}'")
             
             if 'title' in firm_details:
+                logger.warning(f"Processing title field: '{firm_details['title']}'")
                 # Look for Title: with various formatting patterns
                 title_patterns = [
                     "Title: \t_______________________________",
@@ -219,6 +230,8 @@ class AIRedliningService:
                             logger.warning(f"Title '{firm_details['title']}' already in document, skipping replacement")
                     else:
                         logger.warning(f"Title pattern '{title_pattern}' not found in document")
+            else:
+                logger.warning("No 'title' key in firm_details, skipping title replacement")
         
         for rule in custom_rules:
             rule_name = rule.get('name', '').lower()
