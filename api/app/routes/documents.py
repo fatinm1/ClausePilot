@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import logging
 from datetime import datetime
@@ -201,8 +202,6 @@ def process_document(user, document_id):
         from app.services.ai_redlining import AIRedliningService, DocumentProcessor
         
         # Initialize AI service
-        import os
-        import sys
         logger.warning("Initializing AI service for document processing...")
         logger.warning(f"Current working directory: {os.getcwd()}")
         logger.warning(f"Python path: {sys.path[:3]}...")
