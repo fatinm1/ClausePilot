@@ -117,7 +117,10 @@ class AIRedliningService:
         
         # Apply firm details first if provided
         if firm_details:
-            logger.info(f"Applying firm details: {firm_details}")
+            logger.warning(f"Applying firm details: {firm_details}")
+            logger.warning(f"Firm details keys: {list(firm_details.keys())}")
+            if 'title' in firm_details:
+                logger.warning(f"Title from firm details: '{firm_details['title']}'")
             
             # Look for company name patterns in the document
             company_patterns = [
@@ -182,17 +185,25 @@ class AIRedliningService:
                 ]
                 
                 for title_pattern in title_patterns:
-                    if title_pattern in document_text and firm_details['title'] not in document_text:
-                        mock_modifications.append({
-                            "type": "TEXT_REPLACE",
-                            "section": "signatures",
-                            "current_text": title_pattern,
-                            "new_text": f"Title: {firm_details['title']}",
-                            "reason": "Replace title placeholder with actual title",
-                            "location_hint": "Signature block"
-                        })
-                        logger.info(f"Found title pattern: '{title_pattern}' -> 'Title: {firm_details['title']}'")
-                        break
+                    logger.warning(f"Checking title pattern: '{title_pattern}'")
+                    if title_pattern in document_text:
+                        logger.warning(f"Found title pattern '{title_pattern}' in document")
+                        if firm_details['title'] not in document_text:
+                            logger.warning(f"Title '{firm_details['title']}' not in document, adding replacement")
+                            mock_modifications.append({
+                                "type": "TEXT_REPLACE",
+                                "section": "signatures",
+                                "current_text": title_pattern,
+                                "new_text": f"Title: {firm_details['title']}",
+                                "reason": "Replace title placeholder with actual title",
+                                "location_hint": "Signature block"
+                            })
+                            logger.warning(f"Added title replacement: '{title_pattern}' -> 'Title: {firm_details['title']}'")
+                            break
+                        else:
+                            logger.warning(f"Title '{firm_details['title']}' already in document, skipping replacement")
+                    else:
+                        logger.warning(f"Title pattern '{title_pattern}' not found in document")
         
         for rule in custom_rules:
             rule_name = rule.get('name', '').lower()
@@ -379,17 +390,25 @@ class AIRedliningService:
                 ]
                 
                 for title_pattern in title_patterns:
-                    if title_pattern in document_text and 'Vice President' not in document_text:
-                        signature_replacements.append({
-                            "type": "TEXT_REPLACE",
-                            "section": "signatures",
-                            "current_text": title_pattern,
-                            "new_text": "Title: Vice President",
-                            "reason": rule_instruction,
-                            "location_hint": "Signature block title"
-                        })
-                        logger.info(f"Found title pattern: '{title_pattern}' -> 'Title: Vice President'")
-                        break
+                    logger.warning(f"Checking rule title pattern: '{title_pattern}'")
+                    if title_pattern in document_text:
+                        logger.warning(f"Found rule title pattern '{title_pattern}' in document")
+                        if 'Vice President' not in document_text:
+                            logger.warning(f"'Vice President' not in document, adding replacement")
+                            signature_replacements.append({
+                                "type": "TEXT_REPLACE",
+                                "section": "signatures",
+                                "current_text": title_pattern,
+                                "new_text": "Title: Vice President",
+                                "reason": rule_instruction,
+                                "location_hint": "Signature block title"
+                            })
+                            logger.warning(f"Added rule title replacement: '{title_pattern}' -> 'Title: Vice President'")
+                            break
+                        else:
+                            logger.warning(f"'Vice President' already in document, skipping replacement")
+                    else:
+                        logger.warning(f"Rule title pattern '{title_pattern}' not found in document")
                 
                 if signature_replacements:
                     mock_modifications.extend(signature_replacements)
