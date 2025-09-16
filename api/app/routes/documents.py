@@ -202,9 +202,20 @@ def process_document(user, document_id):
         
         # Initialize AI service
         logger.warning("Initializing AI service for document processing...")
-        ai_service = AIRedliningService()
-        logger.warning(f"AI service initialized - Client available: {ai_service.client is not None}")
-        logger.warning(f"AI service model: {ai_service.model}")
+        try:
+            ai_service = AIRedliningService()
+            logger.warning(f"AI service initialized - Client available: {ai_service.client is not None}")
+            logger.warning(f"AI service model: {ai_service.model}")
+            if ai_service.client is None:
+                logger.warning("AI service client is None - will use mock mode")
+            else:
+                logger.warning("AI service client is available - will use real OpenAI API")
+        except Exception as e:
+            logger.error(f"Error creating AI service: {str(e)}")
+            logger.error(f"Error type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return jsonify({"error": f"Error initializing AI service: {str(e)}"}), 500
         
         # Process document with AI and apply modifications
         # The DocumentProcessor now handles large files automatically
