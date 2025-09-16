@@ -77,21 +77,34 @@ class AIRedliningService:
                 return self._mock_analysis(document_text, custom_rules, firm_details)
             else:
                 logger.warning("Using REAL OpenAI API - client is available")
+                logger.warning(f"Client type: {type(self.client)}")
+                logger.warning(f"Client attributes: {dir(self.client)}")
             
             # Prepare the prompt for GPT-4
             logger.info("Using REAL OpenAI API for analysis")
             system_prompt = self._build_system_prompt(custom_rules, firm_details)
             user_prompt = self._build_user_prompt(document_text, custom_rules, firm_details)
             
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=0.1,  # Low temperature for consistent legal work
-                max_tokens=2000  # Increased for more detailed responses
-            )
+            logger.warning("Making OpenAI API call...")
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=0.1,  # Low temperature for consistent legal work
+                    max_tokens=2000  # Increased for more detailed responses
+                )
+                logger.warning("OpenAI API call successful")
+            except Exception as api_error:
+                logger.error(f"OpenAI API call failed: {str(api_error)}")
+                logger.error(f"API error type: {type(api_error).__name__}")
+                import traceback
+                logger.error(f"API error traceback: {traceback.format_exc()}")
+                # Fall back to mock analysis
+                logger.warning("Falling back to mock analysis due to API error")
+                return self._mock_analysis(document_text, custom_rules, firm_details)
             
             # Parse the AI response
             ai_response = response.choices[0].message.content
