@@ -75,6 +75,8 @@ class AIRedliningService:
             if not self.client:
                 logger.warning("Using mock analysis - OpenAI client not available")
                 return self._mock_analysis(document_text, custom_rules, firm_details)
+            else:
+                logger.warning("Using REAL OpenAI API - client is available")
             
             # Prepare the prompt for GPT-4
             logger.info("Using REAL OpenAI API for analysis")
