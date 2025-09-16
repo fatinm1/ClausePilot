@@ -171,16 +171,28 @@ class AIRedliningService:
                     logger.info(f"Added signer replacement: 'By:' -> 'By: {firm_details['signatory_name']}'")
             
             if 'title' in firm_details:
-                if 'Title:' in document_text and firm_details['title'] not in document_text:
-                    mock_modifications.append({
-                        "type": "TEXT_REPLACE",
-                        "section": "signatures",
-                        "current_text": "Title:",
-                        "new_text": f"Title: {firm_details['title']}",
-                        "reason": "Replace title placeholder with actual title",
-                        "location_hint": "Signature block"
-                    })
-                    logger.info(f"Added title replacement: 'Title:' -> 'Title: {firm_details['title']}'")
+                # Look for Title: with various formatting patterns
+                title_patterns = [
+                    "Title: \t_______________________________",
+                    "Title:\t_______________________________",
+                    "Title:_______________________________",
+                    "Title:",
+                    "Title: \t",
+                    "Title:\t"
+                ]
+                
+                for title_pattern in title_patterns:
+                    if title_pattern in document_text and firm_details['title'] not in document_text:
+                        mock_modifications.append({
+                            "type": "TEXT_REPLACE",
+                            "section": "signatures",
+                            "current_text": title_pattern,
+                            "new_text": f"Title: {firm_details['title']}",
+                            "reason": "Replace title placeholder with actual title",
+                            "location_hint": "Signature block"
+                        })
+                        logger.info(f"Found title pattern: '{title_pattern}' -> 'Title: {firm_details['title']}'")
+                        break
         
         for rule in custom_rules:
             rule_name = rule.get('name', '').lower()
@@ -356,15 +368,28 @@ class AIRedliningService:
                         "location_hint": "Signature block signer name"
                     })
                 
-                if 'Title:' in document_text and 'Vice President' not in document_text:
-                    signature_replacements.append({
-                        "type": "TEXT_REPLACE",
-                        "section": "signatures",
-                        "current_text": "Title:",
-                        "new_text": "Title: Vice President",
-                        "reason": rule_instruction,
-                        "location_hint": "Signature block title"
-                    })
+                # Look for Title: with various formatting patterns
+                title_patterns = [
+                    "Title: \t_______________________________",
+                    "Title:\t_______________________________",
+                    "Title:_______________________________",
+                    "Title:",
+                    "Title: \t",
+                    "Title:\t"
+                ]
+                
+                for title_pattern in title_patterns:
+                    if title_pattern in document_text and 'Vice President' not in document_text:
+                        signature_replacements.append({
+                            "type": "TEXT_REPLACE",
+                            "section": "signatures",
+                            "current_text": title_pattern,
+                            "new_text": "Title: Vice President",
+                            "reason": rule_instruction,
+                            "location_hint": "Signature block title"
+                        })
+                        logger.info(f"Found title pattern: '{title_pattern}' -> 'Title: Vice President'")
+                        break
                 
                 if signature_replacements:
                     mock_modifications.extend(signature_replacements)
@@ -501,18 +526,19 @@ CRITICAL REQUIREMENTS:
 4. Make ONLY the changes specified in the rules - be conservative
 5. Focus on the specific areas mentioned in the custom rules
 
-COMMON PATTERNS TO LOOK FOR:
-- "five (5) years" (most common in legal documents)
-- "five years" 
-- "5 years"
-- "five (5) year"
-- "five year"
-- "three years" or "three (3) years"
-- "Company (name to be provided upon execution)" or just "Company"
-- "For: Company" or "For: Company (name to be provided upon execution)"
-- "Dear NAME:" or "Dear [Name]:" (for recipient names)
-- "State of Delaware" or "Delaware"
-- Signature blocks: "By:", "Title:", "For: Company"
+        COMMON PATTERNS TO LOOK FOR:
+        - "five (5) years" (most common in legal documents)
+        - "five years" 
+        - "5 years"
+        - "five (5) year"
+        - "five year"
+        - "three years" or "three (3) years"
+        - "Company (name to be provided upon execution)" or just "Company"
+        - "For: Company" or "For: Company (name to be provided upon execution)"
+        - "Dear NAME:" or "Dear [Name]:" (for recipient names)
+        - "State of Delaware" or "Delaware"
+        - Signature blocks: "By:", "Title: \t_______________________________", "For: Company"
+        - "Title: \t_______________________________" (most common title pattern)
 
 CRITICAL: When replacing text, use the EXACT text as it appears in the document.
 For example:
@@ -520,12 +546,13 @@ For example:
 - If document says "Dear NAME:", replace with "Dear John Bagge:"
 - If document says "three years", replace with "two (2) years"
 
-SPECIFIC REPLACEMENTS NEEDED:
-- Replace "Dear NAME:" with "Dear John Bagge:" (replace entire phrase)
-- Replace "For: Company" with "For: JMC Investment LLC" (replace entire phrase)
-- Replace "three years" with "two (2) years"
-- Replace "By:" with "By: John Bagge"
-- Replace "Title:" with "Title: Vice President"
+        SPECIFIC REPLACEMENTS NEEDED:
+        - Replace "Dear NAME:" with "Dear John Bagge:" (replace entire phrase)
+        - Replace "For: Company" with "For: JMC Investment LLC" (replace entire phrase)
+        - Replace "three years" with "two (2) years"
+        - Replace "By:" with "By: John Bagge"
+        - Replace "Title: \t_______________________________" with "Title: Vice President"
+        - Replace "Title:\t_______________________________" with "Title: Vice President"
 
 IMPORTANT: Use the FULL PHRASE as current_text, not just the placeholder word.
 For example:
@@ -534,17 +561,18 @@ For example:
 - Use "By:" not just "By"
 - Use "Title:" not just "Title"
 
-SIGNATURE BLOCK HANDLING:
-- ONLY use TEXT_REPLACE for signature blocks - NEVER use TEXT_INSERT
-- Replace "By:" with "By: John Bagge" (don't create new lines)
-- Replace "Title:" with "Title: Vice President" (don't create new lines)
-- Replace "For: Company" with "For: JMC Investment LLC"
-- Replace "Company (name to be provided upon execution)" with "JMC Investment LLC"
-- Replace "Dear NAME:" with "Dear John Bagge:"
-- Replace just "Company" with "JMC Investment LLC" if it's in a "For:" context
-- Do NOT insert new signature blocks or create new fields
-- Do NOT duplicate existing signature lines
-- Find existing placeholders and replace them in place
+        SIGNATURE BLOCK HANDLING:
+        - ONLY use TEXT_REPLACE for signature blocks - NEVER use TEXT_INSERT
+        - Replace "By:" with "By: John Bagge" (don't create new lines)
+        - Replace "Title: \t_______________________________" with "Title: Vice President"
+        - Replace "Title:\t_______________________________" with "Title: Vice President"
+        - Replace "For: Company" with "For: JMC Investment LLC"
+        - Replace "Company (name to be provided upon execution)" with "JMC Investment LLC"
+        - Replace "Dear NAME:" with "Dear John Bagge:"
+        - Replace just "Company" with "JMC Investment LLC" if it's in a "For:" context
+        - Do NOT insert new signature blocks or create new fields
+        - Do NOT duplicate existing signature lines
+        - Find existing placeholders and replace them in place
 
 IMPORTANT: Only make the specific changes requested in the custom rules. Do not over-redline or make unnecessary changes.
 
