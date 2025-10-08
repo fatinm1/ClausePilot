@@ -595,9 +595,10 @@ class AIRedliningService:
             
             if firm_details.get('signatory_name'):
                 firm_text += f"SIGNER NAME: {firm_details['signatory_name']}\n"
-                firm_text += f"  - For 'Dear NAME:' or 'Dear [any name]:', use: Dear {firm_details['signatory_name']}:\n"
-                firm_text += f"  - For 'By:' or 'By: [any name]', use: By: {firm_details['signatory_name']}\n"
-                firm_text += f"  - DO NOT use 'John Bagge' or any other person name\n\n"
+                firm_text += f"  - REQUIRED: If document contains 'Dear NAME:', replace with: Dear {firm_details['signatory_name']}:\n"
+                firm_text += f"  - REQUIRED: If document contains 'By:' (empty), replace with: By: {firm_details['signatory_name']}\n"
+                firm_text += f"  - DO NOT use 'John Bagge' or any other person name\n"
+                firm_text += f"  - DO NOT leave 'Dear NAME:' unchanged - always replace it!\n\n"
             
             if firm_details.get('title'):
                 firm_text += f"TITLE: {firm_details['title']}\n"
@@ -645,18 +646,6 @@ CRITICAL REQUIREMENTS:
         - "Title: \t_______________________________" (most common title pattern)
 
 CRITICAL: When replacing text, use the EXACT text as it appears in the document.
-For example:
-- If document says "For: Company", replace with "For: JMC Investment LLC"
-- If document says "Dear NAME:", replace with "Dear John Bagge:"
-- If document says "three years", replace with "two (2) years"
-
-        SPECIFIC REPLACEMENTS NEEDED:
-        - Replace "Dear NAME:" with "Dear John Bagge:" (replace entire phrase)
-        - Replace "For: Company" with "For: JMC Investment LLC" (replace entire phrase)
-        - Replace "three years" with "two (2) years"
-        - Replace "By:" with "By: John Bagge"
-        - Replace "Title: \t_______________________________" with "Title: Vice President"
-        - Replace "Title:\t_______________________________" with "Title: Vice President"
 
 IMPORTANT: Use the FULL PHRASE as current_text, not just the placeholder word.
 For example:
@@ -685,15 +674,17 @@ Please provide your analysis in the specified JSON format."""
         # Add firm details reminder at the end for maximum emphasis
         if firm_details:
             prompt += f"\n\n" + "!"*80 + "\n"
-            prompt += f"FINAL REMINDER - USE THESE EXACT VALUES IN YOUR JSON RESPONSE:\n"
+            prompt += f"🚨 FINAL REMINDER - MANDATORY REPLACEMENTS - USE THESE EXACT VALUES:\n"
+            prompt += "!"*80 + "\n"
             if firm_details.get('signatory_name'):
-                prompt += f'  - For "Dear NAME:", use "Dear {firm_details["signatory_name"]}:"\n'
-                prompt += f'  - For "By:", use "By: {firm_details["signatory_name"]}"\n'
+                prompt += f'✅ REQUIRED: Replace "Dear NAME:" with "Dear {firm_details["signatory_name"]}:"\n'
+                prompt += f'✅ REQUIRED: Replace "By:" with "By: {firm_details["signatory_name"]}"\n'
             if firm_details.get('firm_name'):
-                prompt += f'  - For "For: Company", use "For: {firm_details["firm_name"]}"\n'
+                prompt += f'✅ REQUIRED: Replace "For: Company" with "For: {firm_details["firm_name"]}"\n'
             if firm_details.get('title'):
-                prompt += f'  - For "Title:", use "Title: {firm_details["title"]}"\n'
-            prompt += f"DO NOT use 'John Bagge', 'JMC Investment LLC', or 'Vice President'!\n"
+                prompt += f'✅ REQUIRED: Replace "Title:" fields with "Title: {firm_details["title"]}"\n'
+            prompt += f"\n❌ DO NOT use 'John Bagge', 'JMC Investment LLC', or 'Vice President'!\n"
+            prompt += f"❌ DO NOT leave 'Dear NAME:' unchanged!\n"
             prompt += "!"*80 + "\n"
 
         return prompt
