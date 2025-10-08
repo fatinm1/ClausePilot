@@ -25,9 +25,14 @@ if __name__ == '__main__':
     # Disable debug in production
     debug = os.environ.get('FLASK_ENV') != 'production'
     
+    print("=" * 80)
+    print("🚀 VERSION: 1.0.1-RULE-PREPROCESSING-ACTIVE")
+    print("✅ FEATURE: Rule preprocessing enabled - placeholders will be replaced")
+    print("✅ FEATURE: Firm details override hardcoded values")
+    print("=" * 80)
+    
     # Configure for larger file uploads
     app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB
     app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching for uploaded files
     
     app.run(host='0.0.0.0', port=port, debug=debug)
-    # Force redeploy to pick up latest changes
