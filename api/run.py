@@ -30,3 +30,4 @@ if __name__ == '__main__':
     app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching for uploaded files
     
     app.run(host='0.0.0.0', port=port, debug=debug)
+    # Force redeploy to pick up latest changes
