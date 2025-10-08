@@ -154,6 +154,67 @@ def delete_rule(user, rule_id):
     
     return jsonify({'message': 'Rule deleted successfully'})
 
+@rules_bp.route('/fix-hardcoded-values', methods=['POST'])
+@require_admin
+def fix_hardcoded_values(user):
+    """Remove hardcoded company/person names from rules"""
+    ProcessingRule = current_app.ProcessingRule
+    
+    # Get all rules
+    rules = ProcessingRule.query.all()
+    
+    updated_rules = []
+    
+    for rule in rules:
+        original_instruction = rule.instruction
+        updated_instruction = original_instruction
+        
+        # Replace hardcoded company names with placeholder
+        hardcoded_companies = [
+            'JMC Investment LLC',
+            'JMC Investment',
+            'Welch Capital Partners',
+        ]
+        
+        for company in hardcoded_companies:
+            if company in updated_instruction:
+                updated_instruction = updated_instruction.replace(company, '[FIRM_NAME]')
+        
+        # Replace hardcoded person names with placeholder
+        hardcoded_names = [
+            'John Bagge',
+        ]
+        
+        for name in hardcoded_names:
+            if name in updated_instruction:
+                updated_instruction = updated_instruction.replace(name, '[SIGNER_NAME]')
+        
+        # Replace hardcoded titles with placeholder
+        hardcoded_titles = [
+            'Vice President',
+        ]
+        
+        for title in hardcoded_titles:
+            if title in updated_instruction:
+                updated_instruction = updated_instruction.replace(title, '[TITLE]')
+        
+        # If instruction was modified, update it
+        if updated_instruction != original_instruction:
+            rule.instruction = updated_instruction
+            updated_rules.append({
+                'id': rule.id,
+                'name': rule.name,
+                'old_instruction': original_instruction,
+                'new_instruction': updated_instruction
+            })
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': f'Successfully updated {len(updated_rules)} rule(s)',
+        'updated_rules': updated_rules
+    }), 200
+
 @rules_bp.route('/categories', methods=['GET'])
 def get_categories():
     """Get available rule categories"""
