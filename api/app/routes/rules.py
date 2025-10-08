@@ -154,6 +154,23 @@ def delete_rule(user, rule_id):
     
     return jsonify({'message': 'Rule deleted successfully'})
 
+@rules_bp.route('/disable-problematic-rules', methods=['POST'])
+def disable_problematic_rules():
+    """Disable rules that are causing over-redlining"""
+    ProcessingRule = current_app.ProcessingRule
+    
+    # Rule #8 is causing Company to be replaced everywhere
+    rule_8 = ProcessingRule.query.get(8)
+    if rule_8:
+        rule_8.is_active = False
+        db.session.commit()
+        return jsonify({
+            'message': 'Disabled problematic rule #8 (Parties Name Update)',
+            'rule': rule_8.to_dict()
+        }), 200
+    else:
+        return jsonify({'message': 'Rule #8 not found'}), 404
+
 @rules_bp.route('/fix-hardcoded-values', methods=['POST'])
 def fix_hardcoded_values():
     """Remove hardcoded company/person names from rules"""
