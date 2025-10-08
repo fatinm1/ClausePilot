@@ -498,12 +498,13 @@ class AIRedliningService:
         1. Make ONLY the specific changes requested in the rules - do NOT over-redline
         2. Use EXACT text matches from the document for current_text
         3. Focus on the specific areas mentioned in the rules
-        4. Apply firm details exactly as provided
+        4. **FIRM DETAILS OVERRIDE RULES**: When firm details are provided, ALWAYS use them instead of any company names or person names mentioned in the rules
         5. Be conservative - only change what is explicitly requested
         6. REPLACE existing placeholders - do NOT create new fields or sections
         7. For signature blocks, ONLY use TEXT_REPLACE - NEVER use TEXT_INSERT
-        8. Replace "By:" with "By: [Name]", "Title:" with "Title: [Title]", etc.
+        8. Replace "By:" with "By: [Firm Details Signer Name]", "Title:" with "Title: [Firm Details Title]", "For:" with "For: [Firm Details Company Name]"
         9. Do NOT add new signature lines or duplicate existing ones
+        10. If a rule says "JMC Investment LLC" but firm details provide "MyCompany", USE "MyCompany"
         
         REDLINING PRINCIPLES:
         - Replace specific text with exact matches
@@ -567,9 +568,15 @@ class AIRedliningService:
             base_prompt += rules_text
         
         if firm_details:
-            firm_text = "\n\nFIRM DETAILS TO APPLY:\n"
+            firm_text = "\n\n" + "="*50 + "\n"
+            firm_text += "**FIRM DETAILS - HIGHEST PRIORITY - USE THESE VALUES**\n"
+            firm_text += "="*50 + "\n"
+            firm_text += "These values MUST be used for company name, signer name, and title.\n"
+            firm_text += "IGNORE any company/person names mentioned in the rules if they conflict with these:\n\n"
             for key, value in firm_details.items():
-                firm_text += f"- {key}: {value}\n"
+                if value:  # Only show non-empty values
+                    firm_text += f"- **{key}**: {value}\n"
+            firm_text += "\n" + "="*50 + "\n"
             base_prompt += firm_text
         
         return base_prompt
@@ -591,6 +598,7 @@ CRITICAL REQUIREMENTS:
 3. Look carefully at the exact wording, punctuation, and formatting
 4. Make ONLY the changes specified in the rules - be conservative
 5. Focus on the specific areas mentioned in the custom rules
+6. **MOST IMPORTANT**: If firm details are provided below, use them instead of ANY company/person names mentioned in the rules
 
         COMMON PATTERNS TO LOOK FOR:
         - "five (5) years" (most common in legal documents)
