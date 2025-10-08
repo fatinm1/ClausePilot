@@ -660,6 +660,16 @@ Please provide your analysis in the specified JSON format."""
                 logger.info(f"Parsing AI response JSON (length: {len(json_str)})")
                 parsed = json.loads(json_str)
                 modifications = parsed.get('modifications', [])
+                
+                # Unescape control characters in the modifications
+                # After JSON parsing, \t becomes literal "\t" but we need actual tab characters
+                for mod in modifications:
+                    if 'current_text' in mod:
+                        # Replace escaped sequences with actual characters
+                        mod['current_text'] = mod['current_text'].replace('\\t', '\t').replace('\\n', '\n')
+                    if 'new_text' in mod:
+                        mod['new_text'] = mod['new_text'].replace('\\t', '\t').replace('\\n', '\n')
+                
                 logger.info(f"Successfully parsed {len(modifications)} modifications from AI response")
                 return modifications
             else:
