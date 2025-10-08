@@ -564,7 +564,36 @@ class AIRedliningService:
         if custom_rules:
             rules_text = "\n\nCUSTOM RULES TO APPLY (follow these exactly):\n"
             for rule in custom_rules:
-                rules_text += f"- {rule['instruction']}\n"
+                instruction = rule['instruction']
+                
+                # CRITICAL: Replace any hardcoded values in rules with actual firm details
+                original_instruction = instruction
+                if firm_details:
+                    # Replace hardcoded company names
+                    hardcoded_companies = ['JMC Investment LLC', 'JMC Investment', 'JMC', 'Welch Capital Partners']
+                    for company in hardcoded_companies:
+                        if company in instruction and firm_details.get('firm_name'):
+                            instruction = instruction.replace(company, firm_details['firm_name'])
+                    
+                    # Replace hardcoded person names
+                    hardcoded_names = ['John Bagge', 'John', 'Jane Doe']
+                    for name in hardcoded_names:
+                        if name in instruction and firm_details.get('signatory_name'):
+                            instruction = instruction.replace(name, firm_details['signatory_name'])
+                    
+                    # Replace hardcoded titles
+                    hardcoded_titles = ['Vice President', 'President', 'CEO', 'Managing Director']
+                    for title in hardcoded_titles:
+                        if title in instruction and firm_details.get('title'):
+                            instruction = instruction.replace(title, firm_details['title'])
+                    
+                    # Log if instruction was modified
+                    if instruction != original_instruction:
+                        logger.warning(f"RULE TRANSFORMED:")
+                        logger.warning(f"  BEFORE: {original_instruction}")
+                        logger.warning(f"  AFTER:  {instruction}")
+                
+                rules_text += f"- {instruction}\n"
             base_prompt += rules_text
         
         if firm_details:
