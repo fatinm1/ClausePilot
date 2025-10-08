@@ -290,6 +290,11 @@ export default function Dashboard() {
         phone: firmDetails.phone
       };
 
+      // DEBUG: Log what we're sending to backend
+      console.log('🔍 DEBUG: Original firmDetails:', firmDetails);
+      console.log('🔍 DEBUG: Mapped firmDetails:', mappedFirmDetails);
+      console.log('🔍 DEBUG: Selected rules:', selectedRulesData);
+
       const result = await apiClient.processDocument(
         uploadedDocument.id,
         selectedRulesData,

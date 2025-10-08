@@ -98,6 +98,16 @@ class ApiClient {
       signaturePath = signatureUpload.signature_path;
     }
 
+    const payload = {
+      custom_rules: customRules,
+      firm_details: firmDetails,
+      signature_path: signaturePath,
+    };
+    
+    // DEBUG: Log the payload being sent to backend
+    console.log('🌐 API Client: Sending to backend:', payload);
+    console.log('🌐 API Client: Firm details being sent:', firmDetails);
+    
     return this.request<{ message: string; document: Document; processing_result: any }>(
       `/v1/documents/${documentId}/process`,
       {
@@ -106,11 +116,7 @@ class ApiClient {
           'X-User-ID': userId,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          custom_rules: customRules,
-          firm_details: firmDetails,
-          signature_path: signaturePath,
-        }),
+        body: JSON.stringify(payload),
       }
     );
   }
