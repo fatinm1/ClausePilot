@@ -276,11 +276,12 @@ export default function Dashboard() {
 
       // Call the real backend API for processing
       const selectedRulesData = customRules.filter(rule => rule.id && selectedRules.includes(rule.id));
-      // Map frontend field names to backend expected field names
+      // CRITICAL: Map frontend field names to backend expected field names
+      // This ensures user input is sent to backend correctly
       const mappedFirmDetails = {
-        firm_name: firmDetails.name,
-        signatory_name: firmDetails.signerName,
-        title: firmDetails.signerTitle,
+        firm_name: firmDetails.name,           // "JMC" → firm_name
+        signatory_name: firmDetails.signerName, // "John" → signatory_name
+        title: firmDetails.signerTitle,        // "Vice" → title
         address: firmDetails.address,
         city: firmDetails.city,
         state: firmDetails.state,
