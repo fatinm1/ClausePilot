@@ -649,17 +649,31 @@ Please provide your analysis in the specified JSON format."""
                 end = ai_response.rfind('}') + 1
                 json_str = ai_response[start:end]
                 
+                # Fix: Escape control characters (tabs, newlines) that might be in the JSON
+                # This is necessary because the AI might include literal tabs in the response
+                import re
+                # Replace literal tab characters with escaped tabs
+                json_str = json_str.replace('\t', '\\t')
+                # Replace literal newlines with escaped newlines (if any)
+                json_str = re.sub(r'(?<!\\)\n', '\\n', json_str)
+                
+                logger.info(f"Parsing AI response JSON (length: {len(json_str)})")
                 parsed = json.loads(json_str)
-                return parsed.get('modifications', [])
+                modifications = parsed.get('modifications', [])
+                logger.info(f"Successfully parsed {len(modifications)} modifications from AI response")
+                return modifications
             else:
-                logger.warning("Could not parse AI response as JSON")
+                logger.warning("Could not find JSON in AI response")
                 return []
                 
         except json.JSONDecodeError as e:
             logger.error(f"JSON parsing error: {str(e)}")
+            logger.error(f"JSON string that failed to parse: {json_str[:500] if 'json_str' in locals() else 'N/A'}")
             return []
         except Exception as e:
             logger.error(f"Error parsing AI response: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return []
 
 class DocumentProcessor:
