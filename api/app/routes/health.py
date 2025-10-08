@@ -23,8 +23,26 @@ def debug_info():
         from app.services.ai_redlining import AIRedliningService
         ai_service = AIRedliningService()
         actual_mode = 'mock' if ai_service.client is None else 'real'
+        
+        # Test analyze_document to see what happens
+        test_analyze_result = None
+        try:
+            test_doc_text = "This is a test document with Dear NAME: and For: Company and Title: _______________________________"
+            test_rules = [{"name": "Test Rule", "instruction": "Test instruction", "category": "test"}]
+            test_firm_details = {"firm_name": "Test Firm", "signatory_name": "Test Signer", "title": "Test Title"}
+            test_analyze_result = ai_service.analyze_document(test_doc_text, test_rules, test_firm_details)
+            # Check if it used real API or mock
+            if 'modifications' in str(test_analyze_result):
+                analyze_mode = 'returned_modifications'
+            else:
+                analyze_mode = 'unknown_format'
+        except Exception as analyze_error:
+            test_analyze_result = {"error": str(analyze_error), "type": type(analyze_error).__name__}
+            analyze_mode = 'error'
     except Exception as e:
         actual_mode = 'error'
+        test_analyze_result = None
+        analyze_mode = 'not_tested'
     
     # Check all environment variables that start with OPENAI
     openai_vars = {k: v for k, v in os.environ.items() if 'OPENAI' in k.upper()}
@@ -76,5 +94,7 @@ def debug_info():
         'openai_params': params if 'params' in locals() else 'not_available',
         'http_proxy_vars': http_proxy_vars,
         'httpx_vars': httpx_vars,
+        'analyze_document_test': test_analyze_result if 'test_analyze_result' in locals() else 'not_tested',
+        'analyze_mode': analyze_mode if 'analyze_mode' in locals() else 'not_tested',
         'safe_mode': 'Yes - using mock mode for all AI calls' if actual_mode == 'mock' else 'No - using real OpenAI API'
     })
