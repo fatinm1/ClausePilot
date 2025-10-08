@@ -589,21 +589,24 @@ class AIRedliningService:
             firm_text += "YOU MUST USE THESE EXACT VALUES - DO NOT SUBSTITUTE WITH EXAMPLES:\n\n"
             
             if firm_details.get('firm_name'):
-                firm_text += f"COMPANY NAME: {firm_details['firm_name']}\n"
-                firm_text += f"  - For 'For: Company' or 'For: [any name]', use: For: {firm_details['firm_name']}\n"
-                firm_text += f"  - DO NOT use 'JMC Investment LLC' or any other company name\n\n"
+                firm_text += f"COMPANY NAME TO USE: '{firm_details['firm_name']}'\n"
+                firm_text += f"  - Find 'For: Company' or 'For: \tCompany' → Replace with 'For: {firm_details['firm_name']}'\n"
+                firm_text += f"  - In JSON: current_text should be 'For: Company' (the PLACEHOLDER), not '{firm_details['firm_name']}'\n"
+                firm_text += f"  - DO NOT replace general 'Company' references in the legal text!\n"
+                firm_text += f"  - ONLY replace 'Company' in signature blocks ('For: Company')\n\n"
             
             if firm_details.get('signatory_name'):
-                firm_text += f"SIGNER NAME: {firm_details['signatory_name']}\n"
-                firm_text += f"  - REQUIRED: If document contains 'Dear NAME:', replace with: Dear {firm_details['signatory_name']}:\n"
-                firm_text += f"  - REQUIRED: If document contains 'By:' (empty), replace with: By: {firm_details['signatory_name']}\n"
-                firm_text += f"  - DO NOT use 'John Bagge' or any other person name\n"
-                firm_text += f"  - DO NOT leave 'Dear NAME:' unchanged - always replace it!\n\n"
+                firm_text += f"SIGNER NAME TO USE: '{firm_details['signatory_name']}'\n"
+                firm_text += f"  - Find 'Dear NAME:' in document → Replace entire text with 'Dear {firm_details['signatory_name']}:'\n"
+                firm_text += f"  - Find 'By:' (with blank or underscore) → Replace with 'By: {firm_details['signatory_name']}'\n"
+                firm_text += f"  - In JSON: current_text should be the PLACEHOLDER ('Dear NAME:' or 'By:'), not the firm detail value\n"
+                firm_text += f"  - DO NOT search for '{firm_details['signatory_name']}' in the document!\n\n"
             
             if firm_details.get('title'):
-                firm_text += f"TITLE: {firm_details['title']}\n"
-                firm_text += f"  - For 'Title:' fields, use: Title: {firm_details['title']}\n"
-                firm_text += f"  - DO NOT use 'Vice President' or any other title\n\n"
+                firm_text += f"TITLE TO USE: '{firm_details['title']}'\n"
+                firm_text += f"  - Find 'Title:' with blank/underscore → Replace with 'Title: {firm_details['title']}'\n"
+                firm_text += f"  - In JSON: current_text should be 'Title: \\t_______________________________' (the PLACEHOLDER)\n"
+                firm_text += f"  - DO NOT search for '{firm_details['title']}' in the document!\n\n"
             
             firm_text += "="*80 + "\n"
             firm_text += "REMINDER: Use the EXACT values above. Do NOT use placeholder examples.\n"
