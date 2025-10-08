@@ -65,6 +65,12 @@ class AIRedliningService:
             logger.warning("Falling back to mock mode due to error")
         
     def analyze_document(self, document_text: str, custom_rules: List[Dict[str, Any]], firm_details: Dict[str, Any] = None) -> Dict[str, Any]:
+        # Debug: Log the firm details received by AI service
+        logger.warning(f"AI Service received firm_details: {firm_details}")
+        logger.warning(f"Firm details keys: {list(firm_details.keys()) if firm_details else 'None'}")
+        if firm_details:
+            for key, value in firm_details.items():
+                logger.warning(f"  {key}: '{value}'")
         """
         Analyze the document using OpenAI GPT-4 and return redlining instructions
         """

@@ -166,6 +166,13 @@ def process_document(user, document_id):
     firm_details = data.get('firm_details', {})
     signature_path = data.get('signature_path')
     
+    # Debug: Log the firm details received from frontend
+    logger.warning(f"Received firm_details from frontend: {firm_details}")
+    logger.warning(f"Firm details keys: {list(firm_details.keys()) if firm_details else 'None'}")
+    if firm_details:
+        for key, value in firm_details.items():
+            logger.warning(f"  {key}: '{value}'")
+    
     # Update status to processing
     document.status = 'processing'
     db.session.commit()
