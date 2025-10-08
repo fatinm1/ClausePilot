@@ -276,10 +276,23 @@ export default function Dashboard() {
 
       // Call the real backend API for processing
       const selectedRulesData = customRules.filter(rule => rule.id && selectedRules.includes(rule.id));
+      // Map frontend field names to backend expected field names
+      const mappedFirmDetails = {
+        firm_name: firmDetails.name,
+        signatory_name: firmDetails.signerName,
+        title: firmDetails.signerTitle,
+        address: firmDetails.address,
+        city: firmDetails.city,
+        state: firmDetails.state,
+        zip_code: firmDetails.zipCode,
+        email: firmDetails.email,
+        phone: firmDetails.phone
+      };
+
       const result = await apiClient.processDocument(
         uploadedDocument.id,
         selectedRulesData,
-        firmDetails,
+        mappedFirmDetails,
         user?.id?.toString() || '',
         signatureFile || undefined
       );
