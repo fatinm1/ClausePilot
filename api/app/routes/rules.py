@@ -155,8 +155,7 @@ def delete_rule(user, rule_id):
     return jsonify({'message': 'Rule deleted successfully'})
 
 @rules_bp.route('/fix-hardcoded-values', methods=['POST'])
-@require_admin
-def fix_hardcoded_values(user):
+def fix_hardcoded_values():
     """Remove hardcoded company/person names from rules"""
     ProcessingRule = current_app.ProcessingRule
     
