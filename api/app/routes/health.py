@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 import os
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -8,7 +9,12 @@ health_bp = Blueprint('health', __name__)
 
 @health_bp.route('/healthz', methods=['GET'])
 def health_check():
-    return jsonify({'status': 'ok'})
+    return jsonify({
+        'status': 'ok',
+        'version': '1.0.1-rule-preprocessing-active',  # DEPLOYED: Rule preprocessing is active!
+        'timestamp': datetime.now().isoformat(),
+        'features': ['rule_preprocessing', 'firm_details_override']
+    })
 
 @health_bp.route('/test-firm-details', methods=['POST'])
 def test_firm_details():
