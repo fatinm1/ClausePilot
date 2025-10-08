@@ -519,7 +519,7 @@ class AIRedliningService:
         - TEXT_DELETE: Remove specific text
         - CLAUSE_ADD: Add entire new clauses
         
-        Return your analysis in this exact JSON format:
+        Return your analysis in this exact JSON format (use the ACTUAL firm details values provided above, NOT these example values):
         {
             "modifications": [
                 {
@@ -529,30 +529,6 @@ class AIRedliningService:
                     "new_text": "two (2) years",
                     "reason": "Term exceeds maximum allowed duration",
                     "location_hint": "Term section"
-                },
-                {
-                    "type": "TEXT_REPLACE",
-                    "section": "recipient",
-                    "current_text": "Dear NAME:",
-                    "new_text": "Dear John Bagge:",
-                    "reason": "Replace recipient name placeholder",
-                    "location_hint": "Salutation"
-                },
-                {
-                    "type": "TEXT_REPLACE",
-                    "section": "signature_block",
-                    "current_text": "For: Company",
-                    "new_text": "For: JMC Investment LLC",
-                    "reason": "Replace company name placeholder",
-                    "location_hint": "Signature block"
-                },
-                {
-                    "type": "TEXT_REPLACE",
-                    "section": "signature_block",
-                    "current_text": "By:",
-                    "new_text": "By: John Bagge",
-                    "reason": "Complete signature block with signer name",
-                    "location_hint": "Signature section"
                 }
             ],
             "summary": "Brief summary of all changes",
@@ -607,15 +583,30 @@ class AIRedliningService:
             base_prompt += rules_text
         
         if firm_details:
-            firm_text = "\n\n" + "="*50 + "\n"
-            firm_text += "**FIRM DETAILS - HIGHEST PRIORITY - USE THESE VALUES**\n"
-            firm_text += "="*50 + "\n"
-            firm_text += "These values MUST be used for company name, signer name, and title.\n"
-            firm_text += "IGNORE any company/person names mentioned in the rules if they conflict with these:\n\n"
-            for key, value in firm_details.items():
-                if value:  # Only show non-empty values
-                    firm_text += f"- **{key}**: {value}\n"
-            firm_text += "\n" + "="*50 + "\n"
+            firm_text = "\n\n" + "="*80 + "\n"
+            firm_text += "🚨 CRITICAL - MANDATORY FIRM DETAILS - DO NOT USE ANY OTHER VALUES 🚨\n"
+            firm_text += "="*80 + "\n"
+            firm_text += "YOU MUST USE THESE EXACT VALUES - DO NOT SUBSTITUTE WITH EXAMPLES:\n\n"
+            
+            if firm_details.get('firm_name'):
+                firm_text += f"COMPANY NAME: {firm_details['firm_name']}\n"
+                firm_text += f"  - For 'For: Company' or 'For: [any name]', use: For: {firm_details['firm_name']}\n"
+                firm_text += f"  - DO NOT use 'JMC Investment LLC' or any other company name\n\n"
+            
+            if firm_details.get('signatory_name'):
+                firm_text += f"SIGNER NAME: {firm_details['signatory_name']}\n"
+                firm_text += f"  - For 'Dear NAME:' or 'Dear [any name]:', use: Dear {firm_details['signatory_name']}:\n"
+                firm_text += f"  - For 'By:' or 'By: [any name]', use: By: {firm_details['signatory_name']}\n"
+                firm_text += f"  - DO NOT use 'John Bagge' or any other person name\n\n"
+            
+            if firm_details.get('title'):
+                firm_text += f"TITLE: {firm_details['title']}\n"
+                firm_text += f"  - For 'Title:' fields, use: Title: {firm_details['title']}\n"
+                firm_text += f"  - DO NOT use 'Vice President' or any other title\n\n"
+            
+            firm_text += "="*80 + "\n"
+            firm_text += "REMINDER: Use the EXACT values above. Do NOT use placeholder examples.\n"
+            firm_text += "="*80 + "\n"
             base_prompt += firm_text
         
         return base_prompt
@@ -690,6 +681,20 @@ For example:
 IMPORTANT: Only make the specific changes requested in the custom rules. Do not over-redline or make unnecessary changes.
 
 Please provide your analysis in the specified JSON format."""
+
+        # Add firm details reminder at the end for maximum emphasis
+        if firm_details:
+            prompt += f"\n\n" + "!"*80 + "\n"
+            prompt += f"FINAL REMINDER - USE THESE EXACT VALUES IN YOUR JSON RESPONSE:\n"
+            if firm_details.get('signatory_name'):
+                prompt += f'  - For "Dear NAME:", use "Dear {firm_details["signatory_name"]}:"\n'
+                prompt += f'  - For "By:", use "By: {firm_details["signatory_name"]}"\n'
+            if firm_details.get('firm_name'):
+                prompt += f'  - For "For: Company", use "For: {firm_details["firm_name"]}"\n'
+            if firm_details.get('title'):
+                prompt += f'  - For "Title:", use "Title: {firm_details["title"]}"\n'
+            prompt += f"DO NOT use 'John Bagge', 'JMC Investment LLC', or 'Vice President'!\n"
+            prompt += "!"*80 + "\n"
 
         return prompt
     
