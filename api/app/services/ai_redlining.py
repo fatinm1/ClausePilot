@@ -566,10 +566,20 @@ class AIRedliningService:
             for rule in custom_rules:
                 instruction = rule['instruction']
                 
-                # CRITICAL: Replace any hardcoded values in rules with actual firm details
+                # CRITICAL: Replace any placeholders or hardcoded values in rules with actual firm details
                 original_instruction = instruction
                 if firm_details:
-                    # Replace hardcoded company names
+                    # Replace placeholder tokens with actual firm details
+                    if '[FIRM_NAME]' in instruction and firm_details.get('firm_name'):
+                        instruction = instruction.replace('[FIRM_NAME]', firm_details['firm_name'])
+                    
+                    if '[SIGNER_NAME]' in instruction and firm_details.get('signatory_name'):
+                        instruction = instruction.replace('[SIGNER_NAME]', firm_details['signatory_name'])
+                    
+                    if '[TITLE]' in instruction and firm_details.get('title'):
+                        instruction = instruction.replace('[TITLE]', firm_details['title'])
+                    
+                    # Also replace any remaining hardcoded company names
                     hardcoded_companies = ['JMC Investment LLC', 'JMC Investment', 'JMC', 'Welch Capital Partners']
                     for company in hardcoded_companies:
                         if company in instruction and firm_details.get('firm_name'):
