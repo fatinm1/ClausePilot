@@ -154,6 +154,32 @@ def delete_rule(user, rule_id):
     
     return jsonify({'message': 'Rule deleted successfully'})
 
+@rules_bp.route('/improve-vague-rules', methods=['POST'])
+def improve_vague_rules():
+    """Make vague rules more specific to prevent over-redlining"""
+    ProcessingRule = current_app.ProcessingRule
+    
+    updates = []
+    
+    # Rule #12: Make it more specific about what to change
+    rule_12 = ProcessingRule.query.get(12)
+    if rule_12:
+        rule_12.instruction = "If the document specifies notice periods (e.g., '3 days notice', '10 days notice'), change them to '5 business days notice'. Do NOT change other references to time periods."
+        updates.append({'id': 12, 'name': rule_12.name, 'new_instruction': rule_12.instruction})
+    
+    # Rule #13: Make it more specific
+    rule_13 = ProcessingRule.query.get(13)
+    if rule_13:
+        rule_13.instruction = "In the 'Term' or 'Survival' section, if confidentiality obligations survive for more than 2 years, change to '2 years after termination'. Trade secrets should survive indefinitely. Do NOT change other references."
+        updates.append({'id': 13, 'name': rule_13.name, 'new_instruction': rule_13.instruction})
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': f'Improved {len(updates)} rule(s) to be more specific',
+        'updates': updates
+    }), 200
+
 @rules_bp.route('/disable-problematic-rules', methods=['POST'])
 def disable_problematic_rules():
     """Disable rules that are causing over-redlining"""
