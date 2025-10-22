@@ -161,6 +161,12 @@ def improve_vague_rules():
     
     updates = []
     
+    # Rule #7: Make it VERY specific about what to change
+    rule_7 = ProcessingRule.query.get(7)
+    if rule_7:
+        rule_7.instruction = "In Section 13 (Term section ONLY), if the document says 'three years' or 'five years', change to 'two (2) years'. Do NOT change any text in the opening paragraphs or parenthetical definitions. ONLY change duration in the numbered Term section."
+        updates.append({'id': 7, 'name': rule_7.name, 'new_instruction': rule_7.instruction})
+    
     # Rule #12: Make it more specific about what to change
     rule_12 = ProcessingRule.query.get(12)
     if rule_12:
