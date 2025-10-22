@@ -191,6 +191,23 @@ class AIRedliningService:
                             "reason": "Fill in signature block with signer name",
                             "location_hint": "Signature block"
                         })
+                
+                # Ensure "For: Company" field is filled if it exists
+                if firm_details.get('firm_name') and ('For: Company' in document_text or 'For:\tCompany' in document_text or 'For: \tCompany' in document_text):
+                    has_for_modification = any(
+                        'For:' in mod.get('current_text', '') and 'Company' in mod.get('current_text', '') and firm_details['firm_name'] in mod.get('new_text', '')
+                        for mod in modifications
+                    )
+                    if not has_for_modification:
+                        logger.warning(f"AI didn't generate 'For: Company' modification - adding it manually")
+                        modifications.append({
+                            "type": "TEXT_REPLACE",
+                            "section": "signature_block",
+                            "current_text": "For: Company",
+                            "new_text": f"For: {firm_details['firm_name']}",
+                            "reason": "Fill in signature block with firm name",
+                            "location_hint": "Signature block"
+                        })
             
             # Ensure "three years" is changed to "two (2) years" if it exists
             if 'three years' in document_text.lower():
