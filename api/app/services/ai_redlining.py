@@ -120,13 +120,17 @@ class AIRedliningService:
             logger.info(f"Parsed modifications: {len(modifications)}")
             
             # Post-process: Ensure firm details are used correctly
+            logger.warning(f"POST-PROCESSING: Checking {len(modifications)} modifications for hardcoded values")
+            logger.warning(f"POST-PROCESSING: Firm details provided: {firm_details}")
+            
             if firm_details:
                 # Fix any modifications that use hardcoded values instead of firm details
                 hardcoded_names = ['John Bagge', 'Jane Doe']
                 hardcoded_companies = ['JMC Investment LLC', 'Welch Capital Partners']
                 hardcoded_titles = ['Vice President', 'President', 'CEO']
                 
-                for mod in modifications:
+                for i, mod in enumerate(modifications):
+                    logger.warning(f"POST-PROCESSING Mod {i+1}: {mod}")
                     # Replace hardcoded names with actual signer name
                     if firm_details.get('signatory_name'):
                         for hardcoded in hardcoded_names:
@@ -166,6 +170,23 @@ class AIRedliningService:
                             "new_text": f"Dear {firm_details['signatory_name']}:",
                             "reason": "Replace recipient name placeholder with signer name",
                             "location_hint": "Salutation"
+                        })
+                
+                # Ensure "By:" field is filled if it exists and is empty
+                if firm_details.get('signatory_name') and 'By:' in document_text:
+                    has_by_modification = any(
+                        'By:' in mod.get('current_text', '') and firm_details['signatory_name'] in mod.get('new_text', '')
+                        for mod in modifications
+                    )
+                    if not has_by_modification:
+                        logger.warning(f"AI didn't generate 'By:' modification - adding it manually")
+                        modifications.append({
+                            "type": "TEXT_REPLACE",
+                            "section": "signature_block",
+                            "current_text": "By:",
+                            "new_text": f"By: {firm_details['signatory_name']}",
+                            "reason": "Fill in signature block with signer name",
+                            "location_hint": "Signature block"
                         })
             
             return {
