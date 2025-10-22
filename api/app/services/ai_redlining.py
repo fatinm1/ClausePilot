@@ -524,8 +524,10 @@ class AIRedliningService:
         8. Replace "By:" with "By: [Firm Details Signer Name]", "Title:" with "Title: [Firm Details Title]", "For:" with "For: [Firm Details Company Name]"
         9. Do NOT add new signature lines or duplicate existing ones
         10. If a rule says "JMC Investment LLC" but firm details provide "MyCompany", USE "MyCompany"
-        11. **CRITICAL**: Do NOT replace "Company" when it refers to the disclosing party in the legal text (e.g., "concerning the Company", "the Company acknowledges")
+        11. **CRITICAL**: Do NOT replace "Company" when it refers to the disclosing party in the legal text (e.g., "concerning the Company", "the Company acknowledges", "acquisition of our client's machining business (the 'Company')")
         12. ONLY replace "Company" in these specific contexts: "For: Company", "Company (name to be provided upon execution)"
+        13. **NEVER** replace text in parentheses like (the "Company") in the opening paragraphs - this defines what "Company" means
+        14. When changing years (e.g., "three years" to "2 years"), ONLY make changes in numbered sections about Term/Duration, NOT in the opening paragraphs
         
         REDLINING PRINCIPLES:
         - Replace specific text with exact matches
