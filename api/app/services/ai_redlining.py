@@ -192,6 +192,35 @@ class AIRedliningService:
                             "location_hint": "Signature block"
                         })
             
+            # Ensure "three years" is changed to "two (2) years" if it exists
+            if 'three years' in document_text.lower():
+                has_term_modification = any(
+                    'three years' in mod.get('current_text', '').lower() or 
+                    'three (3) years' in mod.get('current_text', '').lower()
+                    for mod in modifications
+                )
+                if not has_term_modification:
+                    logger.warning(f"AI didn't generate 'three years' modification - adding it manually")
+                    # Try to find the exact text in the document
+                    if 'three years' in document_text:
+                        modifications.append({
+                            "type": "TEXT_REPLACE",
+                            "section": "term",
+                            "current_text": "three years",
+                            "new_text": "two (2) years",
+                            "reason": "Cap confidentiality term at 2 years maximum",
+                            "location_hint": "Section 13 - Term"
+                        })
+                    elif 'three (3) years' in document_text:
+                        modifications.append({
+                            "type": "TEXT_REPLACE",
+                            "section": "term",
+                            "current_text": "three (3) years",
+                            "new_text": "two (2) years",
+                            "reason": "Cap confidentiality term at 2 years maximum",
+                            "location_hint": "Section 13 - Term"
+                        })
+            
             return {
                 'success': True,
                 'redlining_instructions': {
