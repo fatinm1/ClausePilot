@@ -518,12 +518,14 @@ class AIRedliningService:
         2. Use EXACT text matches from the document for current_text
         3. Focus on the specific areas mentioned in the rules
         4. **FIRM DETAILS OVERRIDE RULES**: When firm details are provided, ALWAYS use them instead of any company names or person names mentioned in the rules
-        5. Be conservative - only change what is explicitly requested
+        5. Be EXTREMELY conservative - only change what is explicitly requested
         6. REPLACE existing placeholders - do NOT create new fields or sections
         7. For signature blocks, ONLY use TEXT_REPLACE - NEVER use TEXT_INSERT
         8. Replace "By:" with "By: [Firm Details Signer Name]", "Title:" with "Title: [Firm Details Title]", "For:" with "For: [Firm Details Company Name]"
         9. Do NOT add new signature lines or duplicate existing ones
         10. If a rule says "JMC Investment LLC" but firm details provide "MyCompany", USE "MyCompany"
+        11. **CRITICAL**: Do NOT replace "Company" when it refers to the disclosing party in the legal text (e.g., "concerning the Company", "the Company acknowledges")
+        12. ONLY replace "Company" in these specific contexts: "For: Company", "Company (name to be provided upon execution)"
         
         REDLINING PRINCIPLES:
         - Replace specific text with exact matches
