@@ -122,6 +122,9 @@ class AIRedliningService:
             # Post-process: Ensure firm details are used correctly
             logger.warning(f"POST-PROCESSING: Checking {len(modifications)} modifications for hardcoded values")
             logger.warning(f"POST-PROCESSING: Firm details provided: {firm_details}")
+            logger.warning(f"POST-PROCESSING: All modifications from AI:")
+            for i, mod in enumerate(modifications):
+                logger.warning(f"  Mod {i+1}: {mod.get('type')} - '{mod.get('current_text', 'N/A')[:50]}...' -> '{mod.get('new_text', 'N/A')[:50]}...'")
             
             if firm_details:
                 # Fix any modifications that use hardcoded values instead of firm details
