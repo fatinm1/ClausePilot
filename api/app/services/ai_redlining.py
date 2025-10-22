@@ -119,6 +119,25 @@ class AIRedliningService:
             modifications = self._parse_ai_response(ai_response)
             logger.info(f"Parsed modifications: {len(modifications)}")
             
+            # Post-process: Ensure "Dear NAME:" is replaced if it exists and signer name is provided
+            if firm_details and firm_details.get('signatory_name'):
+                if 'Dear NAME:' in document_text:
+                    # Check if AI already added this modification
+                    has_dear_modification = any(
+                        mod.get('current_text', '').strip() == 'Dear NAME:' 
+                        for mod in modifications
+                    )
+                    if not has_dear_modification:
+                        logger.warning(f"AI didn't generate 'Dear NAME:' modification - adding it manually")
+                        modifications.insert(0, {
+                            "type": "TEXT_REPLACE",
+                            "section": "recipient",
+                            "current_text": "Dear NAME:",
+                            "new_text": f"Dear {firm_details['signatory_name']}:",
+                            "reason": "Replace recipient name placeholder with signer name",
+                            "location_hint": "Salutation"
+                        })
+            
             return {
                 'success': True,
                 'redlining_instructions': {
