@@ -119,10 +119,40 @@ class AIRedliningService:
             modifications = self._parse_ai_response(ai_response)
             logger.info(f"Parsed modifications: {len(modifications)}")
             
-            # Post-process: Ensure "Dear NAME:" is replaced if it exists and signer name is provided
-            if firm_details and firm_details.get('signatory_name'):
-                if 'Dear NAME:' in document_text:
-                    # Check if AI already added this modification
+            # Post-process: Ensure firm details are used correctly
+            if firm_details:
+                # Fix any modifications that use hardcoded values instead of firm details
+                hardcoded_names = ['John Bagge', 'Jane Doe']
+                hardcoded_companies = ['JMC Investment LLC', 'Welch Capital Partners']
+                hardcoded_titles = ['Vice President', 'President', 'CEO']
+                
+                for mod in modifications:
+                    # Replace hardcoded names with actual signer name
+                    if firm_details.get('signatory_name'):
+                        for hardcoded in hardcoded_names:
+                            if 'new_text' in mod and hardcoded in mod['new_text']:
+                                logger.warning(f"Fixing hardcoded name in modification: '{mod['new_text']}'")
+                                mod['new_text'] = mod['new_text'].replace(hardcoded, firm_details['signatory_name'])
+                                logger.warning(f"Fixed to: '{mod['new_text']}'")
+                    
+                    # Replace hardcoded companies with actual firm name
+                    if firm_details.get('firm_name'):
+                        for hardcoded in hardcoded_companies:
+                            if 'new_text' in mod and hardcoded in mod['new_text']:
+                                logger.warning(f"Fixing hardcoded company in modification: '{mod['new_text']}'")
+                                mod['new_text'] = mod['new_text'].replace(hardcoded, firm_details['firm_name'])
+                                logger.warning(f"Fixed to: '{mod['new_text']}'")
+                    
+                    # Replace hardcoded titles with actual title
+                    if firm_details.get('title'):
+                        for hardcoded in hardcoded_titles:
+                            if 'new_text' in mod and hardcoded in mod['new_text']:
+                                logger.warning(f"Fixing hardcoded title in modification: '{mod['new_text']}'")
+                                mod['new_text'] = mod['new_text'].replace(hardcoded, firm_details['title'])
+                                logger.warning(f"Fixed to: '{mod['new_text']}'")
+                
+                # Ensure "Dear NAME:" is replaced if it exists
+                if firm_details.get('signatory_name') and 'Dear NAME:' in document_text:
                     has_dear_modification = any(
                         mod.get('current_text', '').strip() == 'Dear NAME:' 
                         for mod in modifications
