@@ -26,9 +26,9 @@ if __name__ == '__main__':
     debug = os.environ.get('FLASK_ENV') != 'production'
     
     print("=" * 80)
-    print("🚀 VERSION: 1.0.1-RULE-PREPROCESSING-ACTIVE")
-    print("✅ FEATURE: Rule preprocessing enabled - placeholders will be replaced")
-    print("✅ FEATURE: Firm details override hardcoded values")
+    print("🚀 VERSION: 1.1.0-CHANGE-TRACKING-ACTIVE")
+    print("✅ FEATURE: Professional change tracking (strikethrough + red underline)")
+    print("✅ FEATURE: Auto-fixes for firm details and term changes")
     print("=" * 80)
     
     # Configure for larger file uploads

@@ -1269,38 +1269,102 @@ class DocumentProcessor:
                 parts = original_text.split(old_text)
                 logger.info(f"Split into {len(parts)} parts: {parts}")
                 
-                for i, part in enumerate(parts):
-                    if part:  # Add non-empty parts
-                        run = paragraph.add_run(part)
-                        # Don't add redlining to original text
-                    
-                    if i < len(parts) - 1:  # Add the new text (not the last part)
-                        run = paragraph.add_run(new_text)
-                        run.font.underline = True
-                        run.font.color.rgb = RGBColor(255, 0, 0)  # Red for additions
-                        logger.info(f"Added new text run: '{new_text}'")
+                # Add text before the replacement
+                if parts[0]:  # Add non-empty parts
+                    run = paragraph.add_run(parts[0])
+                    # Keep original formatting (no change tracking)
+                
+                # Add the OLD text with strikethrough (to show what was deleted)
+                deleted_run = paragraph.add_run(old_text)
+                deleted_run.font.strike = True
+                deleted_run.font.color.rgb = RGBColor(0, 0, 0)  # Black with strikethrough for deletions
+                
+                # Add the NEW text with underline and red color (to show what was added)
+                added_run = paragraph.add_run(new_text)
+                added_run.font.underline = True
+                added_run.font.color.rgb = RGBColor(255, 0, 0)  # Red for additions
+                
+                # Add any remaining text after the replacement
+                if len(parts) > 1:
+                    run = paragraph.add_run(parts[1])
+                    # Keep original formatting
+                
+                logger.info(f"Change tracking added: '{old_text}' (strikethrough) -> '{new_text}' (red underline)")
                 
                 logger.info(f"Final paragraph text: {paragraph.text}")
                 return True
             else:
                 logger.warning(f"Text '{old_text}' not found in paragraph: '{paragraph.text}'")
-                # Try case-insensitive search
+                # Try case-insensitive search with change tracking
                 if old_text.lower() in paragraph.text.lower():
-                    logger.info(f"Found case-insensitive match, trying replacement")
-                    # Simple fallback for case-insensitive matches
-                    paragraph.text = paragraph.text.replace(old_text.lower(), new_text)
-                    paragraph.text = paragraph.text.replace(old_text.upper(), new_text)
-                    paragraph.text = paragraph.text.replace(old_text.title(), new_text)
-                    logger.info(f"Case-insensitive replacement successful: '{old_text}' -> '{new_text}'")
-                    return True
+                    logger.info(f"Found case-insensitive match, trying replacement with change tracking")
+                    
+                    # Find the actual old text in the paragraph
+                    text_lower = paragraph.text.lower()
+                    idx = text_lower.find(old_text.lower())
+                    
+                    if idx != -1:
+                        # Extract the actual old text from the paragraph
+                        actual_old_text = paragraph.text[idx:idx+len(old_text)]
+                        
+                        # Clear the paragraph and rebuild with change tracking
+                        original_text = paragraph.text
+                        paragraph.clear()
+                        
+                        # Split on the actual old text
+                        parts = original_text.split(actual_old_text, 1)
+                        
+                        # Add text before replacement
+                        if parts[0]:
+                            run = paragraph.add_run(parts[0])
+                        
+                        # Add deleted text with strikethrough
+                        deleted_run = paragraph.add_run(actual_old_text)
+                        deleted_run.font.strike = True
+                        deleted_run.font.color.rgb = RGBColor(0, 0, 0)
+                        
+                        # Add new text with red underline
+                        added_run = paragraph.add_run(new_text)
+                        added_run.font.underline = True
+                        added_run.font.color.rgb = RGBColor(255, 0, 0)
+                        
+                        # Add remaining text
+                        if len(parts) > 1:
+                            run = paragraph.add_run(parts[1])
+                        
+                        logger.info(f"Case-insensitive replacement with change tracking: '{actual_old_text}' (strikethrough) -> '{new_text}' (red underline)")
+                        return True
                 
         except Exception as e:
             logger.error(f"Error replacing text in paragraph: {str(e)}")
-            # Fallback to simple replacement
+            # Fallback to simple replacement with change tracking
             try:
-                paragraph.text = paragraph.text.replace(old_text, new_text)
-                logger.info(f"Fallback replacement successful: '{old_text}' -> '{new_text}'")
-                return True
+                original_text = paragraph.text
+                if old_text in original_text:
+                    paragraph.clear()
+                    parts = original_text.split(old_text, 1)
+                    
+                    if parts[0]:
+                        paragraph.add_run(parts[0])
+                    
+                    # Add deleted text with strikethrough
+                    deleted_run = paragraph.add_run(old_text)
+                    deleted_run.font.strike = True
+                    deleted_run.font.color.rgb = RGBColor(0, 0, 0)
+                    
+                    # Add new text with red underline
+                    added_run = paragraph.add_run(new_text)
+                    added_run.font.underline = True
+                    added_run.font.color.rgb = RGBColor(255, 0, 0)
+                    
+                    if len(parts) > 1:
+                        paragraph.add_run(parts[1])
+                    
+                    logger.info(f"Fallback replacement with change tracking successful: '{old_text}' -> '{new_text}'")
+                    return True
+                else:
+                    logger.warning(f"Text '{old_text}' not found in fallback replacement")
+                    return False
             except Exception as fallback_error:
                 logger.error(f"Fallback replacement failed: {str(fallback_error)}")
                 return False
