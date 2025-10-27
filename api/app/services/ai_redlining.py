@@ -1274,10 +1274,10 @@ class DocumentProcessor:
                     run = paragraph.add_run(parts[0])
                     # Keep original formatting (no change tracking)
                 
-                # Add the OLD text with strikethrough (to show what was deleted)
+                # Add the OLD text with red strikethrough (to show what was deleted)
                 deleted_run = paragraph.add_run(old_text)
                 deleted_run.font.strike = True
-                deleted_run.font.color.rgb = RGBColor(0, 0, 0)  # Black with strikethrough for deletions
+                deleted_run.font.color.rgb = RGBColor(255, 0, 0)  # Red strikethrough for deletions
                 
                 # Add the NEW text with underline and red color (to show what was added)
                 added_run = paragraph.add_run(new_text)
@@ -1318,10 +1318,10 @@ class DocumentProcessor:
                         if parts[0]:
                             run = paragraph.add_run(parts[0])
                         
-                        # Add deleted text with strikethrough
+                        # Add deleted text with red strikethrough
                         deleted_run = paragraph.add_run(actual_old_text)
                         deleted_run.font.strike = True
-                        deleted_run.font.color.rgb = RGBColor(0, 0, 0)
+                        deleted_run.font.color.rgb = RGBColor(255, 0, 0)
                         
                         # Add new text with red underline
                         added_run = paragraph.add_run(new_text)
@@ -1347,10 +1347,10 @@ class DocumentProcessor:
                     if parts[0]:
                         paragraph.add_run(parts[0])
                     
-                    # Add deleted text with strikethrough
+                    # Add deleted text with red strikethrough
                     deleted_run = paragraph.add_run(old_text)
                     deleted_run.font.strike = True
-                    deleted_run.font.color.rgb = RGBColor(0, 0, 0)
+                    deleted_run.font.color.rgb = RGBColor(255, 0, 0)
                     
                     # Add new text with red underline
                     added_run = paragraph.add_run(new_text)
