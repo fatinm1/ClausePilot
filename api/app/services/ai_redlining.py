@@ -1344,20 +1344,22 @@ class DocumentProcessor:
                     run = paragraph.add_run(parts[0])
                     # Keep original formatting (no change tracking)
                 
-                # Add the OLD text with Word Track Changes deletion
+                # Add the OLD text with strikethrough (deletion)
                 deleted_run = paragraph.add_run(old_text)
-                self._add_track_change_deletion(deleted_run)
+                deleted_run.font.strike = True
+                deleted_run.font.color.rgb = RGBColor(0, 0, 0)  # Black strikethrough
                 
-                # Add the NEW text with Word Track Changes insertion
+                # Add the NEW text with red underline (insertion)
                 added_run = paragraph.add_run(new_text)
-                self._add_track_change_insertion(added_run)
+                added_run.font.underline = True
+                added_run.font.color.rgb = RGBColor(255, 0, 0)  # Red underline
                 
                 # Add any remaining text after the replacement
                 if len(parts) > 1:
                     run = paragraph.add_run(parts[1])
                     # Keep original formatting
                 
-                logger.info(f"Word Track Changes added: '{old_text}' (deletion) -> '{new_text}' (insertion)")
+                logger.info(f"Visual change tracking added: '{old_text}' (strikethrough) -> '{new_text}' (red underline)")
                 
                 logger.info(f"Final paragraph text: {paragraph.text}")
                 return True
@@ -1386,19 +1388,21 @@ class DocumentProcessor:
                         if parts[0]:
                             run = paragraph.add_run(parts[0])
                         
-                        # Add deleted text with Word Track Changes deletion
+                        # Add deleted text with strikethrough (deletion)
                         deleted_run = paragraph.add_run(actual_old_text)
-                        self._add_track_change_deletion(deleted_run)
+                        deleted_run.font.strike = True
+                        deleted_run.font.color.rgb = RGBColor(0, 0, 0)  # Black strikethrough
                         
-                        # Add new text with Word Track Changes insertion
+                        # Add new text with red underline (insertion)
                         added_run = paragraph.add_run(new_text)
-                        self._add_track_change_insertion(added_run)
+                        added_run.font.underline = True
+                        added_run.font.color.rgb = RGBColor(255, 0, 0)  # Red underline
                         
                         # Add remaining text
                         if len(parts) > 1:
                             run = paragraph.add_run(parts[1])
                         
-                        logger.info(f"Case-insensitive replacement with Word Track Changes: '{actual_old_text}' (deletion) -> '{new_text}' (insertion)")
+                        logger.info(f"Case-insensitive replacement with visual change tracking: '{actual_old_text}' (strikethrough) -> '{new_text}' (red underline)")
                         return True
                 
         except Exception as e:
@@ -1413,18 +1417,20 @@ class DocumentProcessor:
                     if parts[0]:
                         paragraph.add_run(parts[0])
                     
-                    # Add deleted text with Word Track Changes deletion
+                    # Add deleted text with strikethrough (deletion)
                     deleted_run = paragraph.add_run(old_text)
-                    self._add_track_change_deletion(deleted_run)
+                    deleted_run.font.strike = True
+                    deleted_run.font.color.rgb = RGBColor(0, 0, 0)  # Black strikethrough
                     
-                    # Add new text with Word Track Changes insertion
+                    # Add new text with red underline (insertion)
                     added_run = paragraph.add_run(new_text)
-                    self._add_track_change_insertion(added_run)
+                    added_run.font.underline = True
+                    added_run.font.color.rgb = RGBColor(255, 0, 0)  # Red underline
                     
                     if len(parts) > 1:
                         paragraph.add_run(parts[1])
                     
-                    logger.info(f"Fallback replacement with Word Track Changes successful: '{old_text}' -> '{new_text}'")
+                    logger.info(f"Fallback replacement with visual change tracking successful: '{old_text}' (strikethrough) -> '{new_text}' (red underline)")
                     return True
                 else:
                     logger.warning(f"Text '{old_text}' not found in fallback replacement")
