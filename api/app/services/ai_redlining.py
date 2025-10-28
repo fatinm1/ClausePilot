@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import uuid
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
 from docx import Document as DocxDocument
@@ -930,6 +931,94 @@ Please provide your analysis in the specified JSON format."""
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
             return []
+
+    def generate_changes_for_review(self, document_text: str, custom_rules: List[Dict], firm_details: Dict[str, str]) -> Dict[str, Any]:
+        """Generate changes with unique IDs for review interface"""
+        logger.info("Generating changes for review interface")
+        
+        # Get AI modifications
+        modifications = self.analyze_document(document_text, custom_rules, firm_details)
+        
+        # Add unique IDs and metadata to each change
+        changes = []
+        for i, mod in enumerate(modifications):
+            change_id = str(uuid.uuid4())
+            change = {
+                "id": change_id,
+                "type": mod.get("type", "TEXT_REPLACE"),
+                "section": mod.get("section", "general"),
+                "current_text": mod.get("current_text", ""),
+                "new_text": mod.get("new_text", ""),
+                "reason": mod.get("reason", ""),
+                "location_hint": mod.get("location_hint", ""),
+                "status": "pending",  # pending, accepted, rejected
+                "order": i + 1
+            }
+            changes.append(change)
+        
+        return {
+            "changes": changes,
+            "total_changes": len(changes),
+            "document_text": document_text,
+            "firm_details": firm_details,
+            "custom_rules": custom_rules
+        }
+
+    def apply_accepted_changes(self, doc_path: str, accepted_changes: List[Dict], signature_path: str = None) -> Dict[str, Any]:
+        """Apply only the accepted changes to create final document"""
+        logger.info(f"Applying {len(accepted_changes)} accepted changes to document")
+        
+        try:
+            # Load the document
+            doc = DocxDocument(doc_path)
+            
+            # Apply each accepted change
+            for change in accepted_changes:
+                if change.get("status") == "accepted":
+                    self._apply_single_change(doc, change)
+            
+            # Apply signature if provided
+            if signature_path and os.path.exists(signature_path):
+                self._apply_signature(doc, signature_path)
+            
+            # Generate output path
+            output_path = self._generate_output_path(doc_path, "final")
+            
+            # Save the final document
+            doc.save(output_path)
+            
+            return {
+                "success": True,
+                "output_path": output_path,
+                "changes_applied": len([c for c in accepted_changes if c.get("status") == "accepted"])
+            }
+            
+        except Exception as e:
+            logger.error(f"Error applying accepted changes: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def _apply_single_change(self, doc: DocxDocument, change: Dict):
+        """Apply a single change to the document"""
+        try:
+            old_text = change.get("current_text", "")
+            new_text = change.get("new_text", "")
+            
+            if not old_text or not new_text:
+                logger.warning(f"Skipping change with empty text: {change}")
+                return
+            
+            # Find and replace text in the document
+            for paragraph in doc.paragraphs:
+                if old_text in paragraph.text:
+                    self._replace_text_in_paragraph(paragraph, old_text, new_text)
+                    logger.info(f"Applied change: '{old_text}' -> '{new_text}'")
+                    break
+                    
+        except Exception as e:
+            logger.error(f"Error applying single change: {str(e)}")
 
 class DocumentProcessor:
     def __init__(self, ai_service: AIRedliningService):

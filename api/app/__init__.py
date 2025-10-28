@@ -42,6 +42,7 @@ def create_app(config_class=Config):
     from app.routes.rules import rules_bp
     from app.routes.admin import admin_bp
     from app.routes.signatures import signatures_bp
+    from app.routes.changes import changes_bp
     
     app.register_blueprint(health_bp)
     app.register_blueprint(auth_bp, url_prefix='/v1/auth')
@@ -49,6 +50,7 @@ def create_app(config_class=Config):
     app.register_blueprint(rules_bp, url_prefix='/v1/rules')
     app.register_blueprint(admin_bp, url_prefix='/v1/admin')
     app.register_blueprint(signatures_bp, url_prefix='/v1/signatures')
+    app.register_blueprint(changes_bp, url_prefix='/v1/changes')
     
     # Serve frontend static files
     @app.route('/')

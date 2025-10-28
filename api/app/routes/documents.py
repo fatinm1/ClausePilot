@@ -297,6 +297,44 @@ def download_document(user, document_id):
         download_name=f"processed_{document.original_filename}"
     )
 
+@documents_bp.route('/<int:document_id>/text')
+@require_auth
+def get_document_text(user, document_id):
+    """Extract text from document for changes review"""
+    Document = current_app.Document
+    document = Document.query.get(document_id)
+    
+    if not document:
+        return jsonify({'error': 'Document not found'}), 404
+    
+    if document.user_id != user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    try:
+        # Import docx library to extract text
+        from docx import Document as DocxDocument
+        
+        # Load the document
+        doc = DocxDocument(document.file_path)
+        
+        # Extract all text from paragraphs
+        text_parts = []
+        for paragraph in doc.paragraphs:
+            if paragraph.text.strip():  # Only add non-empty paragraphs
+                text_parts.append(paragraph.text.strip())
+        
+        # Join all text parts
+        full_text = '\n'.join(text_parts)
+        
+        return jsonify({
+            'text': full_text,
+            'document_id': document_id
+        })
+        
+    except Exception as e:
+        logger.error(f"Error extracting text from document {document_id}: {str(e)}")
+        return jsonify({'error': f'Failed to extract text: {str(e)}'}), 500
+
 @documents_bp.route('/', methods=['GET'])
 @require_auth
 def list_documents(user):

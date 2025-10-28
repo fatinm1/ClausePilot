@@ -7,6 +7,7 @@ export interface Document {
   file_path: string
   file_size: number
   output_path?: string
+  final_file_path?: string
   status: string
   user_id: number
   uploaded_at: string
@@ -211,6 +212,16 @@ class ApiClient {
       console.error('Download failed:', error);
       throw error;
     }
+  }
+
+  async getDocumentText(documentId: number): Promise<{ text: string }> {
+    const response = await this.request<{ text: string }>(
+      `/v1/documents/${documentId}/text`,
+      {
+        method: 'GET',
+      }
+    );
+    return response;
   }
 
   // Processing rules endpoints

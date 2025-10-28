@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { apiClient } from '../../lib/api';
 import { Document, CustomRule, FirmDetails } from '../../lib/api';
+import ChangesReview from '../components/ChangesReview';
 
 interface ProcessingStep {
   id: string;
@@ -51,6 +52,8 @@ export default function Dashboard() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
+  const [showChangesReview, setShowChangesReview] = useState(false);
+  const [documentText, setDocumentText] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -254,34 +257,18 @@ export default function Dashboard() {
     setShowPreview(false);
 
     try {
-      // Step 1: Document Analysis
-      setCurrentStep(0);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Step 2: Apply custom rules
-      setCurrentStep(1);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Step 3: AI redlining
-      setCurrentStep(2);
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Step 4: Insert firm details
-      setCurrentStep(3);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Step 5: Generate final document
-      setCurrentStep(4);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Extract document text for changes review
+      const textResponse = await apiClient.getDocumentText(uploadedDocument.id);
+      setDocumentText(textResponse.text);
 
-      // Call the real backend API for processing
+      // Get selected rules data
       const selectedRulesData = customRules.filter(rule => rule.id && selectedRules.includes(rule.id));
-      // CRITICAL: Map frontend field names to backend expected field names
-      // This ensures user input is sent to backend correctly
+      
+      // Map frontend field names to backend expected field names
       const mappedFirmDetails = {
-        firm_name: firmDetails.name,           // "JMC" → firm_name
-        signatory_name: firmDetails.signerName, // "John" → signatory_name
-        title: firmDetails.signerTitle,        // "Vice" → title
+        firm_name: firmDetails.name,
+        signatory_name: firmDetails.signerName,
+        title: firmDetails.signerTitle,
         address: firmDetails.address,
         city: firmDetails.city,
         state: firmDetails.state,
@@ -295,25 +282,27 @@ export default function Dashboard() {
       console.log('🔍 DEBUG: Mapped firmDetails:', mappedFirmDetails);
       console.log('🔍 DEBUG: Selected rules:', selectedRulesData);
 
-      const result = await apiClient.processDocument(
-        uploadedDocument.id,
-        selectedRulesData,
-        mappedFirmDetails,
-        user?.id?.toString() || '',
-        signatureFile || undefined
-      );
+      // Show changes review instead of direct processing
+      setShowChangesReview(true);
+      setIsProcessing(false);
 
-      setProcessingResult(result.processing_result);
-      setUploadedDocument(result.document);
-      setShowPreview(true);
-      setSuccess('Document processed successfully!');
-      
     } catch (error) {
       console.error('Processing error:', error);
       setError('Error processing document. Please try again.');
-    } finally {
       setIsProcessing(false);
-      setCurrentStep(0);
+    }
+  };
+
+  const handleChangesReviewComplete = async (finalDocumentPath: string) => {
+    setShowChangesReview(false);
+    setSuccess('Document processed successfully! Changes have been applied.');
+    
+    // Update the document with the final path
+    if (uploadedDocument) {
+      setUploadedDocument({
+        ...uploadedDocument,
+        final_file_path: finalDocumentPath
+      });
     }
   };
 
@@ -492,6 +481,25 @@ export default function Dashboard() {
             <p className="text-xl text-[#E5E7EB]/80">Validating authentication...</p>
           </div>
         </div>
+      ) : showChangesReview ? (
+        // Changes Review Interface
+        <ChangesReview
+          documentId={uploadedDocument?.id || 0}
+          documentText={documentText}
+          customRules={customRules.filter(rule => rule.id && selectedRules.includes(rule.id))}
+          firmDetails={{
+            name: firmDetails.name,
+            signerName: firmDetails.signerName,
+            signerTitle: firmDetails.signerTitle,
+            address: firmDetails.address,
+            city: firmDetails.city,
+            state: firmDetails.state,
+            zipCode: firmDetails.zipCode,
+            email: firmDetails.email,
+            phone: firmDetails.phone
+          }}
+          onComplete={handleChangesReviewComplete}
+        />
       ) : !user ? (
         // Don't render anything while redirecting
         <div className="flex items-center justify-center h-screen">
