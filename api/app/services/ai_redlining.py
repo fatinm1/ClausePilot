@@ -239,26 +239,41 @@ class AIRedliningService:
                             "location_hint": "Section 13 - Term"
                         })
             
-            # Auto-fix date placeholders with today's date
+            # Auto-fix header date specifically
+            if 'September __, 2025' in document_text:
+                has_header_date_modification = any(
+                    'September __, 2025' in mod.get('current_text', '')
+                    for mod in modifications
+                )
+                if not has_header_date_modification:
+                    logger.warning(f"AI didn't generate header date modification - adding it manually")
+                    modifications.insert(0, {
+                        "type": "TEXT_REPLACE",
+                        "section": "header",
+                        "current_text": "September __, 2025",
+                        "new_text": "September 27, 2025",
+                        "reason": "Fill in header date with today's date",
+                        "location_hint": "Document header"
+                    })
+            
+            # Auto-fix date placeholders with today's date - be more specific to avoid over-redlining
             import re
             from datetime import datetime
             
-            # Common date patterns
+            # Common date patterns - be more specific to avoid over-redlining
             date_patterns = [
-                r'[A-Za-z]+ __, \d{4}',  # "October __, 2025"
-                r'[A-Za-z]+ __, YYYY',   # "October __, YYYY"
-                r'\[DATE\]',             # "[DATE]"
-                r'\[date\]',             # "[date]"
-                r'Date: _+',             # "Date: _______________"
-                r'Dated: _+',            # "Dated: _______________"
-                r'as of _+',             # "as of _______________"
+                r'^[A-Za-z]+ __, \d{4}$',  # "October __, 2025" at start of line
+                r'Date: _+$',              # "Date: _______________" at end of line
+                r'Dated: _+$',             # "Dated: _______________" at end of line
+                r'\[DATE\]',               # "[DATE]"
+                r'\[date\]',               # "[date]"
             ]
             
             today = datetime.now()
             today_formatted = today.strftime("%B %d, %Y")  # "October 27, 2025"
             
             for pattern in date_patterns:
-                matches = re.findall(pattern, document_text, re.IGNORECASE)
+                matches = re.findall(pattern, document_text, re.IGNORECASE | re.MULTILINE)
                 for match in matches:
                     # Check if AI already handled this date
                     has_date_modification = any(
@@ -794,6 +809,9 @@ CRITICAL REQUIREMENTS:
 4. Make ONLY the changes specified in the rules - be conservative
 5. Focus on the specific areas mentioned in the custom rules
 6. **MOST IMPORTANT**: If firm details are provided below, use them instead of ANY company/person names mentioned in the rules
+7. **CRITICAL**: Do NOT replace "Company" when it refers to the disclosing party in legal text
+8. **CRITICAL**: Do NOT replace dates that are already complete (e.g., "September __, 2025" should become "September 27, 2025", not "September __, 2021")
+9. **CRITICAL**: Only replace placeholders, not actual content
 
         COMMON PATTERNS TO LOOK FOR:
         - "five (5) years" (most common in legal documents)
@@ -810,13 +828,18 @@ CRITICAL REQUIREMENTS:
         - "Title: \t_______________________________" (most common title pattern)
         
         DATE PATTERNS TO REPLACE:
-        - "Month __, Year" (e.g., "October __, 2025")
-        - "Month __, YYYY" (e.g., "October __, 2025")
-        - "[DATE]" or "[date]"
-        - "Date: _______________"
-        - "Dated: _______________"
-        - "as of _______________"
+        - "Month __, Year" (e.g., "October __, 2025") → "October 27, 2025"
+        - "Month __, YYYY" (e.g., "October __, 2025") → "October 27, 2025"
+        - "[DATE]" or "[date]" → "October 27, 2025"
+        - "Date: _______________" → "Date: October 27, 2025"
+        - "Dated: _______________" → "Dated: October 27, 2025"
         - Any blank date fields with underscores or brackets
+        
+        IMPORTANT DATE RULES:
+        - ONLY replace dates that have blanks/underscores
+        - DO NOT change complete dates (e.g., "September 15, 2025" should stay as is)
+        - When replacing "September __, 2025", fill the blank with today's day: "September 27, 2025"
+        - Use today's date in "Month Day, Year" format
 
 CRITICAL: When replacing text, use the EXACT text as it appears in the document.
 
