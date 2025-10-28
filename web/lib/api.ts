@@ -219,6 +219,9 @@ class ApiClient {
       `/v1/documents/${documentId}/text`,
       {
         method: 'GET',
+        headers: {
+          'X-User-ID': '1', // Mock user ID for demo
+        },
       }
     );
     return response;

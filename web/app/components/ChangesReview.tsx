@@ -48,6 +48,10 @@ export default function ChangesReview({
         document_text: documentText,
         custom_rules: customRules,
         firm_details: firmDetails
+      }, {
+        headers: {
+          'X-User-ID': '1' // Mock user ID for demo
+        }
       });
 
       if (response.data.success) {
@@ -90,6 +94,10 @@ export default function ChangesReview({
 
       const response = await api.post(`/v1/changes/apply-accepted/${documentId}`, {
         accepted_changes: acceptedChanges
+      }, {
+        headers: {
+          'X-User-ID': '1' // Mock user ID for demo
+        }
       });
 
       if (response.data.success) {
