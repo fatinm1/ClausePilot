@@ -44,23 +44,26 @@ export default function ChangesReview({
       setLoading(true);
       setError(null);
       
-      const response = await api.post('/v1/changes/generate', {
-        document_text: documentText,
-        custom_rules: customRules,
-        firm_details: firmDetails
-      }, {
+      const response = await api.request('/v1/changes/generate', {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'X-User-ID': '1' // Mock user ID for demo
-        }
+        },
+        body: JSON.stringify({
+          document_text: documentText,
+          custom_rules: customRules,
+          firm_details: firmDetails
+        })
       });
 
-      if (response.data.success) {
-        setChanges(response.data.changes);
+      if (response.success) {
+        setChanges(response.changes);
       } else {
         setError('Failed to generate changes');
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to generate changes');
+      setError(err.message || 'Failed to generate changes');
     } finally {
       setLoading(false);
     }
@@ -92,21 +95,24 @@ export default function ChangesReview({
         return;
       }
 
-      const response = await api.post(`/v1/changes/apply-accepted/${documentId}`, {
-        accepted_changes: acceptedChanges
-      }, {
+      const response = await api.request(`/v1/changes/apply-accepted/${documentId}`, {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'X-User-ID': '1' // Mock user ID for demo
-        }
+        },
+        body: JSON.stringify({
+          accepted_changes: acceptedChanges
+        })
       });
 
-      if (response.data.success) {
-        onComplete(response.data.final_document_path);
+      if (response.success) {
+        onComplete(response.final_document_path);
       } else {
         setError('Failed to apply changes');
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to apply changes');
+      setError(err.message || 'Failed to apply changes');
     } finally {
       setApplying(false);
     }
