@@ -89,6 +89,57 @@ def create_rule(user):
         'rule': rule.to_dict()
     }), 201
 
+@rules_bp.route('/add-name-term-rules', methods=['POST'])
+@require_admin
+def add_name_term_rules(user):
+    """Add Name and Term rules to the database"""
+    ProcessingRule = current_app.ProcessingRule
+    
+    # Check if rules already exist
+    existing_name_rule = ProcessingRule.query.filter_by(name="Recipient Name Update").first()
+    existing_term_rule = ProcessingRule.query.filter_by(name="Confidentiality Term Limit").first()
+    
+    added_rules = []
+    
+    if not existing_name_rule:
+        # Add Name rule
+        name_rule = ProcessingRule(
+            user_id=user.id,
+            name="Recipient Name Update",
+            instruction="Replace 'Dear NAME:' with the signer's name from firm details. This should be replaced with the actual signer name provided in the firm details form.",
+            category="parties",
+            is_active=True,
+            is_global=True
+        )
+        db.session.add(name_rule)
+        added_rules.append("Recipient Name Update")
+    
+    if not existing_term_rule:
+        # Add Term rule
+        term_rule = ProcessingRule(
+            user_id=user.id,
+            name="Confidentiality Term Limit",
+            instruction="In Section 13 (Term section), change any reference to 'three years' or 'five years' to 'two (2) years' to limit the confidentiality term. Only change duration references in the numbered Term section, not in other parts of the document.",
+            category="term",
+            is_active=True,
+            is_global=True
+        )
+        db.session.add(term_rule)
+        added_rules.append("Confidentiality Term Limit")
+    
+    try:
+        db.session.commit()
+        return jsonify({
+            'message': f'Successfully added {len(added_rules)} rule(s)',
+            'added_rules': added_rules,
+            'existing_rules': [
+                rule.name for rule in [existing_name_rule, existing_term_rule] if rule
+            ]
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to add rules: {str(e)}'}), 500
+
 @rules_bp.route('/<int:rule_id>', methods=['GET'])
 @require_auth
 def get_rule(user, rule_id):
