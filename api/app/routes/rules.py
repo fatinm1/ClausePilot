@@ -90,9 +90,9 @@ def create_rule(user):
     }), 201
 
 @rules_bp.route('/add-name-term-rules', methods=['POST'])
-@require_admin
+@require_auth
 def add_name_term_rules(user):
-    """Add Name and Term rules to the database"""
+    """Add Name and Term rules to the database (accessible to any authenticated user)"""
     ProcessingRule = current_app.ProcessingRule
     
     # Check if rules already exist
