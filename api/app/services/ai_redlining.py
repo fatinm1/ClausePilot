@@ -8,6 +8,7 @@ from docx.shared import Inches, RGBColor
 from docx.enum.text import WD_COLOR_INDEX
 from docx.oxml.shared import OxmlElement, qn
 from docx.oxml.ns import nsdecls
+from docx.oxml import parse_xml
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -236,6 +237,43 @@ class AIRedliningService:
                             "new_text": "two (2) years",
                             "reason": "Cap confidentiality term at 2 years maximum",
                             "location_hint": "Section 13 - Term"
+                        })
+            
+            # Auto-fix date placeholders with today's date
+            import re
+            from datetime import datetime
+            
+            # Common date patterns
+            date_patterns = [
+                r'[A-Za-z]+ __, \d{4}',  # "October __, 2025"
+                r'[A-Za-z]+ __, YYYY',   # "October __, YYYY"
+                r'\[DATE\]',             # "[DATE]"
+                r'\[date\]',             # "[date]"
+                r'Date: _+',             # "Date: _______________"
+                r'Dated: _+',            # "Dated: _______________"
+                r'as of _+',             # "as of _______________"
+            ]
+            
+            today = datetime.now()
+            today_formatted = today.strftime("%B %d, %Y")  # "October 27, 2025"
+            
+            for pattern in date_patterns:
+                matches = re.findall(pattern, document_text, re.IGNORECASE)
+                for match in matches:
+                    # Check if AI already handled this date
+                    has_date_modification = any(
+                        match.lower() in mod.get('current_text', '').lower()
+                        for mod in modifications
+                    )
+                    if not has_date_modification:
+                        logger.warning(f"AI didn't generate date modification for '{match}' - adding it manually")
+                        modifications.append({
+                            "type": "TEXT_REPLACE",
+                            "section": "date",
+                            "current_text": match,
+                            "new_text": today_formatted,
+                            "reason": "Insert today's date",
+                            "location_hint": "Date field"
                         })
             
             return {
@@ -770,6 +808,15 @@ CRITICAL REQUIREMENTS:
         - "State of Delaware" or "Delaware"
         - Signature blocks: "By:", "Title: \t_______________________________", "For: Company"
         - "Title: \t_______________________________" (most common title pattern)
+        
+        DATE PATTERNS TO REPLACE:
+        - "Month __, Year" (e.g., "October __, 2025")
+        - "Month __, YYYY" (e.g., "October __, 2025")
+        - "[DATE]" or "[date]"
+        - "Date: _______________"
+        - "Dated: _______________"
+        - "as of _______________"
+        - Any blank date fields with underscores or brackets
 
 CRITICAL: When replacing text, use the EXACT text as it appears in the document.
 
@@ -1274,23 +1321,20 @@ class DocumentProcessor:
                     run = paragraph.add_run(parts[0])
                     # Keep original formatting (no change tracking)
                 
-                # Add the OLD text with black strikethrough (to show what was deleted)
+                # Add the OLD text with Word Track Changes deletion
                 deleted_run = paragraph.add_run(old_text)
-                deleted_run.font.strike = True
-                deleted_run.font.bold = True  # Make the strikethrough line bold
-                deleted_run.font.color.rgb = RGBColor(0, 0, 0)  # Black strikethrough with bold line
+                self._add_track_change_deletion(deleted_run)
                 
-                # Add the NEW text with underline and red color (to show what was added)
+                # Add the NEW text with Word Track Changes insertion
                 added_run = paragraph.add_run(new_text)
-                added_run.font.underline = True
-                added_run.font.color.rgb = RGBColor(255, 0, 0)  # Red for additions
+                self._add_track_change_insertion(added_run)
                 
                 # Add any remaining text after the replacement
                 if len(parts) > 1:
                     run = paragraph.add_run(parts[1])
                     # Keep original formatting
                 
-                logger.info(f"Change tracking added: '{old_text}' (strikethrough) -> '{new_text}' (red underline)")
+                logger.info(f"Word Track Changes added: '{old_text}' (deletion) -> '{new_text}' (insertion)")
                 
                 logger.info(f"Final paragraph text: {paragraph.text}")
                 return True
@@ -1319,22 +1363,19 @@ class DocumentProcessor:
                         if parts[0]:
                             run = paragraph.add_run(parts[0])
                         
-                        # Add deleted text with black strikethrough (bold line)
+                        # Add deleted text with Word Track Changes deletion
                         deleted_run = paragraph.add_run(actual_old_text)
-                        deleted_run.font.strike = True
-                        deleted_run.font.bold = True  # Makes the strikethrough line bold
-                        deleted_run.font.color.rgb = RGBColor(0, 0, 0)
+                        self._add_track_change_deletion(deleted_run)
                         
-                        # Add new text with red underline
+                        # Add new text with Word Track Changes insertion
                         added_run = paragraph.add_run(new_text)
-                        added_run.font.underline = True
-                        added_run.font.color.rgb = RGBColor(255, 0, 0)
+                        self._add_track_change_insertion(added_run)
                         
                         # Add remaining text
                         if len(parts) > 1:
                             run = paragraph.add_run(parts[1])
                         
-                        logger.info(f"Case-insensitive replacement with change tracking: '{actual_old_text}' (strikethrough) -> '{new_text}' (red underline)")
+                        logger.info(f"Case-insensitive replacement with Word Track Changes: '{actual_old_text}' (deletion) -> '{new_text}' (insertion)")
                         return True
                 
         except Exception as e:
@@ -1349,21 +1390,18 @@ class DocumentProcessor:
                     if parts[0]:
                         paragraph.add_run(parts[0])
                     
-                    # Add deleted text with black strikethrough (bold line)
+                    # Add deleted text with Word Track Changes deletion
                     deleted_run = paragraph.add_run(old_text)
-                    deleted_run.font.strike = True
-                    deleted_run.font.bold = True  # Makes the strikethrough line bold
-                    deleted_run.font.color.rgb = RGBColor(0, 0, 0)
+                    self._add_track_change_deletion(deleted_run)
                     
-                    # Add new text with red underline
+                    # Add new text with Word Track Changes insertion
                     added_run = paragraph.add_run(new_text)
-                    added_run.font.underline = True
-                    added_run.font.color.rgb = RGBColor(255, 0, 0)
+                    self._add_track_change_insertion(added_run)
                     
                     if len(parts) > 1:
                         paragraph.add_run(parts[1])
                     
-                    logger.info(f"Fallback replacement with change tracking successful: '{old_text}' -> '{new_text}'")
+                    logger.info(f"Fallback replacement with Word Track Changes successful: '{old_text}' -> '{new_text}'")
                     return True
                 else:
                     logger.warning(f"Text '{old_text}' not found in fallback replacement")
@@ -1373,6 +1411,52 @@ class DocumentProcessor:
                 return False
         
         return False
+    
+    def _add_track_change_deletion(self, run):
+        """Add Word Track Changes deletion markup to a run"""
+        try:
+            # Create deletion markup
+            del_elem = OxmlElement('w:del')
+            del_elem.set(qn('w:id'), '1')
+            del_elem.set(qn('w:author'), 'AI Redlining System')
+            del_elem.set(qn('w:date'), datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'))
+            
+            # Add the text to the deletion element
+            text_elem = OxmlElement('w:t')
+            text_elem.text = run.text
+            del_elem.append(text_elem)
+            
+            # Replace the run's XML with the deletion markup
+            run._element.getparent().replace(run._element, del_elem)
+            
+        except Exception as e:
+            logger.warning(f"Could not add Track Changes deletion: {e}")
+            # Fallback to strikethrough
+            run.font.strike = True
+            run.font.color.rgb = RGBColor(0, 0, 0)
+    
+    def _add_track_change_insertion(self, run):
+        """Add Word Track Changes insertion markup to a run"""
+        try:
+            # Create insertion markup
+            ins_elem = OxmlElement('w:ins')
+            ins_elem.set(qn('w:id'), '2')
+            ins_elem.set(qn('w:author'), 'AI Redlining System')
+            ins_elem.set(qn('w:date'), datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'))
+            
+            # Add the text to the insertion element
+            text_elem = OxmlElement('w:t')
+            text_elem.text = run.text
+            ins_elem.append(text_elem)
+            
+            # Replace the run's XML with the insertion markup
+            run._element.getparent().replace(run._element, ins_elem)
+            
+        except Exception as e:
+            logger.warning(f"Could not add Track Changes insertion: {e}")
+            # Fallback to red underline
+            run.font.underline = True
+            run.font.color.rgb = RGBColor(255, 0, 0)
     
     def _replace_text_chunked(self, doc: DocxDocument, old_text: str, new_text: str):
         """Replace text in large documents with chunked processing for memory efficiency"""

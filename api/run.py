@@ -26,8 +26,9 @@ if __name__ == '__main__':
     debug = os.environ.get('FLASK_ENV') != 'production'
     
     print("=" * 80)
-    print("🚀 VERSION: 1.1.0-CHANGE-TRACKING-ACTIVE")
-    print("✅ FEATURE: Professional change tracking (strikethrough + red underline)")
+    print("🚀 VERSION: 1.2.0-WORD-TRACK-CHANGES-ACTIVE")
+    print("✅ FEATURE: Word Track Changes integration (accept/reject changes)")
+    print("✅ FEATURE: Flexible date pattern matching")
     print("✅ FEATURE: Auto-fixes for firm details and term changes")
     print("=" * 80)
     
