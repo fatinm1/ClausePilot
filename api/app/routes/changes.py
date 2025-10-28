@@ -39,6 +39,10 @@ def generate_changes(user):
         custom_rules = data.get('custom_rules', [])
         firm_details = data.get('firm_details', {})
         
+        logger.warning(f"Generating changes - Document text length: {len(document_text)}")
+        logger.warning(f"Custom rules count: {len(custom_rules)}")
+        logger.warning(f"Firm details: {firm_details}")
+        
         if not document_text:
             return jsonify({'error': 'Document text is required'}), 400
         
@@ -50,6 +54,8 @@ def generate_changes(user):
         changes_data = ai_service.generate_changes_for_review(
             document_text, custom_rules, firm_details
         )
+        
+        logger.warning(f"Generated {changes_data['total_changes']} changes")
         
         # Store changes in session or database for later retrieval
         # For now, we'll return them directly
@@ -63,6 +69,9 @@ def generate_changes(user):
         
     except Exception as e:
         logger.error(f"Error generating changes: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({'error': f'Failed to generate changes: {str(e)}'}), 500
 
 @changes_bp.route('/review/<int:document_id>', methods=['GET'])
