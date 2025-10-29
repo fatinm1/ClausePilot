@@ -965,12 +965,38 @@ Please provide your analysis in the specified JSON format."""
         """Generate changes with unique IDs for review interface"""
         logger.info("Generating changes for review interface")
         
-        # Get AI modifications
-        modifications = self.analyze_document(document_text, custom_rules, firm_details)
+        # Get AI modifications - analyze_document returns a dict, extract the list
+        analysis_result = self.analyze_document(document_text, custom_rules, firm_details)
+        
+        # Extract modifications from the nested structure
+        if isinstance(analysis_result, dict):
+            if 'redlining_instructions' in analysis_result and isinstance(analysis_result['redlining_instructions'], dict):
+                modifications = analysis_result['redlining_instructions'].get('modifications', [])
+            elif 'modifications' in analysis_result:
+                modifications = analysis_result['modifications']
+            else:
+                logger.error(f"Unexpected analysis_result structure: {analysis_result.keys()}")
+                modifications = []
+        elif isinstance(analysis_result, list):
+            # If it's already a list, use it directly
+            modifications = analysis_result
+        else:
+            logger.error(f"Unexpected analysis_result type: {type(analysis_result)}")
+            modifications = []
+        
+        logger.warning(f"Extracted {len(modifications)} modifications for review interface")
         
         # Add unique IDs and metadata to each change
         changes = []
         for i, mod in enumerate(modifications):
+            # Ensure mod is a dictionary, not a string
+            if isinstance(mod, str):
+                logger.warning(f"Skipping invalid modification (string): {mod}")
+                continue
+            if not isinstance(mod, dict):
+                logger.warning(f"Skipping invalid modification (not dict): {type(mod)}")
+                continue
+                
             change_id = str(uuid.uuid4())
             change = {
                 "id": change_id,
