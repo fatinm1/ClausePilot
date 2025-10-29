@@ -163,10 +163,13 @@ def apply_accepted_changes(user, document_id):
         ai_service = AIRedliningService()
         
         # Apply accepted changes
+        # Get signature path if it exists (may not be set on all documents)
+        signature_path = getattr(document, 'signature_path', None)
+        
         result = ai_service.apply_accepted_changes(
             document.file_path, 
             accepted_changes,
-            document.signature_path
+            signature_path
         )
         
         if result['success']:
