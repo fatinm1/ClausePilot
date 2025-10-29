@@ -262,33 +262,50 @@ class AIRedliningService:
             from datetime import datetime
             
             # Common date patterns - be more specific to avoid over-redlining
-            date_patterns = [
-                r'^[A-Za-z]+ __, \d{4}$',  # "October __, 2025" at start of line
-                r'Date: _+$',              # "Date: _______________" at end of line
-                r'Dated: _+$',             # "Dated: _______________" at end of line
-                r'\[DATE\]',               # "[DATE]"
-                r'\[date\]',               # "[date]"
-            ]
-            
+            # More flexible date pattern recognition - matches various date placeholder formats
             today = datetime.now()
             today_formatted = today.strftime("%B %d, %Y")  # "October 27, 2025"
             
-            for pattern in date_patterns:
-                matches = re.findall(pattern, document_text, re.IGNORECASE | re.MULTILINE)
-                for match in matches:
-                    # Check if AI already handled this date
+            # Flexible date patterns - using regex to match variations
+            flexible_date_patterns = [
+                # Month __, Year patterns (any number of underscores)
+                (r'[A-Za-z]+ _{2,}, \d{4}', today_formatted),  # "October __, 2025" or "October ___, 2025"
+                # Date: _____ patterns
+                (r'Date:\s*_+', f"Date: {today_formatted}"),
+                # Dated: _____ patterns
+                (r'Dated:\s*_+', f"Dated: {today_formatted}"),
+                # [DATE] or [date] patterns
+                (r'\[DATE\]', today_formatted),
+                (r'\[date\]', today_formatted),
+                (r'\(DATE\)', today_formatted),
+                (r'\(date\)', today_formatted),
+                # [Insert date] or [Enter date] patterns
+                (r'\[Insert date\]', today_formatted),
+                (r'\[Enter date\]', today_formatted),
+                (r'\[insert date\]', today_formatted),
+                # Month blank, Year - flexible blank matching
+                (r'[A-Za-z]+\s+_{2,}\s*,\s*\d{4}', today_formatted),  # Handles spacing variations
+            ]
+            
+            # Search for date patterns in document
+            for pattern, replacement_text in flexible_date_patterns:
+                matches = re.finditer(pattern, document_text, re.IGNORECASE | re.MULTILINE)
+                for match_obj in matches:
+                    match_text = match_obj.group(0)
+                    # Check if AI already handled this date pattern
                     has_date_modification = any(
-                        match.lower() in mod.get('current_text', '').lower()
+                        match_text.lower() in mod.get('current_text', '').lower() or
+                        re.sub(r'\s+', ' ', match_text).lower() in re.sub(r'\s+', ' ', mod.get('current_text', '')).lower()
                         for mod in modifications
                     )
                     if not has_date_modification:
-                        logger.warning(f"AI didn't generate date modification for '{match}' - adding it manually")
+                        logger.warning(f"AI didn't generate date modification for pattern '{match_text}' - adding auto-fix: '{match_text}' -> '{replacement_text}'")
                         modifications.append({
                             "type": "TEXT_REPLACE",
                             "section": "date",
-                            "current_text": match,
-                            "new_text": today_formatted,
-                            "reason": "Insert today's date",
+                            "current_text": match_text,
+                            "new_text": replacement_text,
+                            "reason": "Insert today's date using flexible pattern recognition",
                             "location_hint": "Date field"
                         })
             
@@ -682,6 +699,9 @@ class AIRedliningService:
         12. ONLY replace "Company" in these specific contexts: "For: Company", "Company (name to be provided upon execution)"
         13. **NEVER** replace text in parentheses like (the "Company") in the opening paragraphs - this defines what "Company" means
         14. When changing years (e.g., "three years" to "2 years"), ONLY make changes in numbered sections about Term/Duration, NOT in the opening paragraphs
+        15. **FLEXIBLE DATE PATTERN RECOGNITION**: For date insertion rules, use pattern recognition, NOT exact text matching
+        16. Recognize ANY date placeholder pattern (blanks, underscores, brackets, "[DATE]", etc.) and replace with today's date
+        17. Be flexible with date patterns - "Month __, Year", "Month ___, Year", "[DATE]", "Date: _______" all should be recognized and replaced
         
         REDLINING PRINCIPLES:
         - Replace specific text with exact matches
@@ -828,19 +848,28 @@ CRITICAL REQUIREMENTS:
         - Signature blocks: "By:", "Title: \t_______________________________", "For: Company"
         - "Title: \t_______________________________" (most common title pattern)
         
-        DATE PATTERNS TO REPLACE:
-        - "Month __, Year" (e.g., "October __, 2025") → "October 27, 2025"
-        - "Month __, YYYY" (e.g., "October __, 2025") → "October 27, 2025"
-        - "[DATE]" or "[date]" → "October 27, 2025"
-        - "Date: _______________" → "Date: October 27, 2025"
-        - "Dated: _______________" → "Dated: October 27, 2025"
-        - Any blank date fields with underscores or brackets
+        FLEXIBLE DATE PATTERN RECOGNITION:
+        The AI should intelligently recognize ANY date placeholder pattern and replace it with today's date.
+        This includes but is NOT limited to:
         
-        IMPORTANT DATE RULES:
-        - ONLY replace dates that have blanks/underscores
-        - DO NOT change complete dates (e.g., "September 15, 2025" should stay as is)
-        - When replacing "September __, 2025", fill the blank with today's day: "September 27, 2025"
-        - Use today's date in "Month Day, Year" format
+        Pattern Examples (use regex-like flexibility):
+        - "Month __, Year" or "Month __, YYYY" → "Month Day, Year" (e.g., "October __, 2025" → "October 27, 2025")
+        - "Month ___, Year" → "Month Day, Year" (any number of underscores)
+        - "[DATE]", "[date]", "(DATE)", "(date)" → "Month Day, Year"
+        - "Date: _______________" or "Date: __________" → "Date: Month Day, Year"
+        - "Dated: _______________" or "Dated: __________" → "Dated: Month Day, Year"
+        - "_______" following "Date" or "Dated" → Replace with today's date
+        - "Month __, YYYY" in header/footer → "Month Day, YYYY"
+        - Any text like "[Insert date]" or "[Enter date]" → "Month Day, Year"
+        - Pattern: "Month [blank], Year" where [blank] can be "__", "___,", "[ ]", "_______", etc.
+        
+        CRITICAL DATE RULES:
+        - If you see ANY pattern that requests a date insertion (blanks, underscores, brackets, "[DATE]", etc.), replace it
+        - Do NOT wait for exact pattern matches - use pattern recognition
+        - If a date field is incomplete or has placeholders, fill it with today's date
+        - ONLY replace dates that are incomplete/placeholder - DO NOT change complete dates
+        - Use today's date in "Month Day, Year" format (e.g., "October 27, 2025")
+        - Use pattern matching, not exact text matching - be flexible with variations
 
 CRITICAL: When replacing text, use the EXACT text as it appears in the document.
 
@@ -1433,15 +1462,13 @@ class DocumentProcessor:
                     run = paragraph.add_run(parts[0])
                     # Keep original formatting (no change tracking)
                 
-                # Add the OLD text with strikethrough (deletion)
+                # Use native Word Track Changes for deletion
                 deleted_run = paragraph.add_run(old_text)
-                deleted_run.font.strike = True
-                deleted_run.font.color.rgb = RGBColor(0, 0, 0)  # Black strikethrough
+                self._add_track_change_deletion(deleted_run)
                 
-                # Add the NEW text with red underline (insertion)
+                # Use native Word Track Changes for insertion
                 added_run = paragraph.add_run(new_text)
-                added_run.font.underline = True
-                added_run.font.color.rgb = RGBColor(255, 0, 0)  # Red underline
+                self._add_track_change_insertion(added_run)
                 
                 # Add any remaining text after the replacement
                 if len(parts) > 1:
@@ -1477,15 +1504,13 @@ class DocumentProcessor:
                         if parts[0]:
                             run = paragraph.add_run(parts[0])
                         
-                        # Add deleted text with strikethrough (deletion)
+                        # Use native Word Track Changes for deletion
                         deleted_run = paragraph.add_run(actual_old_text)
-                        deleted_run.font.strike = True
-                        deleted_run.font.color.rgb = RGBColor(0, 0, 0)  # Black strikethrough
+                        self._add_track_change_deletion(deleted_run)
                         
-                        # Add new text with red underline (insertion)
+                        # Use native Word Track Changes for insertion
                         added_run = paragraph.add_run(new_text)
-                        added_run.font.underline = True
-                        added_run.font.color.rgb = RGBColor(255, 0, 0)  # Red underline
+                        self._add_track_change_insertion(added_run)
                         
                         # Add remaining text
                         if len(parts) > 1:
@@ -1506,15 +1531,13 @@ class DocumentProcessor:
                     if parts[0]:
                         paragraph.add_run(parts[0])
                     
-                    # Add deleted text with strikethrough (deletion)
-                    deleted_run = paragraph.add_run(old_text)
-                    deleted_run.font.strike = True
-                    deleted_run.font.color.rgb = RGBColor(0, 0, 0)  # Black strikethrough
-                    
-                    # Add new text with red underline (insertion)
-                    added_run = paragraph.add_run(new_text)
-                    added_run.font.underline = True
-                    added_run.font.color.rgb = RGBColor(255, 0, 0)  # Red underline
+                        # Use native Word Track Changes for deletion
+                        deleted_run = paragraph.add_run(old_text)
+                        self._add_track_change_deletion(deleted_run)
+                        
+                        # Use native Word Track Changes for insertion
+                        added_run = paragraph.add_run(new_text)
+                        self._add_track_change_insertion(added_run)
                     
                     if len(parts) > 1:
                         paragraph.add_run(parts[1])
@@ -1533,16 +1556,29 @@ class DocumentProcessor:
     def _add_track_change_deletion(self, run):
         """Add Word Track Changes deletion markup to a run"""
         try:
-            # Create deletion markup
+            import uuid
+            # Create deletion markup - w:del must contain w:r (run) elements
             del_elem = OxmlElement('w:del')
-            del_elem.set(qn('w:id'), '1')
+            change_id = str(uuid.uuid4())[:8]  # Use unique ID for each change
+            del_elem.set(qn('w:id'), change_id)
             del_elem.set(qn('w:author'), 'AI Redlining System')
             del_elem.set(qn('w:date'), datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'))
             
-            # Add the text to the deletion element
+            # Create a run element inside the deletion
+            run_elem = OxmlElement('w:r')
+            # Copy any formatting from the original run
+            if run.font.bold:
+                b_elem = OxmlElement('w:b')
+                run_elem.append(b_elem)
+            if run.font.italic:
+                i_elem = OxmlElement('w:i')
+                run_elem.append(i_elem)
+            
+            # Add the text to the run element
             text_elem = OxmlElement('w:t')
             text_elem.text = run.text
-            del_elem.append(text_elem)
+            run_elem.append(text_elem)
+            del_elem.append(run_elem)
             
             # Replace the run's XML with the deletion markup
             run._element.getparent().replace(run._element, del_elem)
@@ -1556,16 +1592,31 @@ class DocumentProcessor:
     def _add_track_change_insertion(self, run):
         """Add Word Track Changes insertion markup to a run"""
         try:
-            # Create insertion markup
+            import uuid
+            # Create insertion markup - w:ins must contain w:r (run) elements
             ins_elem = OxmlElement('w:ins')
-            ins_elem.set(qn('w:id'), '2')
+            change_id = str(uuid.uuid4())[:8]  # Use unique ID for each change
+            ins_elem.set(qn('w:id'), change_id)
             ins_elem.set(qn('w:author'), 'AI Redlining System')
             ins_elem.set(qn('w:date'), datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'))
             
-            # Add the text to the insertion element
+            # Create a run element inside the insertion
+            run_elem = OxmlElement('w:r')
+            # Add formatting for inserted text (typically underlined)
+            u_elem = OxmlElement('w:u')
+            u_elem.set(qn('w:val'), 'single')
+            run_elem.append(u_elem)
+            
+            # Add color for inserted text (typically red)
+            color_elem = OxmlElement('w:color')
+            color_elem.set(qn('w:val'), 'FF0000')  # Red
+            run_elem.append(color_elem)
+            
+            # Add the text to the run element
             text_elem = OxmlElement('w:t')
             text_elem.text = run.text
-            ins_elem.append(text_elem)
+            run_elem.append(text_elem)
+            ins_elem.append(run_elem)
             
             # Replace the run's XML with the insertion markup
             run._element.getparent().replace(run._element, ins_elem)
