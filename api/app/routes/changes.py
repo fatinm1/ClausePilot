@@ -174,13 +174,22 @@ def apply_accepted_changes(user, document_id):
         
         if result['success']:
             # Update document record with final version
-            document.final_file_path = result['output_path']
+            output_path = result.get('output_path')
+            logger.warning(f"Setting final_file_path to: {output_path}")
+            logger.warning(f"Output path exists: {os.path.exists(output_path) if output_path else 'None'}")
+            
+            document.final_file_path = output_path
+            db.session.add(document)
             db.session.commit()
+            
+            # Verify it was saved
+            db.session.refresh(document)
+            logger.warning(f"After commit, final_file_path is: {document.final_file_path}")
             
             return jsonify({
                 'success': True,
-                'final_document_path': result['output_path'],
-                'changes_applied': result['changes_applied'],
+                'final_document_path': output_path,
+                'changes_applied': result.get('changes_applied', 0),
                 'message': 'Final document created successfully'
             }), 200
         else:
