@@ -1153,6 +1153,205 @@ Please provide your analysis in the specified JSON format."""
                     
         except Exception as e:
             logger.error(f"Error applying single change: {str(e)}")
+    
+    def _replace_text_in_paragraph(self, paragraph, old_text: str, new_text: str):
+        """Replace text in a paragraph while preserving formatting"""
+        try:
+            # First, try to find and replace in individual runs
+            for run in paragraph.runs:
+                if old_text in run.text:
+                    # Replace the text in the run
+                    run.text = run.text.replace(old_text, new_text)
+                    
+                    # Add redlining formatting
+                    run.font.underline = True
+                    run.font.color.rgb = RGBColor(255, 0, 0)  # Red for additions
+                    logger.info(f"Replaced text in run: '{old_text}' -> '{new_text}'")
+                    return True
+            
+            # If not found in individual runs, try paragraph-level replacement
+            if old_text in paragraph.text:
+                logger.info(f"Text found in paragraph, doing paragraph-level replacement")
+                
+                # Store original text
+                original_text = paragraph.text
+                
+                # Clear all runs and create new ones
+                paragraph.clear()
+                
+                # Split text around the old_text and create runs
+                parts = original_text.split(old_text)
+                logger.info(f"Split into {len(parts)} parts: {parts}")
+                
+                # Add text before the replacement
+                if parts[0]:  # Add non-empty parts
+                    run = paragraph.add_run(parts[0])
+                    # Keep original formatting (no change tracking)
+                
+                # Use native Word Track Changes for deletion
+                deleted_run = paragraph.add_run(old_text)
+                self._add_track_change_deletion(deleted_run)
+                
+                # Use native Word Track Changes for insertion
+                added_run = paragraph.add_run(new_text)
+                self._add_track_change_insertion(added_run)
+                
+                # Add any remaining text after the replacement
+                if len(parts) > 1:
+                    run = paragraph.add_run(parts[1])
+                    # Keep original formatting
+                
+                logger.info(f"Visual change tracking added: '{old_text}' (strikethrough) -> '{new_text}' (red underline)")
+                
+                logger.info(f"Final paragraph text: {paragraph.text}")
+                return True
+            else:
+                logger.warning(f"Text '{old_text}' not found in paragraph: '{paragraph.text}'")
+                # Try case-insensitive search with change tracking
+                if old_text.lower() in paragraph.text.lower():
+                    logger.info(f"Found case-insensitive match, trying replacement with change tracking")
+                    
+                    # Find the actual old text in the paragraph
+                    text_lower = paragraph.text.lower()
+                    idx = text_lower.find(old_text.lower())
+                    
+                    if idx != -1:
+                        # Extract the actual old text from the paragraph
+                        actual_old_text = paragraph.text[idx:idx+len(old_text)]
+                        
+                        # Clear the paragraph and rebuild with change tracking
+                        original_text = paragraph.text
+                        paragraph.clear()
+                        
+                        # Split on the actual old text
+                        parts = original_text.split(actual_old_text, 1)
+                        
+                        # Add text before replacement
+                        if parts[0]:
+                            run = paragraph.add_run(parts[0])
+                        
+                        # Use native Word Track Changes for deletion
+                        deleted_run = paragraph.add_run(actual_old_text)
+                        self._add_track_change_deletion(deleted_run)
+                        
+                        # Use native Word Track Changes for insertion
+                        added_run = paragraph.add_run(new_text)
+                        self._add_track_change_insertion(added_run)
+                        
+                        # Add remaining text
+                        if len(parts) > 1:
+                            run = paragraph.add_run(parts[1])
+                        
+                        logger.info(f"Case-insensitive replacement with visual change tracking: '{actual_old_text}' (strikethrough) -> '{new_text}' (red underline)")
+                        return True
+                
+        except Exception as e:
+            logger.error(f"Error replacing text in paragraph: {str(e)}")
+            # Fallback to simple replacement with change tracking
+            try:
+                original_text = paragraph.text
+                if old_text in original_text:
+                    paragraph.clear()
+                    parts = original_text.split(old_text, 1)
+                    
+                    if parts[0]:
+                        paragraph.add_run(parts[0])
+                    
+                        # Use native Word Track Changes for deletion
+                        deleted_run = paragraph.add_run(old_text)
+                        self._add_track_change_deletion(deleted_run)
+                        
+                        # Use native Word Track Changes for insertion
+                        added_run = paragraph.add_run(new_text)
+                        self._add_track_change_insertion(added_run)
+                    
+                    if len(parts) > 1:
+                        paragraph.add_run(parts[1])
+                    
+                    logger.info(f"Fallback replacement with visual change tracking successful: '{old_text}' (strikethrough) -> '{new_text}' (red underline)")
+                    return True
+                else:
+                    logger.warning(f"Text '{old_text}' not found in fallback replacement")
+                    return False
+            except Exception as fallback_error:
+                logger.error(f"Fallback replacement failed: {str(fallback_error)}")
+                return False
+        
+        return False
+    
+    def _add_track_change_deletion(self, run):
+        """Add Word Track Changes deletion markup to a run"""
+        try:
+            import uuid
+            # Create deletion markup - w:del must contain w:r (run) elements
+            del_elem = OxmlElement('w:del')
+            change_id = str(uuid.uuid4())[:8]  # Use unique ID for each change
+            del_elem.set(qn('w:id'), change_id)
+            del_elem.set(qn('w:author'), 'AI Redlining System')
+            del_elem.set(qn('w:date'), datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'))
+            
+            # Create a run element inside the deletion
+            run_elem = OxmlElement('w:r')
+            # Copy any formatting from the original run
+            if run.font.bold:
+                b_elem = OxmlElement('w:b')
+                run_elem.append(b_elem)
+            if run.font.italic:
+                i_elem = OxmlElement('w:i')
+                run_elem.append(i_elem)
+            
+            # Add the text to the run element
+            text_elem = OxmlElement('w:t')
+            text_elem.text = run.text
+            run_elem.append(text_elem)
+            del_elem.append(run_elem)
+            
+            # Replace the run's XML with the deletion markup
+            run._element.getparent().replace(run._element, del_elem)
+            
+        except Exception as e:
+            logger.warning(f"Could not add Track Changes deletion: {e}")
+            # Fallback to strikethrough
+            run.font.strike = True
+            run.font.color.rgb = RGBColor(0, 0, 0)
+    
+    def _add_track_change_insertion(self, run):
+        """Add Word Track Changes insertion markup to a run"""
+        try:
+            import uuid
+            # Create insertion markup - w:ins must contain w:r (run) elements
+            ins_elem = OxmlElement('w:ins')
+            change_id = str(uuid.uuid4())[:8]  # Use unique ID for each change
+            ins_elem.set(qn('w:id'), change_id)
+            ins_elem.set(qn('w:author'), 'AI Redlining System')
+            ins_elem.set(qn('w:date'), datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'))
+            
+            # Create a run element inside the insertion
+            run_elem = OxmlElement('w:r')
+            # Add formatting for inserted text (typically underlined)
+            u_elem = OxmlElement('w:u')
+            u_elem.set(qn('w:val'), 'single')
+            run_elem.append(u_elem)
+            
+            # Add color for inserted text (typically red)
+            color_elem = OxmlElement('w:color')
+            color_elem.set(qn('w:val'), 'FF0000')  # Red
+            run_elem.append(color_elem)
+            
+            # Add the text to the run element
+            text_elem = OxmlElement('w:t')
+            text_elem.text = run.text
+            run_elem.append(text_elem)
+            ins_elem.append(run_elem)
+            
+            # Replace the run's XML with the insertion markup
+            run._element.getparent().replace(run._element, ins_elem)
+            
+        except Exception as e:
+            logger.warning(f"Could not add Track Changes insertion: {e}")
+            # Fallback to red underline
+            run.font.underline = True
+            run.font.color.rgb = RGBColor(255, 0, 0)
 
 class DocumentProcessor:
     def __init__(self, ai_service: AIRedliningService):
