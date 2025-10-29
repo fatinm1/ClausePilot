@@ -1037,7 +1037,7 @@ Please provide your analysis in the specified JSON format."""
                 self._apply_signature(doc, signature_path)
             
             # Generate output path
-            output_path = self._generate_output_path(doc_path, "final")
+            output_path = self._generate_output_path(doc_path)
             
             # Save the final document
             doc.save(output_path)
@@ -1054,6 +1054,85 @@ Please provide your analysis in the specified JSON format."""
                 "success": False,
                 "error": str(e)
             }
+    
+    def _generate_output_path(self, input_path: str) -> str:
+        """Generate output path for the processed document"""
+        # Create outputs directory if it doesn't exist
+        output_dir = 'outputs'
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Get the absolute path to the outputs directory
+        base_dir = os.path.abspath(output_dir)
+        filename = os.path.basename(input_path)
+        name, ext = os.path.splitext(filename)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_filename = f"{name}_final_{timestamp}{ext}"
+        return os.path.abspath(os.path.join(base_dir, output_filename))
+    
+    def _apply_signature(self, doc: DocxDocument, signature_path: str):
+        """Apply signature image to the document"""
+        try:
+            from docx.shared import Inches
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            
+            logger.info(f"Applying signature from: {signature_path}")
+            
+            # Find "Signed:" text and add signature right after it
+            signature_added = False
+            
+            for paragraph in doc.paragraphs:
+                if 'Signed:' in paragraph.text:
+                    logger.info(f"Found 'Signed:' in paragraph: {paragraph.text}")
+                    
+                    # Clear the paragraph and rebuild it with proper signature placement
+                    original_text = paragraph.text
+                    paragraph.clear()
+                    
+                    # Split text around "Signed:"
+                    parts = original_text.split('Signed:', 1)
+                    
+                    # Add text before "Signed:"
+                    if parts[0].strip():
+                        before_run = paragraph.add_run(parts[0])
+                    
+                    # Add "Signed:" text
+                    signed_run = paragraph.add_run("Signed: ")
+                    
+                    # Add signature image immediately after "Signed:"
+                    signature_run = paragraph.add_run()
+                    signature_run.add_picture(signature_path, width=Inches(1.2))
+                    
+                    # Add any remaining text after "Signed:"
+                    if len(parts) > 1 and parts[1].strip():
+                        remaining_run = paragraph.add_run(parts[1])
+                    
+                    signature_added = True
+                    logger.info("Signature added right next to 'Signed:' text")
+                    break
+            
+            # If no "Signed:" found, look for signature placeholders
+            if not signature_added:
+                for paragraph in doc.paragraphs:
+                    if '[SIGNATURE]' in paragraph.text:
+                        # Replace placeholder with signature
+                        paragraph.text = paragraph.text.replace('[SIGNATURE]', '')
+                        
+                        # Add signature image
+                        run = paragraph.runs[0] if paragraph.runs else paragraph.add_run()
+                        run.add_picture(signature_path, width=Inches(1.5))
+                        signature_added = True
+                        logger.info("Signature added at [SIGNATURE] placeholder")
+                        break
+            
+            # If still not added, add at the end of the document
+            if not signature_added:
+                logger.warning("No signature placeholder found, adding at end of document")
+                last_paragraph = doc.paragraphs[-1]
+                run = last_paragraph.add_run()
+                run.add_picture(signature_path, width=Inches(1.5))
+                
+        except Exception as e:
+            logger.error(f"Error applying signature: {str(e)}")
     
     def _apply_single_change(self, doc: DocxDocument, change: Dict):
         """Apply a single change to the document"""
