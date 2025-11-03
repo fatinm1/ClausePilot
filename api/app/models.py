@@ -66,6 +66,7 @@ def define_models(db):
         uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
         processed_at = db.Column(db.DateTime)
         output_path = db.Column(db.String(500))
+        final_file_path = db.Column(db.String(500))  # Path to final document after apply-accepted
         error_message = db.Column(db.Text)
         
         def to_dict(self):
@@ -80,6 +81,7 @@ def define_models(db):
                 'uploaded_at': self.uploaded_at.isoformat() if self.uploaded_at else None,
                 'processed_at': self.processed_at.isoformat() if self.processed_at else None,
                 'output_path': self.output_path,
+                'final_file_path': self.final_file_path,
                 'error_message': self.error_message
             }
 
