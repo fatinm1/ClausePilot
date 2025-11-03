@@ -19,6 +19,25 @@ if __name__ == '__main__':
                 print("Database tables created successfully!")
             except Exception as create_error:
                 print(f"Failed to create tables: {create_error}")
+        
+        # Manually add final_file_path column if it doesn't exist
+        print("Checking for final_file_path column...")
+        try:
+            from sqlalchemy import text, inspect
+            inspector = inspect(db.engine)
+            columns = [col['name'] for col in inspector.get_columns('document')]
+            
+            if 'final_file_path' not in columns:
+                print("Adding final_file_path column to document table...")
+                db.session.execute(text(
+                    "ALTER TABLE document ADD COLUMN final_file_path VARCHAR(500)"
+                ))
+                db.session.commit()
+                print("✅ Successfully added final_file_path column!")
+            else:
+                print("✅ final_file_path column already exists")
+        except Exception as col_error:
+            print(f"Column check/addition error: {col_error}")
     
     # Get port from environment variable (Railway sets this)
     port = int(os.environ.get('PORT', 5001))
