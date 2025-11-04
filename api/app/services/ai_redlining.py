@@ -263,22 +263,59 @@ class AIRedliningService:
                             "location_hint": "Salutation"
                         })
                 
-                # Ensure "By:" field is filled if it exists and is empty
-                if firm_details.get('signatory_name') and 'By:' in document_text:
-                    has_by_modification = any(
-                        'By:' in mod.get('current_text', '') and firm_details['signatory_name'] in mod.get('new_text', '')
-                        for mod in modifications
-                    )
-                    if not has_by_modification:
-                        logger.warning(f"AI didn't generate 'By:' modification - adding it manually")
-                        modifications.append({
-                            "type": "TEXT_REPLACE",
-                            "section": "signature_block",
-                            "current_text": "By:",
-                            "new_text": f"By: {firm_details['signatory_name']}",
-                            "reason": "Fill in signature block with signer name",
-                            "location_hint": "Signature block"
-                        })
+                # Ensure "By:" field is filled - find FULL text with underscores
+                if firm_details.get('signatory_name'):
+                    import re
+                    # Match "By:" followed by tabs/spaces and underscores
+                    by_pattern = r'By:[\t\s]+_+'
+                    by_matches = list(re.finditer(by_pattern, document_text))
+                    if by_matches:
+                        # Get the FULL matched text including ALL underscores (don't rstrip!)
+                        by_full_text = by_matches[0].group(0)
+                        has_by_modification = any(
+                            by_full_text in mod.get('current_text', '') or
+                            ('By:' in mod.get('current_text', '') and '_' in mod.get('current_text', ''))
+                            for mod in modifications
+                        )
+                        if not has_by_modification:
+                            logger.warning(f"Auto-fix: Replacing full By line including underscores")
+                            logger.warning(f"  Current: '{by_full_text}'")
+                            logger.warning(f"  New: 'By: {firm_details['signatory_name']}'")
+                            modifications.append({
+                                "type": "TEXT_REPLACE",
+                                "section": "signature_block",
+                                "current_text": by_full_text,
+                                "new_text": f"By: {firm_details['signatory_name']}",
+                                "reason": "Fill in signature block with signer name",
+                                "location_hint": "Signature block"
+                            })
+                
+                # Ensure "Title:" field is filled - find FULL text with underscores
+                if firm_details.get('title'):
+                    import re
+                    # Match "Title:" followed by tabs/spaces and underscores
+                    title_pattern = r'Title:[\t\s]+_+'
+                    title_matches = list(re.finditer(title_pattern, document_text))
+                    if title_matches:
+                        # Get the FULL matched text including ALL underscores (don't rstrip!)
+                        title_full_text = title_matches[0].group(0)
+                        has_title_modification = any(
+                            title_full_text in mod.get('current_text', '') or
+                            ('Title:' in mod.get('current_text', '') and '_' in mod.get('current_text', ''))
+                            for mod in modifications
+                        )
+                        if not has_title_modification:
+                            logger.warning(f"Auto-fix: Replacing full Title line including underscores")
+                            logger.warning(f"  Current: '{title_full_text}'")
+                            logger.warning(f"  New: 'Title: {firm_details['title']}'")
+                            modifications.append({
+                                "type": "TEXT_REPLACE",
+                                "section": "signature_block",
+                                "current_text": title_full_text,
+                                "new_text": f"Title: {firm_details['title']}",
+                                "reason": "Fill in signature block with title",
+                                "location_hint": "Signature block"
+                            })
                 
                 # Ensure "For: Company" field is filled if it exists
                 if firm_details.get('firm_name') and ('For: Company' in document_text or 'For:\tCompany' in document_text or 'For: \tCompany' in document_text):
