@@ -67,15 +67,35 @@ class AIRedliningService:
             logger.warning("Falling back to mock mode due to error")
         
     def analyze_document(self, document_text: str, custom_rules: List[Dict[str, Any]], firm_details: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Analyze the document using OpenAI GPT-4 and return redlining instructions
+        """
+        # Normalize firm_details keys (frontend sends different key names)
+        if firm_details:
+            normalized = {}
+            # Map frontend keys to backend keys
+            key_mapping = {
+                'name': 'firm_name',
+                'signerName': 'signatory_name',
+                'signerTitle': 'title',
+                'address': 'address',
+                'city': 'city',
+                'state': 'state',
+                'zipCode': 'zip_code',
+                'email': 'email',
+                'phone': 'phone'
+            }
+            for frontend_key, backend_key in key_mapping.items():
+                if frontend_key in firm_details:
+                    normalized[backend_key] = firm_details[frontend_key]
+            firm_details = normalized
+        
         # Debug: Log the firm details received by AI service
         logger.warning(f"AI Service received firm_details: {firm_details}")
         logger.warning(f"Firm details keys: {list(firm_details.keys()) if firm_details else 'None'}")
         if firm_details:
             for key, value in firm_details.items():
                 logger.warning(f"  {key}: '{value}'")
-        """
-        Analyze the document using OpenAI GPT-4 and return redlining instructions
-        """
         try:
             # Check if we're in mock mode
             logger.warning(f"AI Service - Client available: {self.client is not None}")
@@ -137,27 +157,30 @@ class AIRedliningService:
                 for i, mod in enumerate(modifications):
                     logger.warning(f"POST-PROCESSING Mod {i+1}: {mod}")
                     # Replace hardcoded names with actual signer name
-                    if firm_details.get('signatory_name'):
+                    signer_name = firm_details.get('signatory_name') or firm_details.get('signerName')
+                    if signer_name:
                         for hardcoded in hardcoded_names:
                             if 'new_text' in mod and hardcoded in mod['new_text']:
                                 logger.warning(f"Fixing hardcoded name in modification: '{mod['new_text']}'")
-                                mod['new_text'] = mod['new_text'].replace(hardcoded, firm_details['signatory_name'])
+                                mod['new_text'] = mod['new_text'].replace(hardcoded, signer_name)
                                 logger.warning(f"Fixed to: '{mod['new_text']}'")
                     
-                    # Replace hardcoded companies with actual firm name
-                    if firm_details.get('firm_name'):
+                    # Replace hardcoded companies with actual firm name  
+                    company_name = firm_details.get('firm_name') or firm_details.get('name')
+                    if company_name:
                         for hardcoded in hardcoded_companies:
                             if 'new_text' in mod and hardcoded in mod['new_text']:
                                 logger.warning(f"Fixing hardcoded company in modification: '{mod['new_text']}'")
-                                mod['new_text'] = mod['new_text'].replace(hardcoded, firm_details['firm_name'])
+                                mod['new_text'] = mod['new_text'].replace(hardcoded, company_name)
                                 logger.warning(f"Fixed to: '{mod['new_text']}'")
                     
                     # Replace hardcoded titles with actual title
-                    if firm_details.get('title'):
+                    title = firm_details.get('title') or firm_details.get('signerTitle')
+                    if title:
                         for hardcoded in hardcoded_titles:
                             if 'new_text' in mod and hardcoded in mod['new_text']:
                                 logger.warning(f"Fixing hardcoded title in modification: '{mod['new_text']}'")
-                                mod['new_text'] = mod['new_text'].replace(hardcoded, firm_details['title'])
+                                mod['new_text'] = mod['new_text'].replace(hardcoded, title)
                                 logger.warning(f"Fixed to: '{mod['new_text']}'")
                 
                 # Ensure "Dear NAME:" is replaced if it exists
