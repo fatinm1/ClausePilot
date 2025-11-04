@@ -20,13 +20,10 @@ export function AuthProvider({ children }: { ReactNode }) {
 
   // Initialize from localStorage on mount
   useEffect(() => {
-    const storedUser = getStoredUser()
-    if (storedUser) {
-      setUser(storedUser)
-      setIsAuthenticated(true)
-    }
+    // DON'T set user from localStorage yet - wait for backend validation
+    // This prevents flash of wrong UI and race conditions
     
-    // Always validate with backend to check JWT tokens
+    // Always validate with backend to check JWT tokens (httpOnly cookies)
     getCurrentUser()
       .then(currentUser => {
         if (currentUser) {
@@ -34,14 +31,14 @@ export function AuthProvider({ children }: { ReactNode }) {
           storeUser(currentUser)
           setIsAuthenticated(true)
         } else {
-          // Invalid user, clear
+          // Invalid/no user, clear everything
           removeStoredUser()
           setUser(null)
           setIsAuthenticated(false)
         }
       })
       .catch(() => {
-        // Error, clear
+        // Error, clear everything
         removeStoredUser()
         setUser(null)
         setIsAuthenticated(false)
