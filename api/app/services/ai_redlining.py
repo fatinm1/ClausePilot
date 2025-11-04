@@ -1388,15 +1388,18 @@ Please provide your analysis in the specified JSON format."""
                     before_run = paragraph.add_run(parts[0])
                     logger.warning(f"    Added text before: '{parts[0][:50]}'")
                 
-                # Add OLD text with Track Changes DELETION markup (will show strikethrough)
+                # Add OLD text with VISUAL strikethrough (guaranteed to work in Word)
                 deleted_run = paragraph.add_run(old_text)
-                self._add_track_change_deletion(deleted_run)
-                logger.warning(f"    ✅ Added DELETION (strikethrough): '{old_text[:50]}'")
+                deleted_run.font.strike = True
+                deleted_run.font.color.rgb = RGBColor(255, 0, 0)  # Red strikethrough
+                logger.warning(f"    ✅ Added DELETION (red strikethrough): '{old_text[:50]}'")
                 
-                # Add NEW text with Track Changes INSERTION markup (will show red underline)
+                # Add NEW text with VISUAL red underline (guaranteed to work in Word)
                 added_run = paragraph.add_run(new_text)
-                self._add_track_change_insertion(added_run)
-                logger.warning(f"    ✅ Added INSERTION (red underline): '{new_text[:50]}'")
+                added_run.font.underline = True
+                added_run.font.color.rgb = RGBColor(0, 0, 255)  # Blue underline for new text
+                added_run.font.bold = True  # Make it stand out
+                logger.warning(f"    ✅ Added INSERTION (blue underline bold): '{new_text[:50]}'")
                 
                 # Add any remaining text after the replacement (no formatting)
                 if len(parts) > 1 and parts[1]:
@@ -1430,13 +1433,16 @@ Please provide your analysis in the specified JSON format."""
                         if parts[0]:
                             run = paragraph.add_run(parts[0])
                         
-                        # Use native Word Track Changes for deletion
+                        # Add OLD text with visual strikethrough
                         deleted_run = paragraph.add_run(actual_old_text)
-                        self._add_track_change_deletion(deleted_run)
+                        deleted_run.font.strike = True
+                        deleted_run.font.color.rgb = RGBColor(255, 0, 0)  # Red strikethrough
                         
-                        # Use native Word Track Changes for insertion
+                        # Add NEW text with visual formatting
                         added_run = paragraph.add_run(new_text)
-                        self._add_track_change_insertion(added_run)
+                        added_run.font.underline = True
+                        added_run.font.color.rgb = RGBColor(0, 0, 255)  # Blue underline
+                        added_run.font.bold = True
                         
                         # Add remaining text
                         if len(parts) > 1:
@@ -2024,13 +2030,16 @@ class DocumentProcessor:
                         if parts[0]:
                             run = paragraph.add_run(parts[0])
                         
-                        # Use native Word Track Changes for deletion
+                        # Add OLD text with visual strikethrough
                         deleted_run = paragraph.add_run(actual_old_text)
-                        self._add_track_change_deletion(deleted_run)
+                        deleted_run.font.strike = True
+                        deleted_run.font.color.rgb = RGBColor(255, 0, 0)  # Red strikethrough
                         
-                        # Use native Word Track Changes for insertion
+                        # Add NEW text with visual formatting
                         added_run = paragraph.add_run(new_text)
-                        self._add_track_change_insertion(added_run)
+                        added_run.font.underline = True
+                        added_run.font.color.rgb = RGBColor(0, 0, 255)  # Blue underline
+                        added_run.font.bold = True
                         
                         # Add remaining text
                         if len(parts) > 1:
