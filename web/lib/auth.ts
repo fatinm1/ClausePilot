@@ -65,17 +65,25 @@ export async function register(data: RegisterData): Promise<AuthResponse> {
 export async function getCurrentUser(): Promise<User | null> {
   try {
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5001');
+    console.log('[Auth] Checking current user at:', `${API_BASE_URL}/v1/auth/me`);
+    
     const response = await fetch(`${API_BASE_URL}/v1/auth/me`, {
       credentials: 'include',
     })
     
+    console.log('[Auth] Response status:', response.status);
+    
     if (response.ok) {
       const data = await response.json()
+      console.log('[Auth] ✅ User authenticated:', data.user?.email, 'role:', data.user?.role);
       return data.user
     }
     
+    const errorData = await response.json().catch(() => ({}));
+    console.log('[Auth] ❌ Not authenticated:', response.status, errorData);
     return null
   } catch (error) {
+    console.error('[Auth] ⚠️ Error checking user:', error);
     return null
   }
 }

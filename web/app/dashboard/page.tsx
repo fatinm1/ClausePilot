@@ -140,12 +140,15 @@ export default function Dashboard() {
 
   // Check authentication and role
   useEffect(() => {
-    if (!loading) {
-      if (!user) {
-        router.push('/login');
-      } else if (user?.role === 'USER') {
-        router.push('/user-dashboard');
-      }
+    // Only redirect if we're DONE loading AND there's no user
+    if (!loading && !user) {
+      console.log('Dashboard: Not authenticated, redirecting to login');
+      router.push('/login');
+    } else if (!loading && user && user.role === 'USER') {
+      console.log('Dashboard: USER role detected, redirecting to user-dashboard');
+      router.push('/user-dashboard');
+    } else if (!loading && user) {
+      console.log('Dashboard: Authenticated as', user.email, 'with role', user.role);
     }
   }, [loading, user, router]);
 
