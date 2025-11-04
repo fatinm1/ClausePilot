@@ -63,12 +63,18 @@ def create_app(config_class=Config):
         if path.startswith('v1/'):
             return "API route not found", 404
         
-        # Serve static files
+        # For SPA routes (dashboard, login, register, etc.), always serve root index.html
+        # This ensures React Router handles the routing client-side after page refresh
+        spa_routes = ['dashboard', 'login', 'register', 'demo', 'user-dashboard']
+        if any(path.startswith(route) for route in spa_routes):
+            return send_file(os.path.join(app.root_path, '..', 'web', 'out', 'index.html'))
+        
+        # Serve static assets (_next, images, etc.)
         static_path = os.path.join(app.root_path, '..', 'web', 'out', path)
         if os.path.exists(static_path) and os.path.isfile(static_path):
             return send_file(static_path)
         
-        # For SPA routing, serve index.html for any non-API route
+        # For any other unknown route, serve index.html (SPA fallback)
         return send_file(os.path.join(app.root_path, '..', 'web', 'out', 'index.html'))
     
     # Error handler for file too large
