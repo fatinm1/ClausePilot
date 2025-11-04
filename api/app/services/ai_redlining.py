@@ -148,6 +148,40 @@ class AIRedliningService:
             for i, mod in enumerate(modifications):
                 logger.warning(f"  Mod {i+1}: {mod.get('type')} - '{mod.get('current_text', 'N/A')[:50]}...' -> '{mod.get('new_text', 'N/A')[:50]}...'")
             
+            # VALIDATION: Remove any modifications that incorrectly replace "Company" in legal text
+            invalid_modifications = []
+            for i, mod in enumerate(modifications):
+                current_text = mod.get('current_text', '')
+                # Check if this modification is trying to replace "Company" in an invalid context
+                if 'Company' in current_text:
+                    # These are INVALID contexts where Company should NEVER be replaced
+                    invalid_contexts = [
+                        '(the "Company")',
+                        '(the \'Company\')',
+                        'the Company',
+                        'concerning the Company',
+                        'regarding the Company',
+                        'about the Company',
+                        'of the Company',
+                        'business (the',
+                        'machining business'
+                    ]
+                    is_invalid = any(invalid_ctx in current_text for invalid_ctx in invalid_contexts)
+                    # VALID contexts are signature blocks only
+                    valid_contexts = ['For: Company', 'For:\tCompany', 'For: \tCompany', 'Company (name to be provided upon execution)']
+                    is_valid = any(current_text.strip() == valid_ctx or current_text.strip().startswith(valid_ctx) for valid_ctx in valid_contexts)
+                    
+                    if is_invalid or (not is_valid and len(current_text) > 20):  # Longer text = likely body text, not signature
+                        logger.warning(f"⚠️  REJECTING INVALID 'Company' MODIFICATION: '{current_text[:100]}'")
+                        invalid_modifications.append(i)
+            
+            # Remove invalid modifications
+            if invalid_modifications:
+                logger.warning(f"Removing {len(invalid_modifications)} invalid Company replacements")
+                for idx in reversed(invalid_modifications):
+                    removed_mod = modifications.pop(idx)
+                    logger.warning(f"Removed: {removed_mod}")
+            
             if firm_details:
                 # Fix any modifications that use hardcoded values instead of firm details
                 hardcoded_names = ['John Bagge', 'Jane Doe']
@@ -731,13 +765,23 @@ class AIRedliningService:
         8. Replace "By:" with "By: [Firm Details Signer Name]", "Title:" with "Title: [Firm Details Title]", "For:" with "For: [Firm Details Company Name]"
         9. Do NOT add new signature lines or duplicate existing ones
         10. If a rule says "JMC Investment LLC" but firm details provide "MyCompany", USE "MyCompany"
-        11. **CRITICAL**: Do NOT replace "Company" when it refers to the disclosing party in the legal text (e.g., "concerning the Company", "the Company acknowledges", "acquisition of our client's machining business (the 'Company')")
-        12. ONLY replace "Company" in these specific contexts: "For: Company", "Company (name to be provided upon execution)"
-        13. **NEVER** replace text in parentheses like (the "Company") in the opening paragraphs - this defines what "Company" means
-        14. When changing years (e.g., "three years" to "2 years"), ONLY make changes in numbered sections about Term/Duration, NOT in the opening paragraphs
-        15. **FLEXIBLE DATE PATTERN RECOGNITION**: For date insertion rules, use pattern recognition, NOT exact text matching
-        16. Recognize ANY date placeholder pattern (blanks, underscores, brackets, "[DATE]", etc.) and replace with today's date
-        17. Be flexible with date patterns - "Month __, Year", "Month ___, Year", "[DATE]", "Date: _______" all should be recognized and replaced
+        11. **CRITICAL - NEVER TOUCH THESE**: Do NOT replace "Company" when it appears in legal text:
+            - (the "Company") - this is a legal definition
+            - "the Company" - refers to the disclosing party
+            - "concerning the Company" 
+            - "the Company acknowledges"
+            - "acquisition of our client's machining business (the 'Company')"
+            - ANY instance where "Company" is in quotes or parentheses in the body text
+        12. **ONLY REPLACE "Company" IN SIGNATURE BLOCKS**: 
+            - "For: Company" → "For: [FIRM_NAME]"
+            - "For:\tCompany" → "For:\t[FIRM_NAME]"
+            - "Company (name to be provided upon execution)" → "[FIRM_NAME]"
+        13. **ABSOLUTELY NEVER** replace "Company" in the first few paragraphs where it defines what "Company" means
+        14. If you're unsure whether to replace "Company", DON'T replace it - only replace in signature blocks at the end
+        15. When changing years (e.g., "three years" to "2 years"), ONLY make changes in numbered sections about Term/Duration, NOT in the opening paragraphs
+        16. **FLEXIBLE DATE PATTERN RECOGNITION**: For date insertion rules, use pattern recognition, NOT exact text matching
+        17. Recognize ANY date placeholder pattern (blanks, underscores, brackets, "[DATE]", etc.) and replace with today's date
+        18. Be flexible with date patterns - "Month __, Year", "Month ___, Year", "[DATE]", "Date: _______" all should be recognized and replaced
         
         REDLINING PRINCIPLES:
         - Replace specific text with exact matches
@@ -823,10 +867,13 @@ class AIRedliningService:
             
             if firm_details.get('firm_name'):
                 firm_text += f"COMPANY NAME TO USE: '{firm_details['firm_name']}'\n"
-                firm_text += f"  - Find 'For: Company' or 'For: \tCompany' → Replace with 'For: {firm_details['firm_name']}'\n"
-                firm_text += f"  - In JSON: current_text should be 'For: Company' (the PLACEHOLDER), not '{firm_details['firm_name']}'\n"
-                firm_text += f"  - DO NOT replace general 'Company' references in the legal text!\n"
-                firm_text += f"  - ONLY replace 'Company' in signature blocks ('For: Company')\n\n"
+                firm_text += f"⚠️  **LOCATION**: ONLY at the END of the document in the signature block\n"
+                firm_text += f"✅ CORRECT: Find 'For: Company' (in signature block at end) → Replace with 'For: {firm_details['firm_name']}'\n"
+                firm_text += f"✅ CORRECT: Find 'For:\tCompany' (in signature block at end) → Replace with 'For:\t{firm_details['firm_name']}'\n"
+                firm_text += f"❌ WRONG: Do NOT replace (the \"Company\") in the opening paragraphs\n"
+                firm_text += f"❌ WRONG: Do NOT replace \"the Company\" anywhere in the legal text body\n"
+                firm_text += f"❌ WRONG: Do NOT replace \"Company\" if it's in quotes or parentheses\n"
+                firm_text += f"  - In JSON: current_text should be 'For: Company' (the exact text from signature block only)\n\n"
             
             if firm_details.get('signatory_name'):
                 firm_text += f"SIGNER NAME TO USE: '{firm_details['signatory_name']}'\n"
