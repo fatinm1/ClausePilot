@@ -1105,16 +1105,44 @@ Please provide your analysis in the specified JSON format."""
 
     def apply_accepted_changes(self, doc_path: str, accepted_changes: List[Dict], signature_path: str = None) -> Dict[str, Any]:
         """Apply only the accepted changes to create final document"""
-        logger.info(f"Applying {len(accepted_changes)} accepted changes to document")
+        accepted_count = len([c for c in accepted_changes if c.get("status") == "accepted"])
+        logger.warning(f"========== APPLYING {accepted_count} ACCEPTED CHANGES ==========")
+        logger.warning(f"Total changes received: {len(accepted_changes)}")
         
         try:
             # Load the document
             doc = DocxDocument(doc_path)
+            logger.warning(f"Document loaded: {doc_path}")
+            logger.warning(f"Document has {len(doc.paragraphs)} paragraphs")
+            
+            # Enable Track Changes mode in the document settings
+            try:
+                settings = doc.settings
+                settings_element = settings.element
+                # Add trackRevisions setting if it doesn't exist
+                track_changes = settings_element.find(qn('w:trackRevisions'))
+                if track_changes is None:
+                    track_changes = OxmlElement('w:trackRevisions')
+                    settings_element.append(track_changes)
+                logger.warning("Track Changes mode enabled in document settings")
+            except Exception as tc_error:
+                logger.warning(f"Could not enable Track Changes mode: {tc_error}")
             
             # Apply each accepted change
-            for change in accepted_changes:
+            changes_actually_applied = 0
+            for idx, change in enumerate(accepted_changes):
                 if change.get("status") == "accepted":
-                    self._apply_single_change(doc, change)
+                    logger.warning(f"\nApplying change {idx+1}/{len(accepted_changes)}:")
+                    logger.warning(f"  Old: '{change.get('current_text', '')[:80]}'")
+                    logger.warning(f"  New: '{change.get('new_text', '')[:80]}'")
+                    result = self._apply_single_change(doc, change)
+                    if result:
+                        changes_actually_applied += 1
+                        logger.warning(f"  ✅ Applied successfully")
+                    else:
+                        logger.warning(f"  ❌ Failed to apply")
+            
+            logger.warning(f"Successfully applied {changes_actually_applied} out of {accepted_count} accepted changes")
             
             # Apply signature if provided
             if signature_path and os.path.exists(signature_path):
@@ -1122,14 +1150,16 @@ Please provide your analysis in the specified JSON format."""
             
             # Generate output path
             output_path = self._generate_output_path(doc_path)
+            logger.warning(f"Saving final document to: {output_path}")
             
             # Save the final document
             doc.save(output_path)
+            logger.warning(f"Document saved successfully")
             
             return {
                 "success": True,
                 "output_path": output_path,
-                "changes_applied": len([c for c in accepted_changes if c.get("status") == "accepted"])
+                "changes_applied": changes_actually_applied
             }
             
         except Exception as e:
@@ -1218,44 +1248,45 @@ Please provide your analysis in the specified JSON format."""
         except Exception as e:
             logger.error(f"Error applying signature: {str(e)}")
     
-    def _apply_single_change(self, doc: DocxDocument, change: Dict):
-        """Apply a single change to the document"""
+    def _apply_single_change(self, doc: DocxDocument, change: Dict) -> bool:
+        """Apply a single change to the document, returns True if successful"""
         try:
             old_text = change.get("current_text", "")
             new_text = change.get("new_text", "")
             
             if not old_text or not new_text:
                 logger.warning(f"Skipping change with empty text: {change}")
-                return
+                return False
             
             # Find and replace text in the document
-            for paragraph in doc.paragraphs:
+            found = False
+            for para_idx, paragraph in enumerate(doc.paragraphs):
                 if old_text in paragraph.text:
-                    self._replace_text_in_paragraph(paragraph, old_text, new_text)
-                    logger.info(f"Applied change: '{old_text}' -> '{new_text}'")
-                    break
+                    logger.warning(f"  Found text in paragraph {para_idx}: '{paragraph.text[:100]}'")
+                    success = self._replace_text_in_paragraph(paragraph, old_text, new_text)
+                    if success:
+                        logger.warning(f"  ✅ Change applied in paragraph {para_idx}")
+                        found = True
+                        break
+                    else:
+                        logger.warning(f"  ❌ Failed to apply change in paragraph {para_idx}")
+            
+            if not found:
+                logger.warning(f"  ⚠️  Text not found in any paragraph: '{old_text[:80]}'")
+                return False
+            
+            return True
                     
         except Exception as e:
             logger.error(f"Error applying single change: {str(e)}")
+            return False
     
-    def _replace_text_in_paragraph(self, paragraph, old_text: str, new_text: str):
-        """Replace text in a paragraph while preserving formatting"""
+    def _replace_text_in_paragraph(self, paragraph, old_text: str, new_text: str) -> bool:
+        """Replace text in a paragraph while showing BOTH old and new text with Track Changes"""
         try:
-            # First, try to find and replace in individual runs
-            for run in paragraph.runs:
-                if old_text in run.text:
-                    # Replace the text in the run
-                    run.text = run.text.replace(old_text, new_text)
-                    
-                    # Add redlining formatting
-                    run.font.underline = True
-                    run.font.color.rgb = RGBColor(255, 0, 0)  # Red for additions
-                    logger.info(f"Replaced text in run: '{old_text}' -> '{new_text}'")
-                    return True
-            
-            # If not found in individual runs, try paragraph-level replacement
+            # Always use paragraph-level replacement to show BOTH old and new text
             if old_text in paragraph.text:
-                logger.info(f"Text found in paragraph, doing paragraph-level replacement")
+                logger.warning(f"    Applying Track Changes to show old and new text")
                 
                 # Store original text
                 original_text = paragraph.text
@@ -1264,30 +1295,30 @@ Please provide your analysis in the specified JSON format."""
                 paragraph.clear()
                 
                 # Split text around the old_text and create runs
-                parts = original_text.split(old_text)
-                logger.info(f"Split into {len(parts)} parts: {parts}")
+                parts = original_text.split(old_text, 1)  # Split only once for first occurrence
+                logger.warning(f"    Text split into {len(parts)} parts")
                 
-                # Add text before the replacement
-                if parts[0]:  # Add non-empty parts
-                    run = paragraph.add_run(parts[0])
-                    # Keep original formatting (no change tracking)
+                # Add text before the replacement (no formatting)
+                if parts[0]:
+                    before_run = paragraph.add_run(parts[0])
+                    logger.warning(f"    Added text before: '{parts[0][:50]}'")
                 
-                # Use native Word Track Changes for deletion
+                # Add OLD text with Track Changes DELETION markup (will show strikethrough)
                 deleted_run = paragraph.add_run(old_text)
                 self._add_track_change_deletion(deleted_run)
+                logger.warning(f"    ✅ Added DELETION (strikethrough): '{old_text[:50]}'")
                 
-                # Use native Word Track Changes for insertion
+                # Add NEW text with Track Changes INSERTION markup (will show red underline)
                 added_run = paragraph.add_run(new_text)
                 self._add_track_change_insertion(added_run)
+                logger.warning(f"    ✅ Added INSERTION (red underline): '{new_text[:50]}'")
                 
-                # Add any remaining text after the replacement
-                if len(parts) > 1:
-                    run = paragraph.add_run(parts[1])
-                    # Keep original formatting
+                # Add any remaining text after the replacement (no formatting)
+                if len(parts) > 1 and parts[1]:
+                    after_run = paragraph.add_run(parts[1])
+                    logger.warning(f"    Added text after: '{parts[1][:50]}'")
                 
-                logger.info(f"Visual change tracking added: '{old_text}' (strikethrough) -> '{new_text}' (red underline)")
-                
-                logger.info(f"Final paragraph text: {paragraph.text}")
+                logger.warning(f"    ✅✅ Track Changes complete - document will show BOTH old (strikethrough) and new (red underline) text")
                 return True
             else:
                 logger.warning(f"Text '{old_text}' not found in paragraph: '{paragraph.text}'")
