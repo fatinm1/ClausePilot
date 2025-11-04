@@ -263,23 +263,6 @@ class AIRedliningService:
                             "location_hint": "Section 13 - Term"
                         })
             
-            # Auto-fix header date specifically
-            if 'September __, 2025' in document_text:
-                has_header_date_modification = any(
-                    'September __, 2025' in mod.get('current_text', '')
-                    for mod in modifications
-                )
-                if not has_header_date_modification:
-                    logger.warning(f"AI didn't generate header date modification - adding it manually")
-                    modifications.insert(0, {
-                        "type": "TEXT_REPLACE",
-                        "section": "header",
-                        "current_text": "September __, 2025",
-                        "new_text": "September 27, 2025",
-                        "reason": "Fill in header date with today's date",
-                        "location_hint": "Document header"
-                    })
-            
             # Auto-fix date placeholders with today's date - be more specific to avoid over-redlining
             import re
             from datetime import datetime
@@ -287,7 +270,27 @@ class AIRedliningService:
             # Common date patterns - be more specific to avoid over-redlining
             # More flexible date pattern recognition - matches various date placeholder formats
             today = datetime.now()
-            today_formatted = today.strftime("%B %d, %Y")  # "October 27, 2025"
+            today_formatted = today.strftime("%B %d, %Y")  # "November 04, 2025" (current date)
+            
+            # Auto-fix header date specifically (check for any month pattern)
+            header_date_pattern = r'([A-Z][a-z]+ _{2,}, \d{4})'
+            header_date_matches = re.findall(header_date_pattern, document_text)
+            if header_date_matches:
+                for header_date_text in header_date_matches:
+                    has_header_date_modification = any(
+                        header_date_text in mod.get('current_text', '')
+                        for mod in modifications
+                    )
+                    if not has_header_date_modification:
+                        logger.warning(f"AI didn't generate header date modification for '{header_date_text}' - adding with today's date")
+                        modifications.insert(0, {
+                            "type": "TEXT_REPLACE",
+                            "section": "header",
+                            "current_text": header_date_text,
+                            "new_text": today_formatted,
+                            "reason": "Fill in header date with today's date",
+                            "location_hint": "Document header"
+                        })
             
             # Flexible date patterns - using regex to match variations
             flexible_date_patterns = [
@@ -524,13 +527,16 @@ class AIRedliningService:
                 })
             
             elif 'firm' in rule_name or 'party' in rule_name or 'parties' in rule_name or 'name' in rule_name:
-                # Look for party name patterns
+                # Get firm details or use defaults
+                firm_name = firm_details.get('firm_name', 'Sample Company LLC') if firm_details else 'Sample Company LLC'
+                signer_name = firm_details.get('signatory_name', 'Sample Signer') if firm_details else 'Sample Signer'
+                signer_title = firm_details.get('title', 'Authorized Signatory') if firm_details else 'Authorized Signatory'
+                
+                # Look for party name patterns using firm details
                 party_patterns = [
-                    ('Angle Advisors LLC', 'Welch Capital Partners Inc. (WCP)'),
-                    ('Company (name to be provided upon execution)', 'JMC Investment LLC'),
-                    ('Recipient', 'JMC Investment LLC (Recipient)'),
-                    ('Disclosing Party', 'Welch Capital Partners Inc. (WCP)'),
-                    ('Receiving Party', 'JMC Investment LLC (Recipient)')
+                    ('Company (name to be provided upon execution)', firm_name),
+                    ('Recipient', f'{firm_name} (Recipient)'),
+                    ('Receiving Party', f'{firm_name} (Recipient)')
                 ]
                 
                 for current_pattern, new_pattern in party_patterns:
@@ -546,13 +552,13 @@ class AIRedliningService:
                         logger.info(f"Found party pattern: {current_pattern} -> {new_pattern}")
                         break
                 
-                # Replace firm placeholders
+                # Replace firm placeholders with actual firm details
                 if '[FIRM_NAME]' in document_text:
                     mock_modifications.append({
                         "type": "TEXT_REPLACE",
                         "section": "parties",
                         "current_text": "[FIRM_NAME]",
-                        "new_text": "TechLegal Partners LLP",
+                        "new_text": firm_name,
                         "reason": rule_instruction,
                         "location_hint": "Section 1, line 4"
                     })
@@ -561,7 +567,7 @@ class AIRedliningService:
                         "type": "TEXT_REPLACE",
                         "section": "signatures",
                         "current_text": "[SIGNER_NAME]",
-                        "new_text": "John Bagge",
+                        "new_text": signer_name,
                         "reason": rule_instruction,
                         "location_hint": "Section 11, line 55"
                     })
@@ -570,7 +576,7 @@ class AIRedliningService:
                         "type": "TEXT_REPLACE",
                         "section": "signatures",
                         "current_text": "[SIGNER_TITLE]",
-                        "new_text": "Vice President",
+                        "new_text": signer_title,
                         "reason": rule_instruction,
                         "location_hint": "Section 11, line 56"
                     })
@@ -598,6 +604,11 @@ class AIRedliningService:
                         break
             
             elif 'signature' in rule_name or 'block' in rule_name:
+                # Get firm details or use defaults
+                firm_name = firm_details.get('firm_name', 'Sample Company LLC') if firm_details else 'Sample Company LLC'
+                signer_name = firm_details.get('signatory_name', 'Sample Signer') if firm_details else 'Sample Signer'
+                signer_title = firm_details.get('title', 'Authorized Signatory') if firm_details else 'Authorized Signatory'
+                
                 # Replace signature placeholders instead of inserting new content
                 signature_replacements = []
                 
@@ -612,11 +623,11 @@ class AIRedliningService:
                 
                 for pattern in company_patterns:
                     if pattern in document_text:
-                        # Determine the replacement text based on the pattern
+                        # Determine the replacement text based on the pattern using firm details
                         if pattern.startswith("For:"):
-                            new_text = pattern.replace("Company", "JMC Investment LLC")
+                            new_text = pattern.replace("Company", firm_name)
                         else:
-                            new_text = "For: JMC Investment LLC"
+                            new_text = f"For: {firm_name}"
                         
                         signature_replacements.append({
                             "type": "TEXT_REPLACE",
@@ -629,12 +640,13 @@ class AIRedliningService:
                         logger.info(f"Found company pattern: '{pattern}' -> '{new_text}'")
                         break
                 
-                if 'By:' in document_text and 'John Bagge' not in document_text:
+                # Check if signer name already exists to avoid duplicates
+                if 'By:' in document_text and signer_name not in document_text:
                     signature_replacements.append({
                         "type": "TEXT_REPLACE",
                         "section": "signatures",
                         "current_text": "By:",
-                        "new_text": "By: John Bagge",
+                        "new_text": f"By: {signer_name}",
                         "reason": rule_instruction,
                         "location_hint": "Signature block signer name"
                     })
@@ -653,20 +665,21 @@ class AIRedliningService:
                     logger.warning(f"Checking rule title pattern: '{title_pattern}'")
                     if title_pattern in document_text:
                         logger.warning(f"Found rule title pattern '{title_pattern}' in document")
-                        if 'Vice President' not in document_text:
-                            logger.warning(f"'Vice President' not in document, adding replacement")
+                        # Check if title already exists to avoid duplicates
+                        if signer_title not in document_text:
+                            logger.warning(f"'{signer_title}' not in document, adding replacement")
                             signature_replacements.append({
                                 "type": "TEXT_REPLACE",
                                 "section": "signatures",
                                 "current_text": title_pattern,
-                                "new_text": "Title: Vice President",
+                                "new_text": f"Title: {signer_title}",
                                 "reason": rule_instruction,
                                 "location_hint": "Signature block title"
                             })
-                            logger.warning(f"Added rule title replacement: '{title_pattern}' -> 'Title: Vice President'")
+                            logger.warning(f"Added rule title replacement: '{title_pattern}' -> 'Title: {signer_title}'")
                             break
                         else:
-                            logger.warning(f"'Vice President' already in document, skipping replacement")
+                            logger.warning(f"'{signer_title}' already in document, skipping replacement")
                     else:
                         logger.warning(f"Rule title pattern '{title_pattern}' not found in document")
                 
@@ -854,7 +867,7 @@ CRITICAL REQUIREMENTS:
 5. Focus on the specific areas mentioned in the custom rules
 6. **MOST IMPORTANT**: If firm details are provided below, use them instead of ANY company/person names mentioned in the rules
 7. **CRITICAL**: Do NOT replace "Company" when it refers to the disclosing party in legal text
-8. **CRITICAL**: Do NOT replace dates that are already complete (e.g., "September __, 2025" should become "September 27, 2025", not "September __, 2021")
+8. **CRITICAL**: For date placeholders (e.g., "Month __, Year"), replace with today's current date in "Month Day, Year" format
 9. **CRITICAL**: Only replace placeholders, not actual content
 
         COMMON PATTERNS TO LOOK FOR:
@@ -905,16 +918,17 @@ For example:
 
         SIGNATURE BLOCK HANDLING:
         - ONLY use TEXT_REPLACE for signature blocks - NEVER use TEXT_INSERT
-        - Replace "By:" with "By: John Bagge" (don't create new lines)
-        - Replace "Title: \t_______________________________" with "Title: Vice President"
-        - Replace "Title:\t_______________________________" with "Title: Vice President"
-        - Replace "For: Company" with "For: JMC Investment LLC"
-        - Replace "Company (name to be provided upon execution)" with "JMC Investment LLC"
-        - Replace "Dear NAME:" with "Dear John Bagge:"
-        - Replace just "Company" with "JMC Investment LLC" if it's in a "For:" context
+        - Replace "By:" with "By: [SIGNER_NAME]" using firm details provided
+        - Replace "Title: \t_______________________________" with "Title: [SIGNER_TITLE]" using firm details
+        - Replace "Title:\t_______________________________" with "Title: [SIGNER_TITLE]" using firm details
+        - Replace "For: Company" with "For: [FIRM_NAME]" using firm details
+        - Replace "Company (name to be provided upon execution)" with "[FIRM_NAME]" using firm details
+        - Replace "Dear NAME:" with "Dear [SIGNER_NAME]:" using firm details
+        - Replace just "Company" with "[FIRM_NAME]" if it's in a "For:" context
         - Do NOT insert new signature blocks or create new fields
         - Do NOT duplicate existing signature lines
         - Find existing placeholders and replace them in place
+        - ALWAYS use the actual firm details values provided, NOT these placeholder examples
 
 IMPORTANT: Only make the specific changes requested in the custom rules. Do not over-redline or make unnecessary changes.
 
@@ -932,8 +946,8 @@ Please provide your analysis in the specified JSON format."""
                 prompt += f'✅ REQUIRED: Replace "For: Company" with "For: {firm_details["firm_name"]}"\n'
             if firm_details.get('title'):
                 prompt += f'✅ REQUIRED: Replace "Title:" fields with "Title: {firm_details["title"]}"\n'
-            prompt += f"\n❌ DO NOT use 'John Bagge', 'JMC Investment LLC', or 'Vice President'!\n"
-            prompt += f"❌ DO NOT leave 'Dear NAME:' unchanged!\n"
+            prompt += f"\n❌ DO NOT use placeholder examples - use actual firm details only!\n"
+            prompt += f"❌ DO NOT leave placeholders like 'Dear NAME:', 'Company', or blanks unchanged!\n"
             prompt += "!"*80 + "\n"
 
         return prompt
