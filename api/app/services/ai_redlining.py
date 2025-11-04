@@ -155,21 +155,29 @@ class AIRedliningService:
                 new_text_val = mod.get('new_text', '')
                 
                 # Check for date replacements in wrong locations (e.g., document title)
-                # Dates should only be replaced in date fields, not in titles or legal definitions
+                # Dates should ONLY be in dedicated date fields, nowhere else!
                 if any(month in new_text_val for month in ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']):
-                    # This is a date replacement - check if it's in a valid context
-                    valid_date_contexts = ['Date:', 'Dated:', 'date set forth', 'As of']
-                    # Invalid date contexts (document title, legal definitions)
-                    invalid_date_contexts = ['(the "', 'business (the', 'acquisition of']
+                    # This is a date replacement - STRICT validation
                     
-                    has_valid_context = any(ctx in current_text for ctx in valid_date_contexts)
-                    has_invalid_context = any(ctx in current_text for ctx in invalid_date_contexts)
+                    # ONLY ALLOW if current_text is:
+                    # 1. Just a date pattern (e.g., "September __, 2025" with nothing else)
+                    # 2. A date field label (e.g., "Date: ___")
                     
-                    # If it's a standalone date pattern replacement (just "Month __, Year"), check length
-                    is_standalone_date = len(current_text.strip()) < 30  # Short text = likely just a date field
+                    # Check 1: Is it JUST a date pattern with minimal text?
+                    is_pure_date = (
+                        len(current_text.strip()) < 25 and  # Very short text
+                        current_text.count(',') == 1 and  # Has one comma (date format)
+                        not any(word in current_text.lower() for word in ['company', 'agreement', 'business', 'dear', 'name', 'for:', 'by:', 'title:'])
+                    )
                     
-                    if has_invalid_context or (not has_valid_context and not is_standalone_date and 'Company' in current_text):
-                        logger.warning(f"⚠️  REJECTING INVALID DATE MODIFICATION in wrong context: '{current_text[:100]}'")
+                    # Check 2: Does it have an explicit date label?
+                    has_date_label = current_text.strip().startswith(('Date:', 'Dated:', 'DATE:', 'DATED:'))
+                    
+                    # REJECT if it doesn't meet either criteria
+                    if not is_pure_date and not has_date_label:
+                        logger.warning(f"⚠️  REJECTING DATE - Not in a date field!")
+                        logger.warning(f"    Text: '{current_text[:100]}'")
+                        logger.warning(f"    Length: {len(current_text)}, Pure date: {is_pure_date}, Has label: {has_date_label}")
                         invalid_modifications.append(i)
                         continue
                 
@@ -1484,25 +1492,35 @@ Please provide your analysis in the specified JSON format."""
             
             # Create a run element inside the deletion
             run_elem = OxmlElement('w:r')
+            
+            # Add run properties (formatting)
+            rPr = OxmlElement('w:rPr')
             # Copy any formatting from the original run
             if run.font.bold:
                 b_elem = OxmlElement('w:b')
-                run_elem.append(b_elem)
+                rPr.append(b_elem)
             if run.font.italic:
                 i_elem = OxmlElement('w:i')
-                run_elem.append(i_elem)
+                rPr.append(i_elem)
+            # Add strikethrough for deleted text
+            strike_elem = OxmlElement('w:strike')
+            rPr.append(strike_elem)
+            run_elem.append(rPr)
             
-            # Add the text to the run element
-            text_elem = OxmlElement('w:t')
+            # Use w:delText for deleted text (required for Track Changes deletions)
+            text_elem = OxmlElement('w:delText')
+            text_elem.set(qn('xml:space'), 'preserve')  # Preserve whitespace
             text_elem.text = run.text
             run_elem.append(text_elem)
             del_elem.append(run_elem)
             
             # Replace the run's XML with the deletion markup
             run._element.getparent().replace(run._element, del_elem)
+            logger.warning(f"      ✅ Track Changes deletion XML created")
             
         except Exception as e:
-            logger.warning(f"Could not add Track Changes deletion: {e}")
+            logger.warning(f"      ❌ Track Changes deletion failed: {e}")
+            logger.warning(f"      Using fallback strikethrough")
             # Fallback to strikethrough
             run.font.strike = True
             run.font.color.rgb = RGBColor(0, 0, 0)
@@ -1520,27 +1538,33 @@ Please provide your analysis in the specified JSON format."""
             
             # Create a run element inside the insertion
             run_elem = OxmlElement('w:r')
-            # Add formatting for inserted text (typically underlined)
+            
+            # Add run properties (formatting)
+            rPr = OxmlElement('w:rPr')
+            # Add underline for inserted text
             u_elem = OxmlElement('w:u')
             u_elem.set(qn('w:val'), 'single')
-            run_elem.append(u_elem)
-            
-            # Add color for inserted text (typically red)
+            rPr.append(u_elem)
+            # Add color for inserted text (red)
             color_elem = OxmlElement('w:color')
             color_elem.set(qn('w:val'), 'FF0000')  # Red
-            run_elem.append(color_elem)
+            rPr.append(color_elem)
+            run_elem.append(rPr)
             
             # Add the text to the run element
             text_elem = OxmlElement('w:t')
+            text_elem.set(qn('xml:space'), 'preserve')  # Preserve whitespace
             text_elem.text = run.text
             run_elem.append(text_elem)
             ins_elem.append(run_elem)
             
             # Replace the run's XML with the insertion markup
             run._element.getparent().replace(run._element, ins_elem)
+            logger.warning(f"      ✅ Track Changes insertion XML created")
             
         except Exception as e:
-            logger.warning(f"Could not add Track Changes insertion: {e}")
+            logger.warning(f"      ❌ Track Changes insertion failed: {e}")
+            logger.warning(f"      Using fallback red underline")
             # Fallback to red underline
             run.font.underline = True
             run.font.color.rgb = RGBColor(255, 0, 0)
@@ -2062,25 +2086,35 @@ class DocumentProcessor:
             
             # Create a run element inside the deletion
             run_elem = OxmlElement('w:r')
+            
+            # Add run properties (formatting)
+            rPr = OxmlElement('w:rPr')
             # Copy any formatting from the original run
             if run.font.bold:
                 b_elem = OxmlElement('w:b')
-                run_elem.append(b_elem)
+                rPr.append(b_elem)
             if run.font.italic:
                 i_elem = OxmlElement('w:i')
-                run_elem.append(i_elem)
+                rPr.append(i_elem)
+            # Add strikethrough for deleted text
+            strike_elem = OxmlElement('w:strike')
+            rPr.append(strike_elem)
+            run_elem.append(rPr)
             
-            # Add the text to the run element
-            text_elem = OxmlElement('w:t')
+            # Use w:delText for deleted text (required for Track Changes deletions)
+            text_elem = OxmlElement('w:delText')
+            text_elem.set(qn('xml:space'), 'preserve')  # Preserve whitespace
             text_elem.text = run.text
             run_elem.append(text_elem)
             del_elem.append(run_elem)
             
             # Replace the run's XML with the deletion markup
             run._element.getparent().replace(run._element, del_elem)
+            logger.warning(f"      ✅ Track Changes deletion XML created")
             
         except Exception as e:
-            logger.warning(f"Could not add Track Changes deletion: {e}")
+            logger.warning(f"      ❌ Track Changes deletion failed: {e}")
+            logger.warning(f"      Using fallback strikethrough")
             # Fallback to strikethrough
             run.font.strike = True
             run.font.color.rgb = RGBColor(0, 0, 0)
@@ -2098,27 +2132,33 @@ class DocumentProcessor:
             
             # Create a run element inside the insertion
             run_elem = OxmlElement('w:r')
-            # Add formatting for inserted text (typically underlined)
+            
+            # Add run properties (formatting)
+            rPr = OxmlElement('w:rPr')
+            # Add underline for inserted text
             u_elem = OxmlElement('w:u')
             u_elem.set(qn('w:val'), 'single')
-            run_elem.append(u_elem)
-            
-            # Add color for inserted text (typically red)
+            rPr.append(u_elem)
+            # Add color for inserted text (red)
             color_elem = OxmlElement('w:color')
             color_elem.set(qn('w:val'), 'FF0000')  # Red
-            run_elem.append(color_elem)
+            rPr.append(color_elem)
+            run_elem.append(rPr)
             
             # Add the text to the run element
             text_elem = OxmlElement('w:t')
+            text_elem.set(qn('xml:space'), 'preserve')  # Preserve whitespace
             text_elem.text = run.text
             run_elem.append(text_elem)
             ins_elem.append(run_elem)
             
             # Replace the run's XML with the insertion markup
             run._element.getparent().replace(run._element, ins_elem)
+            logger.warning(f"      ✅ Track Changes insertion XML created")
             
         except Exception as e:
-            logger.warning(f"Could not add Track Changes insertion: {e}")
+            logger.warning(f"      ❌ Track Changes insertion failed: {e}")
+            logger.warning(f"      Using fallback red underline")
             # Fallback to red underline
             run.font.underline = True
             run.font.color.rgb = RGBColor(255, 0, 0)
