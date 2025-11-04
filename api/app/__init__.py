@@ -59,22 +59,37 @@ def create_app(config_class=Config):
     
     @app.route('/<path:path>')
     def serve_static(path):
+        import logging
+        logger = logging.getLogger(__name__)
+        
         # Handle API routes
         if path.startswith('v1/'):
             return "API route not found", 404
         
-        # For SPA routes (dashboard, login, register, etc.), always serve root index.html
-        # This ensures React Router handles the routing client-side after page refresh
-        spa_routes = ['dashboard', 'login', 'register', 'demo', 'user-dashboard']
-        if any(path.startswith(route) for route in spa_routes):
-            return send_file(os.path.join(app.root_path, '..', 'web', 'out', 'index.html'))
-        
-        # Serve static assets (_next, images, etc.)
+        # Try to serve the exact path first
         static_path = os.path.join(app.root_path, '..', 'web', 'out', path)
+        
+        # If it's a file, serve it
         if os.path.exists(static_path) and os.path.isfile(static_path):
+            logger.info(f"Serving file: {path}")
             return send_file(static_path)
         
-        # For any other unknown route, serve index.html (SPA fallback)
+        # If it's a directory, try to serve index.html from that directory
+        # This preserves Next.js static export behavior where each route has its own index.html
+        if os.path.isdir(static_path):
+            index_path = os.path.join(static_path, 'index.html')
+            if os.path.exists(index_path):
+                logger.info(f"Serving index.html from directory: {path}")
+                return send_file(index_path)
+        
+        # Fallback: try adding .html extension
+        html_path = static_path + '.html'
+        if os.path.exists(html_path):
+            logger.info(f"Serving HTML file: {path}.html")
+            return send_file(html_path)
+        
+        # If nothing found, serve root index.html as final fallback
+        logger.info(f"Fallback to root index.html for: {path}")
         return send_file(os.path.join(app.root_path, '..', 'web', 'out', 'index.html'))
     
     # Error handler for file too large
