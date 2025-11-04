@@ -148,10 +148,31 @@ class AIRedliningService:
             for i, mod in enumerate(modifications):
                 logger.warning(f"  Mod {i+1}: {mod.get('type')} - '{mod.get('current_text', 'N/A')[:50]}...' -> '{mod.get('new_text', 'N/A')[:50]}...'")
             
-            # VALIDATION: Remove any modifications that incorrectly replace "Company" in legal text
+            # VALIDATION: Remove any modifications that incorrectly replace "Company" or dates in wrong contexts
             invalid_modifications = []
             for i, mod in enumerate(modifications):
                 current_text = mod.get('current_text', '')
+                new_text_val = mod.get('new_text', '')
+                
+                # Check for date replacements in wrong locations (e.g., document title)
+                # Dates should only be replaced in date fields, not in titles or legal definitions
+                if any(month in new_text_val for month in ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']):
+                    # This is a date replacement - check if it's in a valid context
+                    valid_date_contexts = ['Date:', 'Dated:', 'date set forth', 'As of']
+                    # Invalid date contexts (document title, legal definitions)
+                    invalid_date_contexts = ['(the "', 'business (the', 'acquisition of']
+                    
+                    has_valid_context = any(ctx in current_text for ctx in valid_date_contexts)
+                    has_invalid_context = any(ctx in current_text for ctx in invalid_date_contexts)
+                    
+                    # If it's a standalone date pattern replacement (just "Month __, Year"), check length
+                    is_standalone_date = len(current_text.strip()) < 30  # Short text = likely just a date field
+                    
+                    if has_invalid_context or (not has_valid_context and not is_standalone_date and 'Company' in current_text):
+                        logger.warning(f"⚠️  REJECTING INVALID DATE MODIFICATION in wrong context: '{current_text[:100]}'")
+                        invalid_modifications.append(i)
+                        continue
+                
                 # Check if this modification is trying to replace "Company" in an invalid context
                 if 'Company' in current_text:
                     # These are INVALID contexts where Company should NEVER be replaced
