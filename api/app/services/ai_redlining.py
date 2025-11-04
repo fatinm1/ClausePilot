@@ -1388,18 +1388,17 @@ Please provide your analysis in the specified JSON format."""
                     before_run = paragraph.add_run(parts[0])
                     logger.warning(f"    Added text before: '{parts[0][:50]}'")
                 
-                # Add OLD text with VISUAL strikethrough (guaranteed to work in Word)
+                # Add OLD text with BLACK strikethrough (shows what was removed)
                 deleted_run = paragraph.add_run(old_text)
                 deleted_run.font.strike = True
-                deleted_run.font.color.rgb = RGBColor(255, 0, 0)  # Red strikethrough
-                logger.warning(f"    ✅ Added DELETION (red strikethrough): '{old_text[:50]}'")
+                deleted_run.font.color.rgb = RGBColor(0, 0, 0)  # Black strikethrough
+                logger.warning(f"    ✅ Added DELETION (black strikethrough): '{old_text[:50]}'")
                 
-                # Add NEW text with VISUAL red underline (guaranteed to work in Word)
+                # Add NEW text with RED underline (shows what was added)
                 added_run = paragraph.add_run(new_text)
                 added_run.font.underline = True
-                added_run.font.color.rgb = RGBColor(0, 0, 255)  # Blue underline for new text
-                added_run.font.bold = True  # Make it stand out
-                logger.warning(f"    ✅ Added INSERTION (blue underline bold): '{new_text[:50]}'")
+                added_run.font.color.rgb = RGBColor(255, 0, 0)  # Red underline for new text
+                logger.warning(f"    ✅ Added INSERTION (red underline): '{new_text[:50]}'")
                 
                 # Add any remaining text after the replacement (no formatting)
                 if len(parts) > 1 and parts[1]:
@@ -1433,16 +1432,15 @@ Please provide your analysis in the specified JSON format."""
                         if parts[0]:
                             run = paragraph.add_run(parts[0])
                         
-                        # Add OLD text with visual strikethrough
+                        # Add OLD text with black strikethrough
                         deleted_run = paragraph.add_run(actual_old_text)
                         deleted_run.font.strike = True
-                        deleted_run.font.color.rgb = RGBColor(255, 0, 0)  # Red strikethrough
+                        deleted_run.font.color.rgb = RGBColor(0, 0, 0)  # Black strikethrough
                         
-                        # Add NEW text with visual formatting
+                        # Add NEW text with red underline
                         added_run = paragraph.add_run(new_text)
                         added_run.font.underline = True
-                        added_run.font.color.rgb = RGBColor(0, 0, 255)  # Blue underline
-                        added_run.font.bold = True
+                        added_run.font.color.rgb = RGBColor(255, 0, 0)  # Red underline
                         
                         # Add remaining text
                         if len(parts) > 1:
@@ -2030,16 +2028,15 @@ class DocumentProcessor:
                         if parts[0]:
                             run = paragraph.add_run(parts[0])
                         
-                        # Add OLD text with visual strikethrough
+                        # Add OLD text with black strikethrough
                         deleted_run = paragraph.add_run(actual_old_text)
                         deleted_run.font.strike = True
-                        deleted_run.font.color.rgb = RGBColor(255, 0, 0)  # Red strikethrough
+                        deleted_run.font.color.rgb = RGBColor(0, 0, 0)  # Black strikethrough
                         
-                        # Add NEW text with visual formatting
+                        # Add NEW text with red underline
                         added_run = paragraph.add_run(new_text)
                         added_run.font.underline = True
-                        added_run.font.color.rgb = RGBColor(0, 0, 255)  # Blue underline
-                        added_run.font.bold = True
+                        added_run.font.color.rgb = RGBColor(255, 0, 0)  # Red underline
                         
                         # Add remaining text
                         if len(parts) > 1:
