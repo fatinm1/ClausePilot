@@ -1282,8 +1282,9 @@ Please provide your analysis in the specified JSON format."""
             # Find and replace text in the document
             found = False
             for para_idx, paragraph in enumerate(doc.paragraphs):
+                # Try exact match first
                 if old_text in paragraph.text:
-                    logger.warning(f"  Found text in paragraph {para_idx}: '{paragraph.text[:100]}'")
+                    logger.warning(f"  Found exact match in paragraph {para_idx}: '{paragraph.text[:100]}'")
                     success = self._replace_text_in_paragraph(paragraph, old_text, new_text)
                     if success:
                         logger.warning(f"  ✅ Change applied in paragraph {para_idx}")
@@ -1292,8 +1293,31 @@ Please provide your analysis in the specified JSON format."""
                     else:
                         logger.warning(f"  ❌ Failed to apply change in paragraph {para_idx}")
             
+            # If not found, try with whitespace normalization (e.g., "For: Company" vs "For:\tCompany")
+            if not found:
+                import re
+                # Normalize whitespace for comparison
+                old_text_normalized = re.sub(r'\s+', ' ', old_text.strip())
+                
+                for para_idx, paragraph in enumerate(doc.paragraphs):
+                    para_text_normalized = re.sub(r'\s+', ' ', paragraph.text.strip())
+                    if old_text_normalized in para_text_normalized:
+                        # Find the actual text in the original paragraph
+                        # Extract the actual text with original whitespace
+                        actual_old_text = self._find_text_with_whitespace(paragraph.text, old_text)
+                        if actual_old_text:
+                            logger.warning(f"  Found with whitespace variation in paragraph {para_idx}")
+                            logger.warning(f"    Looking for: '{old_text}'")
+                            logger.warning(f"    Found actual: '{actual_old_text}'")
+                            success = self._replace_text_in_paragraph(paragraph, actual_old_text, new_text)
+                            if success:
+                                logger.warning(f"  ✅ Change applied with whitespace normalization in paragraph {para_idx}")
+                                found = True
+                                break
+            
             if not found:
                 logger.warning(f"  ⚠️  Text not found in any paragraph: '{old_text[:80]}'")
+                logger.warning(f"  Try checking the document for: variations with tabs/spaces")
                 return False
             
             return True
@@ -1301,6 +1325,38 @@ Please provide your analysis in the specified JSON format."""
         except Exception as e:
             logger.error(f"Error applying single change: {str(e)}")
             return False
+    
+    def _find_text_with_whitespace(self, paragraph_text: str, search_text: str) -> str:
+        """Find text in paragraph that matches after whitespace normalization"""
+        import re
+        
+        # Try exact match first
+        if search_text in paragraph_text:
+            return search_text
+        
+        # Try common whitespace variations
+        variations = [
+            search_text.replace(' ', '\t'),  # Replace spaces with tabs
+            search_text.replace(' ', '  '),  # Replace single space with double
+            re.sub(r'\s+', '\t', search_text),  # All whitespace to tabs
+        ]
+        
+        for variation in variations:
+            if variation in paragraph_text:
+                logger.warning(f"    Found with whitespace variation: '{variation}'")
+                return variation
+        
+        # Try pattern matching with flexible whitespace
+        # For "For: Company", match "For:<any whitespace>Company"
+        pattern = re.escape(search_text)
+        pattern = pattern.replace(r'\ ', r'\s+')  # Allow any whitespace where there was a space
+        
+        match = re.search(pattern, paragraph_text)
+        if match:
+            logger.warning(f"    Found with pattern matching: '{match.group(0)}'")
+            return match.group(0)
+        
+        return None
     
     def _replace_text_in_paragraph(self, paragraph, old_text: str, new_text: str) -> bool:
         """Replace text in a paragraph while showing BOTH old and new text with Track Changes"""
