@@ -51,7 +51,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         },
         credentials: 'include',
         body: JSON.stringify({
-          document_id: documentId,
+          document_text: documentText,
           custom_rules: selectedRules.map(id => ({ id })),
           firm_details: firmDetails,
         }),
