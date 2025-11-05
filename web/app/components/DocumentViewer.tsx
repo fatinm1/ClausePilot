@@ -45,13 +45,6 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     loadDocumentAndGenerateChanges();
   }, []);
 
-  // Update HTML when changes status changes
-  useEffect(() => {
-    if (documentHtml && changes.length > 0) {
-      updateDocumentDisplay();
-    }
-  }, [changes]);
-
   const loadDocumentAndGenerateChanges = async () => {
     try {
       setLoading(true);
@@ -142,12 +135,6 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     return modifiedHtml;
   };
 
-  const updateDocumentDisplay = () => {
-    // Re-inject changes based on current status
-    // This is a simplified version - just re-fetch the document HTML would be better
-    // For now, we'll rely on CSS to hide/show based on data attributes
-  };
-
   const buildDocumentSegments = (text: string, changesList: Change[]) => {
     // Split document into paragraphs first to preserve structure
     const paragraphs = text.split('\n');
@@ -216,6 +203,8 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         c.id === changeId ? { ...c, status: 'accepted' } : c
       )
     );
+    // Update visual display immediately
+    updateVisualDisplay(changeId, 'accepted');
   };
 
   const handleReject = (changeId: string) => {
@@ -224,14 +213,53 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         c.id === changeId ? { ...c, status: 'rejected' } : c
       )
     );
+    // Update visual display immediately
+    updateVisualDisplay(changeId, 'rejected');
   };
 
   const handleAcceptAll = () => {
-    setChanges((prev) => prev.map((c) => ({ ...c, status: 'accepted' })));
+    const updated = changes.map((c) => ({ ...c, status: 'accepted' }));
+    setChanges(updated);
+    updated.forEach(c => updateVisualDisplay(c.id, 'accepted'));
   };
 
   const handleRejectAll = () => {
-    setChanges((prev) => prev.map((c) => ({ ...c, status: 'rejected' })));
+    const updated = changes.map((c) => ({ ...c, status: 'rejected' }));
+    setChanges(updated);
+    updated.forEach(c => updateVisualDisplay(c.id, 'rejected'));
+  };
+
+  const updateVisualDisplay = (changeId: string, status: 'accepted' | 'rejected') => {
+    // Find the change container in the DOM
+    const container = document.querySelector(`[data-change-id="${changeId}"]`) as HTMLElement;
+    if (!container) return;
+    
+    const oldTextSpan = container.querySelector('.old-text') as HTMLElement;
+    const newTextSpan = container.querySelector('.new-text') as HTMLElement;
+    const buttonsContainer = container.querySelector('span:last-child') as HTMLElement;
+    
+    if (status === 'accepted') {
+      // Hide old text, show new text as normal (accepted), show green checkmark
+      if (oldTextSpan) oldTextSpan.style.display = 'none';
+      if (newTextSpan) {
+        newTextSpan.style.textDecoration = 'none';
+        newTextSpan.style.color = '#000000';
+        newTextSpan.style.fontWeight = 'normal';
+      }
+      if (buttonsContainer) {
+        buttonsContainer.innerHTML = '<span style="color: #22C55E; margin-left: 8px; font-size: 14px;">✓</span>';
+      }
+    } else if (status === 'rejected') {
+      // Hide new text, show old text as normal (rejected), show red X
+      if (newTextSpan) newTextSpan.style.display = 'none';
+      if (oldTextSpan) {
+        oldTextSpan.style.textDecoration = 'none';
+        oldTextSpan.style.color = '#000000';
+      }
+      if (buttonsContainer) {
+        buttonsContainer.innerHTML = '<span style="color: #EF4444; margin-left: 8px; font-size: 14px;">✗</span>';
+      }
+    }
   };
 
   const handleDocumentClick = (e: React.MouseEvent) => {
@@ -250,6 +278,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
           handleReject(changeId);
         }
       }
+      e.stopPropagation();
     }
   };
 
