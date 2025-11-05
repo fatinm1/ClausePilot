@@ -283,17 +283,26 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       </div>
 
       {/* Document viewer with inline changes */}
-      <div className="bg-white rounded-lg shadow-2xl p-12 max-w-5xl mx-auto" style={{ fontFamily: 'Times New Roman, serif', fontSize: '12pt', lineHeight: '1.6' }}>
-        <div className="space-y-4">
+      <div className="bg-white rounded-lg shadow-2xl p-12 max-w-5xl mx-auto" style={{ 
+        fontFamily: 'Times New Roman, serif', 
+        fontSize: '11pt', 
+        lineHeight: '1.5',
+        whiteSpace: 'pre-wrap',  // Preserve whitespace and tabs
+      }}>
+        <div>
           {documentSegments.map((para, paraIdx) => {
             if (para.type === 'paragraph') {
-              // Skip empty paragraphs to preserve spacing
+              // Render empty paragraphs as line breaks
               if (para.isEmpty) {
-                return <div key={paraIdx} className="h-4" />;
+                return <div key={paraIdx} style={{ height: '1em' }} />;
               }
               
               return (
-                <p key={paraIdx} className="text-black text-justify" style={{ marginBottom: '0.5em' }}>
+                <p key={paraIdx} className="text-black" style={{ 
+                  marginBottom: '0.75em',
+                  textIndent: para.segments[0]?.content?.startsWith('\t') ? '2em' : '0',
+                  whiteSpace: 'pre-wrap',  // Preserve tabs and spaces
+                }}>
                   {para.segments.map((segment: any, segIdx: number) => {
                     if (segment.type === 'text') {
                       return (

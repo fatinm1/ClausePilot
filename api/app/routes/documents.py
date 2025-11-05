@@ -334,13 +334,13 @@ def get_document_text(user, document_id):
         # Load the document
         doc = DocxDocument(document.file_path)
         
-        # Extract all text from paragraphs
+        # Extract all text from paragraphs, preserving exact structure
         text_parts = []
         for paragraph in doc.paragraphs:
-            if paragraph.text.strip():  # Only add non-empty paragraphs
-                text_parts.append(paragraph.text.strip())
+            # Keep ALL paragraphs including empty ones to preserve spacing
+            text_parts.append(paragraph.text)
         
-        # Join all text parts
+        # Join with single newline to preserve exact document structure
         full_text = '\n'.join(text_parts)
         
         return jsonify({
