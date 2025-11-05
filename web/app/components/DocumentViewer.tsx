@@ -346,7 +346,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   return (
     <div className="space-y-6">
       {/* Inline CSS for document styling */}
-      <style jsx>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .document-content * {
           color: #000000 !important;
         }
@@ -355,13 +355,41 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
           line-height: 1.15;
           text-align: justify;
         }
+        .document-content .change-container {
+          background: rgba(255, 255, 0, 0.08);
+          padding: 1px 3px;
+          border-radius: 3px;
+          display: inline;
+        }
         .document-content .change-container .old-text {
           color: #000000 !important;
         }
         .document-content .change-container .new-text {
           color: #DC2626 !important;
         }
-      `}</style>
+        .document-content button[data-action] {
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          width: 20px !important;
+          height: 20px !important;
+          padding: 0 !important;
+          margin-left: 4px !important;
+          font-size: 14px !important;
+          font-weight: bold !important;
+          cursor: pointer !important;
+          transition: all 0.2s !important;
+          vertical-align: middle !important;
+        }
+        .document-content button[data-action="accept"]:hover {
+          background: rgba(34, 197, 94, 0.4) !important;
+          transform: scale(1.1);
+        }
+        .document-content button[data-action="reject"]:hover {
+          background: rgba(239, 68, 68, 0.4) !important;
+          transform: scale(1.1);
+        }
+      ` }} />
       
       {/* Header with actions */}
       <div className="bg-white/5 border border-white/10 rounded-lg p-6">
