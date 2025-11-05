@@ -14,6 +14,13 @@ interface Change {
   status: 'pending' | 'accepted' | 'rejected';
 }
 
+interface CustomRule {
+  id?: number;
+  name?: string;
+  category: string;
+  instruction: string;
+}
+
 interface DocumentViewerProps {
   documentId: number;
   documentText: string;
@@ -23,10 +30,10 @@ interface DocumentViewerProps {
     signerName: string;
     signerTitle: string;
   };
-  selectedRules: number[];
+  customRules: CustomRule[];
 }
 
-export default function DocumentViewer({ documentId, documentText, onComplete, firmDetails, selectedRules }: DocumentViewerProps) {
+export default function DocumentViewer({ documentId, documentText, onComplete, firmDetails, customRules }: DocumentViewerProps) {
   const [changes, setChanges] = useState<Change[]>([]);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
@@ -76,7 +83,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         credentials: 'include',
         body: JSON.stringify({
           document_text: text,
-          custom_rules: selectedRules.map(id => ({ id })),
+          custom_rules: customRules,
           firm_details: firmDetails,
         }),
       });

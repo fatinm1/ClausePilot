@@ -490,7 +490,7 @@ export default function Dashboard() {
         <DocumentViewer
           documentId={uploadedDocument?.id || 0}
           documentText={documentText}
-          selectedRules={selectedRules}
+          customRules={customRules.filter(rule => rule.id && selectedRules.includes(rule.id))}
           firmDetails={{
             name: firmDetails.name,
             signerName: firmDetails.signerName,
