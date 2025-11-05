@@ -105,7 +105,9 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     // Inject change markers into the HTML
     let modifiedHtml = html;
     
-    changesList.forEach((change) => {
+    console.log('🔧 Injecting', changesList.length, 'changes into HTML');
+    
+    changesList.forEach((change, idx) => {
       const oldText = change.current_text
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -118,19 +120,31 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         .replace(/>/g, '&gt;')
         .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
       
-      // Create the replacement HTML with change markers and inline buttons
-      const acceptBtn = `<button data-action="accept" data-change-id="${change.id}" style="padding: 4px 6px; background: rgba(34, 197, 94, 0.2); color: rgb(34, 197, 94); border: none; border-radius: 4px; cursor: pointer; font-size: 10px; margin-left: 6px;">✓</button>`;
-      const rejectBtn = `<button data-action="reject" data-change-id="${change.id}" style="padding: 4px 6px; background: rgba(239, 68, 68, 0.2); color: rgb(239, 68, 68); border: none; border-radius: 4px; cursor: pointer; font-size: 10px; margin-left: 2px;">✗</button>`;
+      console.log(`📝 Change ${idx + 1}: "${change.current_text.substring(0, 30)}..." → "${change.new_text.substring(0, 30)}..."`);
+      const found = modifiedHtml.includes(oldText);
+      console.log(`   ${found ? '✅' : '❌'} Text found in HTML:`, found);
       
-      const replacement = `<span class="change-container" data-change-id="${change.id}">` +
-        `<span class="old-text" style="text-decoration: line-through; color: #000;">${oldText}</span>` +
-        `<span class="new-text" style="text-decoration: underline; color: #DC2626; font-weight: 500;">${newText}</span>` +
+      // Create LARGE, VISIBLE inline buttons with proper styling
+      const acceptBtn = `<button data-action="accept" data-change-id="${change.id}" style="display: inline-block; padding: 6px 12px; background: linear-gradient(135deg, rgba(34, 197, 94, 0.4), rgba(34, 197, 94, 0.3)); color: rgb(22, 163, 74); border: 2px solid rgb(34, 197, 94); border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; margin-left: 12px; vertical-align: middle; box-shadow: 0 2px 4px rgba(34, 197, 94, 0.3); transition: all 0.2s;">✓ Accept</button>`;
+      const rejectBtn = `<button data-action="reject" data-change-id="${change.id}" style="display: inline-block; padding: 6px 12px; background: linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(239, 68, 68, 0.3)); color: rgb(220, 38, 38); border: 2px solid rgb(239, 68, 68); border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; margin-left: 8px; vertical-align: middle; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3); transition: all 0.2s;">✗ Reject</button>`;
+      
+      const replacement = `<span class="change-container" data-change-id="${change.id}" style="background: rgba(255, 255, 0, 0.2); padding: 4px 6px; border-radius: 4px; display: inline; border: 1px dashed rgba(255, 193, 7, 0.5);">` +
+        `<span class="old-text" style="text-decoration: line-through; color: #000000;">${oldText}</span>` +
+        `<span class="new-text" style="text-decoration: underline; color: #DC2626; font-weight: 600;">${newText}</span>` +
         acceptBtn + rejectBtn +
         `</span>`;
       
       // Replace the old text in the HTML
-      modifiedHtml = modifiedHtml.replace(oldText, replacement);
+      if (found) {
+        modifiedHtml = modifiedHtml.replace(oldText, replacement);
+        console.log(`   ✅ Buttons injected for change ${idx + 1}`);
+      } else {
+        console.log(`   ⚠️ Could not inject buttons for change ${idx + 1}`);
+      }
     });
+    
+    const buttonCount = (modifiedHtml.match(/data-action="accept"/g) || []).length;
+    console.log(`✅ Injection complete. Total accept buttons in HTML: ${buttonCount}`);
     
     return modifiedHtml;
   };
@@ -198,6 +212,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   };
 
   const handleAccept = (changeId: string) => {
+    console.log(`✅ handleAccept called for change ${changeId}`);
     setChanges((prev) =>
       prev.map((c) =>
         c.id === changeId ? { ...c, status: 'accepted' } : c
@@ -208,6 +223,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   };
 
   const handleReject = (changeId: string) => {
+    console.log(`❌ handleReject called for change ${changeId}`);
     setChanges((prev) =>
       prev.map((c) =>
         c.id === changeId ? { ...c, status: 'rejected' } : c
@@ -230,46 +246,73 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   };
 
   const updateVisualDisplay = (changeId: string, status: 'accepted' | 'rejected') => {
+    console.log(`🎨 Updating visual display for change ${changeId} as ${status}`);
+    
     // Find the change container in the DOM
-    const container = document.querySelector(`[data-change-id="${changeId}"]`) as HTMLElement;
-    if (!container) return;
+    const container = document.querySelector(`.change-container[data-change-id="${changeId}"]`) as HTMLElement;
+    if (!container) {
+      console.log(`   ❌ Container not found for change ${changeId}`);
+      return;
+    }
+    
+    console.log(`   ✅ Found container for change ${changeId}`);
     
     const oldTextSpan = container.querySelector('.old-text') as HTMLElement;
     const newTextSpan = container.querySelector('.new-text') as HTMLElement;
-    const buttonsContainer = container.querySelector('span:last-child') as HTMLElement;
+    const acceptBtn = container.querySelector('button[data-action="accept"]') as HTMLElement;
+    const rejectBtn = container.querySelector('button[data-action="reject"]') as HTMLElement;
+    
+    // Remove yellow highlight background
+    container.style.background = 'transparent';
+    container.style.border = 'none';
     
     if (status === 'accepted') {
-      // Hide old text, show new text as normal (accepted), show green checkmark
-      if (oldTextSpan) oldTextSpan.style.display = 'none';
+      console.log(`   ✅ Accepting change - hiding old text, showing new text as normal`);
+      // Hide old text, show new text as normal (accepted)
+      if (oldTextSpan) {
+        oldTextSpan.style.display = 'none';
+      }
       if (newTextSpan) {
         newTextSpan.style.textDecoration = 'none';
         newTextSpan.style.color = '#000000';
         newTextSpan.style.fontWeight = 'normal';
       }
-      if (buttonsContainer) {
-        buttonsContainer.innerHTML = '<span style="color: #22C55E; margin-left: 8px; font-size: 14px;">✓</span>';
-      }
+      // Replace buttons with green checkmark
+      if (acceptBtn) acceptBtn.remove();
+      if (rejectBtn) rejectBtn.remove();
+      container.innerHTML += '<span style="color: #22C55E; margin-left: 12px; font-size: 16px; font-weight: bold;">✓ Accepted</span>';
+      
     } else if (status === 'rejected') {
-      // Hide new text, show old text as normal (rejected), show red X
-      if (newTextSpan) newTextSpan.style.display = 'none';
+      console.log(`   ❌ Rejecting change - hiding new text, showing old text as normal`);
+      // Hide new text, show old text as normal (rejected)
+      if (newTextSpan) {
+        newTextSpan.style.display = 'none';
+      }
       if (oldTextSpan) {
         oldTextSpan.style.textDecoration = 'none';
         oldTextSpan.style.color = '#000000';
       }
-      if (buttonsContainer) {
-        buttonsContainer.innerHTML = '<span style="color: #EF4444; margin-left: 8px; font-size: 14px;">✗</span>';
-      }
+      // Replace buttons with red X
+      if (acceptBtn) acceptBtn.remove();
+      if (rejectBtn) rejectBtn.remove();
+      container.innerHTML += '<span style="color: #EF4444; margin-left: 12px; font-size: 16px; font-weight: bold;">✗ Rejected</span>';
     }
+    
+    console.log(`   ✅ Visual update complete for change ${changeId}`);
   };
 
   const handleDocumentClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
+    
+    console.log('🖱️ Document clicked:', target.tagName, target.getAttribute('data-action'));
     
     // Check if clicked on accept/reject button
     const button = target.closest('[data-action]');
     if (button) {
       const action = button.getAttribute('data-action');
       const changeId = button.getAttribute('data-change-id');
+      
+      console.log(`🎯 Button clicked: action=${action}, changeId=${changeId}`);
       
       if (changeId) {
         if (action === 'accept') {
@@ -278,6 +321,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
           handleReject(changeId);
         }
       }
+      e.preventDefault();
       e.stopPropagation();
     }
   };
@@ -356,38 +400,53 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
           text-align: justify;
         }
         .document-content .change-container {
-          background: rgba(255, 255, 0, 0.08);
-          padding: 1px 3px;
-          border-radius: 3px;
+          background: rgba(255, 255, 0, 0.2);
+          padding: 4px 6px;
+          border-radius: 4px;
           display: inline;
+          border: 1px dashed rgba(255, 193, 7, 0.6);
         }
         .document-content .change-container .old-text {
           color: #000000 !important;
+          text-decoration: line-through;
         }
         .document-content .change-container .new-text {
           color: #DC2626 !important;
+          text-decoration: underline;
+          font-weight: 600;
         }
         .document-content button[data-action] {
-          display: inline-flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          width: 20px !important;
-          height: 20px !important;
-          padding: 0 !important;
-          margin-left: 4px !important;
-          font-size: 14px !important;
+          display: inline-block !important;
+          padding: 6px 12px !important;
+          margin-left: 8px !important;
+          font-size: 13px !important;
           font-weight: bold !important;
           cursor: pointer !important;
-          transition: all 0.2s !important;
+          transition: all 0.2s ease !important;
           vertical-align: middle !important;
+          border-radius: 6px !important;
+        }
+        .document-content button[data-action="accept"] {
+          background: linear-gradient(135deg, rgba(34, 197, 94, 0.4), rgba(34, 197, 94, 0.3)) !important;
+          color: rgb(22, 163, 74) !important;
+          border: 2px solid rgb(34, 197, 94) !important;
+          box-shadow: 0 2px 4px rgba(34, 197, 94, 0.3) !important;
         }
         .document-content button[data-action="accept"]:hover {
-          background: rgba(34, 197, 94, 0.4) !important;
-          transform: scale(1.1);
+          background: linear-gradient(135deg, rgba(34, 197, 94, 0.6), rgba(34, 197, 94, 0.5)) !important;
+          transform: scale(1.05) !important;
+          box-shadow: 0 4px 8px rgba(34, 197, 94, 0.4) !important;
+        }
+        .document-content button[data-action="reject"] {
+          background: linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(239, 68, 68, 0.3)) !important;
+          color: rgb(220, 38, 38) !important;
+          border: 2px solid rgb(239, 68, 68) !important;
+          box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3) !important;
         }
         .document-content button[data-action="reject"]:hover {
-          background: rgba(239, 68, 68, 0.4) !important;
-          transform: scale(1.1);
+          background: linear-gradient(135deg, rgba(239, 68, 68, 0.6), rgba(239, 68, 68, 0.5)) !important;
+          transform: scale(1.05) !important;
+          box-shadow: 0 4px 8px rgba(239, 68, 68, 0.4) !important;
         }
       ` }} />
       
