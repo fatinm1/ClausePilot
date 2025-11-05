@@ -354,9 +354,10 @@ def get_document_text(user, document_id):
             runs_html = []
             for run in paragraph.runs:
                 text = run.text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                text = text.replace('\t', '&nbsp;&nbsp;&nbsp;&nbsp;')  # Convert tabs to spaces
+                text = text.replace('\t', '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;')  # 8 spaces per tab for Word-like indentation
                 
-                style_parts = []
+                style_parts = ['color: #000000']  # Force black text
+                
                 if run.bold:
                     style_parts.append('font-weight: bold')
                 if run.italic:
@@ -364,11 +365,17 @@ def get_document_text(user, document_id):
                 if run.underline:
                     style_parts.append('text-decoration: underline')
                 
-                style_attr = f' style="{"; ".join(style_parts)}"' if style_parts else ''
+                style_attr = f' style="{"; ".join(style_parts)}"'
                 runs_html.append(f'<span{style_attr}>{text}</span>')
             
-            # Build paragraph HTML
-            para_style = ['margin: 0', 'margin-bottom: 0.5em']
+            # Build paragraph HTML with Word-like styling
+            para_style = [
+                'margin: 0',
+                'margin-bottom: 10pt',
+                'line-height: 1.15',
+                'text-align: justify',
+                'color: #000000'
+            ]
             style_attr = f' style="{"; ".join(para_style)}"'
             html_parts.append(f'<p{style_attr}>{"".join(runs_html)}</p>')
         

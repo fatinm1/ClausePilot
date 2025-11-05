@@ -309,6 +309,24 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
 
   return (
     <div className="space-y-6">
+      {/* Inline CSS for document styling */}
+      <style jsx>{`
+        .document-content * {
+          color: #000000 !important;
+        }
+        .document-content p {
+          margin-bottom: 10pt;
+          line-height: 1.15;
+          text-align: justify;
+        }
+        .document-content .change-container .old-text {
+          color: #000000 !important;
+        }
+        .document-content .change-container .new-text {
+          color: #DC2626 !important;
+        }
+      `}</style>
+      
       {/* Header with actions */}
       <div className="bg-white/5 border border-white/10 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
@@ -368,12 +386,15 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       {/* Document viewer with inline changes */}
       <div className="bg-white rounded-lg shadow-2xl p-12 max-w-5xl mx-auto" style={{ 
         fontFamily: 'Times New Roman, serif', 
-        fontSize: '11pt', 
-        lineHeight: '1.5',
+        fontSize: '12pt', 
+        lineHeight: '1.6',
+        color: '#000000',  // Force black text
       }}>
         <div 
           dangerouslySetInnerHTML={{ __html: documentHtml }}
           onClick={handleDocumentClick}
+          style={{ color: '#000000' }}  // Force black text in content
+          className="document-content"
         />
         
         {/* Fallback paragraph rendering if HTML not available */}
