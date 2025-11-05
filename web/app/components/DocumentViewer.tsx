@@ -78,9 +78,9 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   };
 
   const buildDocumentSegments = (text: string, changesList: Change[]) => {
-    // Build segments of document text with inline changes
-    const segments: any[] = [];
-    let currentPos = 0;
+    // Split document into paragraphs first to preserve structure
+    const paragraphs = text.split('\n');
+    const allSegments: any[] = [];
     
     // Sort changes by their position in the document
     const sortedChanges = [...changesList].sort((a, b) => {
@@ -89,37 +89,54 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       return posA - posB;
     });
 
-    sortedChanges.forEach((change) => {
-      const changePos = text.indexOf(change.current_text, currentPos);
+    let globalPos = 0;
+    
+    paragraphs.forEach((paragraph, paraIdx) => {
+      const paragraphSegments: any[] = [];
+      let currentPos = 0;
       
-      if (changePos !== -1) {
-        // Add text before the change
-        if (changePos > currentPos) {
-          segments.push({
-            type: 'text',
-            content: text.substring(currentPos, changePos),
+      // Find changes that belong to this paragraph
+      sortedChanges.forEach((change) => {
+        const changePos = paragraph.indexOf(change.current_text, currentPos);
+        
+        if (changePos !== -1) {
+          // Add text before the change
+          if (changePos > currentPos) {
+            paragraphSegments.push({
+              type: 'text',
+              content: paragraph.substring(currentPos, changePos),
+            });
+          }
+          
+          // Add the change
+          paragraphSegments.push({
+            type: 'change',
+            change: change,
           });
+          
+          currentPos = changePos + change.current_text.length;
         }
-        
-        // Add the change
-        segments.push({
-          type: 'change',
-          change: change,
+      });
+
+      // Add remaining text in paragraph
+      if (currentPos < paragraph.length) {
+        paragraphSegments.push({
+          type: 'text',
+          content: paragraph.substring(currentPos),
         });
-        
-        currentPos = changePos + change.current_text.length;
       }
+      
+      // Add paragraph as a unit
+      allSegments.push({
+        type: 'paragraph',
+        segments: paragraphSegments,
+        isEmpty: paragraph.trim().length === 0,
+      });
+      
+      globalPos += paragraph.length + 1; // +1 for newline
     });
 
-    // Add remaining text
-    if (currentPos < text.length) {
-      segments.push({
-        type: 'text',
-        content: text.substring(currentPos),
-      });
-    }
-
-    setDocumentSegments(segments);
+    setDocumentSegments(allSegments);
   };
 
   const handleAccept = (changeId: string) => {
@@ -266,84 +283,91 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       </div>
 
       {/* Document viewer with inline changes */}
-      <div className="bg-white rounded-lg shadow-2xl p-12 max-w-5xl mx-auto" style={{ fontFamily: 'Times New Roman, serif' }}>
-        <div className="prose prose-lg max-w-none">
-          {documentSegments.map((segment, idx) => {
-            if (segment.type === 'text') {
-              return (
-                <span key={idx} className="text-black whitespace-pre-wrap">
-                  {segment.content}
-                </span>
-              );
-            } else if (segment.type === 'change') {
-              const change = segment.change;
-              const isAccepted = change.status === 'accepted';
-              const isRejected = change.status === 'rejected';
+      <div className="bg-white rounded-lg shadow-2xl p-12 max-w-5xl mx-auto" style={{ fontFamily: 'Times New Roman, serif', fontSize: '12pt', lineHeight: '1.6' }}>
+        <div className="space-y-4">
+          {documentSegments.map((para, paraIdx) => {
+            if (para.type === 'paragraph') {
+              // Skip empty paragraphs to preserve spacing
+              if (para.isEmpty) {
+                return <div key={paraIdx} className="h-4" />;
+              }
               
               return (
-                <span key={idx} className="inline-block my-1">
-                  {/* Old text with strikethrough */}
-                  <span
-                    className="text-black"
-                    style={{
-                      textDecoration: 'line-through',
-                      opacity: isRejected ? 1 : 0.7,
-                      display: isAccepted ? 'none' : 'inline',
-                    }}
-                  >
-                    {change.current_text}
-                  </span>
-                  
-                  {/* New text with underline */}
-                  <span
-                    className="text-red-600 font-semibold"
-                    style={{
-                      textDecoration: 'underline',
-                      display: isRejected ? 'none' : 'inline',
-                    }}
-                  >
-                    {change.new_text}
-                  </span>
-                  
-                  {/* Inline accept/reject buttons */}
-                  {change.status === 'pending' && (
-                    <span className="inline-flex items-center ml-2 space-x-1">
-                      <button
-                        onClick={() => handleAccept(change.id)}
-                        className="p-1 bg-green-500/20 text-green-600 rounded hover:bg-green-500/30 transition-colors"
-                        title="Accept change"
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleReject(change.id)}
-                        className="p-1 bg-red-500/20 text-red-600 rounded hover:bg-red-500/30 transition-colors"
-                        title="Reject change"
-                      >
-                        <XCircle className="w-4 h-4" />
-                      </button>
-                    </span>
-                  )}
-                  
-                  {/* Status indicator */}
-                  {change.status === 'accepted' && (
-                    <span className="inline-flex items-center ml-2">
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                    </span>
-                  )}
-                  {change.status === 'rejected' && (
-                    <span className="inline-flex items-center ml-2">
-                      <XCircle className="w-4 h-4 text-red-500" />
-                    </span>
-                  )}
-                  
-                  {/* Hover tooltip with reason */}
-                  {change.status === 'pending' && (
-                    <span className="ml-2 text-xs text-gray-500 italic">
-                      ({change.reason})
-                    </span>
-                  )}
-                </span>
+                <p key={paraIdx} className="text-black text-justify" style={{ marginBottom: '0.5em' }}>
+                  {para.segments.map((segment: any, segIdx: number) => {
+                    if (segment.type === 'text') {
+                      return (
+                        <span key={segIdx}>
+                          {segment.content}
+                        </span>
+                      );
+                    } else if (segment.type === 'change') {
+                      const change = segment.change;
+                      const isAccepted = change.status === 'accepted';
+                      const isRejected = change.status === 'rejected';
+                      
+                      return (
+                        <span key={segIdx} className="inline-block">
+                          {/* Old text with strikethrough */}
+                          <span
+                            className="text-black"
+                            style={{
+                              textDecoration: 'line-through',
+                              display: isAccepted ? 'none' : 'inline',
+                            }}
+                          >
+                            {change.current_text}
+                          </span>
+                          
+                          {/* New text with underline */}
+                          <span
+                            className="text-red-600"
+                            style={{
+                              textDecoration: 'underline',
+                              fontWeight: 500,
+                              display: isRejected ? 'none' : 'inline',
+                            }}
+                          >
+                            {change.new_text}
+                          </span>
+                          
+                          {/* Inline accept/reject buttons */}
+                          {change.status === 'pending' && (
+                            <span className="inline-flex items-center ml-2 space-x-1 align-middle">
+                              <button
+                                onClick={() => handleAccept(change.id)}
+                                className="p-0.5 bg-green-500/20 text-green-600 rounded hover:bg-green-500/30 transition-colors"
+                                title="Accept change"
+                              >
+                                <CheckCircle className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => handleReject(change.id)}
+                                className="p-0.5 bg-red-500/20 text-red-600 rounded hover:bg-red-500/30 transition-colors"
+                                title="Reject change"
+                              >
+                                <XCircle className="w-3 h-3" />
+                              </button>
+                            </span>
+                          )}
+                          
+                          {/* Status indicator */}
+                          {change.status === 'accepted' && (
+                            <span className="inline-flex items-center ml-1">
+                              <CheckCircle className="w-3 h-3 text-green-500" />
+                            </span>
+                          )}
+                          {change.status === 'rejected' && (
+                            <span className="inline-flex items-center ml-1">
+                              <XCircle className="w-3 h-3 text-red-500" />
+                            </span>
+                          )}
+                        </span>
+                      );
+                    }
+                    return null;
+                  })}
+                </p>
               );
             }
             return null;
