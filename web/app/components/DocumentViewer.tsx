@@ -110,13 +110,13 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
-        .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;');
+        .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
       
       const newText = change.new_text
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
-        .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;');
+        .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
       
       // Create the replacement HTML with change markers and inline buttons
       const acceptBtn = `<button data-action="accept" data-change-id="${change.id}" style="padding: 4px 6px; background: rgba(34, 197, 94, 0.2); color: rgb(34, 197, 94); border: none; border-radius: 4px; cursor: pointer; font-size: 10px; margin-left: 6px;">✓</button>`;
