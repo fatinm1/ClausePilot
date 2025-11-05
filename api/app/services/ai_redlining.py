@@ -222,27 +222,39 @@ class AIRedliningService:
                 for i, mod in enumerate(modifications):
                     logger.warning(f"POST-PROCESSING Mod {i+1}: {mod}")
                     
-                    # FIX: Expand "By:" to include underscores if AI didn't include them
-                    if mod.get('type') == 'TEXT_REPLACE' and mod.get('current_text', '').strip() == 'By:':
-                        import re
-                        # The AI only specified "By:" but document has "By:\t_______________________________"
-                        # Find the full pattern in the document
-                        by_pattern = r'By:[\t\s]+_+'
-                        by_matches = list(re.finditer(by_pattern, document_text))
-                        if by_matches:
-                            by_full_text = by_matches[0].group(0)
-                            logger.warning(f"  Expanding 'By:' to include underscores: '{by_full_text}'")
-                            mod['current_text'] = by_full_text
+                    # FIX: Expand signature fields to include underscores if AI didn't include them
+                    current = mod.get('current_text', '').strip()
                     
-                    # FIX: Expand "Title:" to include underscores if AI didn't include them
-                    if mod.get('type') == 'TEXT_REPLACE' and mod.get('current_text', '').strip() == 'Title:':
+                    # Check if this is a By:/Title:/Date: modification without underscores
+                    if mod.get('type') == 'TEXT_REPLACE':
                         import re
-                        title_pattern = r'Title:[\t\s]+_+'
-                        title_matches = list(re.finditer(title_pattern, document_text))
-                        if title_matches:
-                            title_full_text = title_matches[0].group(0)
-                            logger.warning(f"  Expanding 'Title:' to include underscores: '{title_full_text}'")
-                            mod['current_text'] = title_full_text
+                        
+                        # By: field expansion
+                        if current == 'By:' or (current.startswith('By:') and len(current) < 10):
+                            by_pattern = r'By:[\t\s]+_+'
+                            by_matches = list(re.finditer(by_pattern, document_text))
+                            if by_matches:
+                                by_full_text = by_matches[0].group(0)
+                                logger.warning(f"  🔧 EXPANDING 'By:' → '{by_full_text}' (added underscores)")
+                                mod['current_text'] = by_full_text
+                        
+                        # Title: field expansion
+                        elif current == 'Title:' or (current.startswith('Title:') and len(current) < 15 and '_' not in current):
+                            title_pattern = r'Title:[\t\s]+_+'
+                            title_matches = list(re.finditer(title_pattern, document_text))
+                            if title_matches:
+                                title_full_text = title_matches[0].group(0)
+                                logger.warning(f"  🔧 EXPANDING 'Title:' → '{title_full_text}' (added underscores)")
+                                mod['current_text'] = title_full_text
+                        
+                        # Date: field expansion (if needed)
+                        elif current == 'Date:' or (current.startswith('Date:') and len(current) < 15 and '_' not in current):
+                            date_pattern = r'Date:[\t\s]+_+'
+                            date_matches = list(re.finditer(date_pattern, document_text))
+                            if date_matches:
+                                date_full_text = date_matches[0].group(0)
+                                logger.warning(f"  🔧 EXPANDING 'Date:' → '{date_full_text}' (added underscores)")
+                                mod['current_text'] = date_full_text
                     
                     # Replace hardcoded names with actual signer name
                     signer_name = firm_details.get('signatory_name') or firm_details.get('signerName')
