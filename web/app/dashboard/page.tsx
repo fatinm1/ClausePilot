@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { apiClient } from '../../lib/api';
 import { Document, CustomRule, FirmDetails } from '../../lib/api';
-import ChangesReview from '../components/ChangesReview';
+import DocumentViewer from '../components/DocumentViewer';
 
 interface ProcessingStep {
   id: string;
@@ -296,16 +296,17 @@ export default function Dashboard() {
     }
   };
 
-  const handleChangesReviewComplete = async (finalDocumentPath: string) => {
+  const handleChangesReviewComplete = async (result: { success: boolean; documentId?: number }) => {
     setShowChangesReview(false);
-    setSuccess('Document processed successfully! Changes have been applied.');
     
-    // Update the document with the final path
-    if (uploadedDocument) {
-      setUploadedDocument({
-        ...uploadedDocument,
-        final_file_path: finalDocumentPath
-      });
+    if (result.success) {
+      setSuccess('Document processed successfully! You can now download the redlined document.');
+      // Refresh the document to get the updated final_file_path
+      if (uploadedDocument?.id) {
+        // Document has been updated, user can now download
+      }
+    } else {
+      setError('Failed to process changes. Please try again.');
     }
   };
 
@@ -485,21 +486,15 @@ export default function Dashboard() {
           </div>
         </div>
       ) : showChangesReview ? (
-        // Changes Review Interface
-        <ChangesReview
+        // Inline Document Viewer with Changes
+        <DocumentViewer
           documentId={uploadedDocument?.id || 0}
           documentText={documentText}
-          customRules={customRules.filter(rule => rule.id && selectedRules.includes(rule.id))}
+          selectedRules={selectedRules}
           firmDetails={{
             name: firmDetails.name,
             signerName: firmDetails.signerName,
             signerTitle: firmDetails.signerTitle,
-            address: firmDetails.address,
-            city: firmDetails.city,
-            state: firmDetails.state,
-            zipCode: firmDetails.zipCode,
-            email: firmDetails.email,
-            phone: firmDetails.phone
           }}
           onComplete={handleChangesReviewComplete}
         />
