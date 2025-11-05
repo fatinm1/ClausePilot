@@ -31,19 +31,43 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [documentSegments, setDocumentSegments] = useState<any[]>([]);
+  const [documentHtml, setDocumentHtml] = useState<string>('');
 
   // Generate changes when component mounts
   useEffect(() => {
-    generateChanges();
+    loadDocumentAndGenerateChanges();
   }, []);
 
-  const generateChanges = async () => {
+  // Update HTML when changes status changes
+  useEffect(() => {
+    if (documentHtml && changes.length > 0) {
+      updateDocumentDisplay();
+    }
+  }, [changes]);
+
+  const loadDocumentAndGenerateChanges = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`/v1/changes/generate`, {
+      // First, get the document with HTML formatting
+      const docResponse = await fetch(`/v1/documents/${documentId}/text`, {
+        headers: {
+          'X-User-ID': '1',
+        },
+        credentials: 'include',
+      });
+
+      if (!docResponse.ok) {
+        throw new Error('Failed to load document');
+      }
+
+      const docData = await docResponse.json();
+      const html = docData.html || '';
+      const text = docData.text || documentText;
+      
+      // Generate changes
+      const changesResponse = await fetch(`/v1/changes/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -51,30 +75,70 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         },
         credentials: 'include',
         body: JSON.stringify({
-          document_text: documentText,
+          document_text: text,
           custom_rules: selectedRules.map(id => ({ id })),
           firm_details: firmDetails,
         }),
       });
 
-      if (!response.ok) {
+      if (!changesResponse.ok) {
         throw new Error('Failed to generate changes');
       }
 
-      const data = await response.json();
-      const generatedChanges = data.changes.map((c: any) => ({
+      const changesData = await changesResponse.json();
+      const generatedChanges = changesData.changes.map((c: any) => ({
         ...c,
         status: 'pending',
       }));
       
       setChanges(generatedChanges);
-      buildDocumentSegments(documentText, generatedChanges);
+      setDocumentHtml(injectChangesIntoHtml(html, generatedChanges));
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate changes');
     } finally {
       setLoading(false);
     }
+  };
+
+  const injectChangesIntoHtml = (html: string, changesList: Change[]): string => {
+    // Inject change markers into the HTML
+    let modifiedHtml = html;
+    
+    changesList.forEach((change) => {
+      const oldText = change.current_text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;');
+      
+      const newText = change.new_text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;');
+      
+      // Create the replacement HTML with change markers and inline buttons
+      const acceptBtn = `<button data-action="accept" data-change-id="${change.id}" style="padding: 4px 6px; background: rgba(34, 197, 94, 0.2); color: rgb(34, 197, 94); border: none; border-radius: 4px; cursor: pointer; font-size: 10px; margin-left: 6px;">✓</button>`;
+      const rejectBtn = `<button data-action="reject" data-change-id="${change.id}" style="padding: 4px 6px; background: rgba(239, 68, 68, 0.2); color: rgb(239, 68, 68); border: none; border-radius: 4px; cursor: pointer; font-size: 10px; margin-left: 2px;">✗</button>`;
+      
+      const replacement = `<span class="change-container" data-change-id="${change.id}">` +
+        `<span class="old-text" style="text-decoration: line-through; color: #000;">${oldText}</span>` +
+        `<span class="new-text" style="text-decoration: underline; color: #DC2626; font-weight: 500;">${newText}</span>` +
+        acceptBtn + rejectBtn +
+        `</span>`;
+      
+      // Replace the old text in the HTML
+      modifiedHtml = modifiedHtml.replace(oldText, replacement);
+    });
+    
+    return modifiedHtml;
+  };
+
+  const updateDocumentDisplay = () => {
+    // Re-inject changes based on current status
+    // This is a simplified version - just re-fetch the document HTML would be better
+    // For now, we'll rely on CSS to hide/show based on data attributes
   };
 
   const buildDocumentSegments = (text: string, changesList: Change[]) => {
@@ -161,6 +225,25 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
 
   const handleRejectAll = () => {
     setChanges((prev) => prev.map((c) => ({ ...c, status: 'rejected' })));
+  };
+
+  const handleDocumentClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    
+    // Check if clicked on accept/reject button
+    const button = target.closest('[data-action]');
+    if (button) {
+      const action = button.getAttribute('data-action');
+      const changeId = button.getAttribute('data-change-id');
+      
+      if (changeId) {
+        if (action === 'accept') {
+          handleAccept(changeId);
+        } else if (action === 'reject') {
+          handleReject(changeId);
+        }
+      }
+    }
   };
 
   const applyChanges = async () => {
@@ -287,10 +370,16 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         fontFamily: 'Times New Roman, serif', 
         fontSize: '11pt', 
         lineHeight: '1.5',
-        whiteSpace: 'pre-wrap',  // Preserve whitespace and tabs
       }}>
-        <div>
-          {documentSegments.map((para, paraIdx) => {
+        <div 
+          dangerouslySetInnerHTML={{ __html: documentHtml }}
+          onClick={handleDocumentClick}
+        />
+        
+        {/* Fallback paragraph rendering if HTML not available */}
+        {!documentHtml && (
+          <div>
+            {documentSegments.map((para, paraIdx) => {
             if (para.type === 'paragraph') {
               // Render empty paragraphs as line breaks
               if (para.isEmpty) {
@@ -382,6 +471,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
             return null;
           })}
         </div>
+        )}
       </div>
 
       {/* Change summary sidebar */}

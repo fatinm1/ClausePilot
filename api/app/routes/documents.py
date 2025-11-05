@@ -343,8 +343,40 @@ def get_document_text(user, document_id):
         # Join with single newline to preserve exact document structure
         full_text = '\n'.join(text_parts)
         
+        # Convert document to HTML with formatting preserved
+        html_parts = []
+        for paragraph in doc.paragraphs:
+            if not paragraph.text.strip():
+                html_parts.append('<p style="margin: 0; line-height: 1.5em;">&nbsp;</p>')
+                continue
+            
+            # Build HTML for runs with formatting
+            runs_html = []
+            for run in paragraph.runs:
+                text = run.text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                text = text.replace('\t', '&nbsp;&nbsp;&nbsp;&nbsp;')  # Convert tabs to spaces
+                
+                style_parts = []
+                if run.bold:
+                    style_parts.append('font-weight: bold')
+                if run.italic:
+                    style_parts.append('font-style: italic')
+                if run.underline:
+                    style_parts.append('text-decoration: underline')
+                
+                style_attr = f' style="{"; ".join(style_parts)}"' if style_parts else ''
+                runs_html.append(f'<span{style_attr}>{text}</span>')
+            
+            # Build paragraph HTML
+            para_style = ['margin: 0', 'margin-bottom: 0.5em']
+            style_attr = f' style="{"; ".join(para_style)}"'
+            html_parts.append(f'<p{style_attr}>{"".join(runs_html)}</p>')
+        
+        html = '\n'.join(html_parts)
+        
         return jsonify({
             'text': full_text,
+            'html': html,
             'document_id': document_id
         })
         
