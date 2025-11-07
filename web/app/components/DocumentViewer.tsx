@@ -126,20 +126,23 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       // Escape special regex characters in the search text
       const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       
-      // Build a regex pattern that matches text across span boundaries
-      // Each character/space might be in its own <span>
+      // Build a VERY flexible regex that allows ANY HTML tags/whitespace between characters
       const textChars = change.current_text.split('');
-      const pattern = textChars.map(char => {
+      const pattern = textChars.map((char, charIdx) => {
         if (char === ' ' || char === '\t') {
-          // Flexible whitespace: could be space, nbsp, or tab (8 nbsp)
-          // This handles cases where AI says "For: Company" but doc has "For:\tCompany"
-          return '(?:<span[^>]*>)?(?:&nbsp;{1,8}| |\\s)(?:</span>)?(?:<span[^>]*>)?(?:&nbsp;{1,8})?(?:</span>)?';
+          // For whitespace: match any combination of spans, nbsp, spaces
+          // Allow multiple span tags in between
+          return '(?:</span>)?(?:<span[^>]*>)*(?:&nbsp;|\\s)+(?:</span>)?(?:<span[^>]*>)*';
+        } else if (char === '_') {
+          // Underscores might be repeated (e.g., "_______")
+          const escaped = escapeRegex(char);
+          return `(?:</span>)?(?:<span[^>]*>)*${escaped}+(?:</span>)?(?:<span[^>]*>)*`;
         } else {
-          // Regular character, might be in a span
+          // Regular character: allow span tags before and after
           const escaped = escapeRegex(char).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          return `(?:<span[^>]*>)?${escaped}(?:</span>)?`;
+          return `(?:</span>)?(?:<span[^>]*>)*${escaped}(?:</span>)?(?:<span[^>]*>)*`;
         }
-      }).join('(?:<span[^>]*>)?(?:</span>)?');
+      }).join('');
       
       const regex = new RegExp(pattern, 'i');
       const match = modifiedHtml.match(regex);
@@ -363,15 +366,20 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       
       // ALWAYS search for current_text (old text) in the original HTML
       const textChars = change.current_text.split('');
-      const pattern = textChars.map(char => {
+      const pattern = textChars.map((char, charIdx) => {
         if (char === ' ' || char === '\t') {
-          // Flexible whitespace: could be space, nbsp, or tab (8 nbsp)
-          return '(?:<span[^>]*>)?(?:&nbsp;{1,8}| |\\s)(?:</span>)?(?:<span[^>]*>)?(?:&nbsp;{1,8})?(?:</span>)?';
+          // For whitespace: match any combination of spans, nbsp, spaces
+          return '(?:</span>)?(?:<span[^>]*>)*(?:&nbsp;|\\s)+(?:</span>)?(?:<span[^>]*>)*';
+        } else if (char === '_') {
+          // Underscores might be repeated (e.g., "_______")
+          const escaped = escapeRegex(char);
+          return `(?:</span>)?(?:<span[^>]*>)*${escaped}+(?:</span>)?(?:<span[^>]*>)*`;
         } else {
+          // Regular character: allow span tags before and after
           const escaped = escapeRegex(char).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          return `(?:<span[^>]*>)?${escaped}(?:</span>)?`;
+          return `(?:</span>)?(?:<span[^>]*>)*${escaped}(?:</span>)?(?:<span[^>]*>)*`;
         }
-      }).join('(?:<span[^>]*>)?(?:</span>)?');
+      }).join('');
       
       const regex = new RegExp(pattern, 'i');
       const match = modifiedHtml.match(regex);
