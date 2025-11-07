@@ -110,41 +110,61 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   };
 
   const injectChangesIntoHtml = (html: string, changesList: Change[]): string => {
-    // Inject change markers into the HTML
+    // The backend wraps each word/char in <span> tags, so we need to search across tags
+    // Strategy: Create a regex pattern that matches the text even when split across spans
     let modifiedHtml = html;
     
     console.log('🔧 Injecting', changesList.length, 'changes into HTML');
     
     changesList.forEach((change, idx) => {
-      const oldText = change.current_text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
-      
-      const newText = change.new_text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
-      
       console.log(`📝 Change ${idx + 1}: "${change.current_text.substring(0, 30)}..." → "${change.new_text.substring(0, 30)}..."`);
-      const found = modifiedHtml.includes(oldText);
-      console.log(`   ${found ? '✅' : '❌'} Text found in HTML:`, found);
       
-      // Create LARGE, VISIBLE inline buttons with proper styling
-      const acceptBtn = `<button data-action="accept" data-change-id="${change.id}" style="display: inline-block; padding: 6px 12px; background: linear-gradient(135deg, rgba(34, 197, 94, 0.4), rgba(34, 197, 94, 0.3)); color: rgb(22, 163, 74); border: 2px solid rgb(34, 197, 94); border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; margin-left: 12px; vertical-align: middle; box-shadow: 0 2px 4px rgba(34, 197, 94, 0.3); transition: all 0.2s;">✓ Accept</button>`;
-      const rejectBtn = `<button data-action="reject" data-change-id="${change.id}" style="display: inline-block; padding: 6px 12px; background: linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(239, 68, 68, 0.3)); color: rgb(220, 38, 38); border: 2px solid rgb(239, 68, 68); border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; margin-left: 8px; vertical-align: middle; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3); transition: all 0.2s;">✗ Reject</button>`;
+      // Escape special regex characters in the search text
+      const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       
-      const replacement = `<span class="change-container" data-change-id="${change.id}" style="background: rgba(255, 255, 0, 0.2); padding: 4px 6px; border-radius: 4px; display: inline; border: 1px dashed rgba(255, 193, 7, 0.5);">` +
-        `<span class="old-text" style="text-decoration: line-through; color: #000000;">${oldText}</span>` +
-        `<span class="new-text" style="text-decoration: underline; color: #DC2626; font-weight: 600;">${newText}</span>` +
-        acceptBtn + rejectBtn +
-        `</span>`;
+      // Build a regex pattern that matches text across span boundaries
+      // Each character/space might be in its own <span>
+      const textChars = change.current_text.split('');
+      const pattern = textChars.map(char => {
+        if (char === ' ') {
+          // Space could be literal or &nbsp; or inside a span
+          return '(?:<span[^>]*>)?(?:&nbsp;| )(?:</span>)?';
+        } else if (char === '\t') {
+          // Tab is converted to 8 &nbsp;
+          return '(?:<span[^>]*>)?(?:&nbsp;){8}(?:</span>)?';
+        } else {
+          // Regular character, might be in a span
+          const escaped = escapeRegex(char).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return `(?:<span[^>]*>)?${escaped}(?:</span>)?`;
+        }
+      }).join('(?:<span[^>]*>)?(?:</span>)?');
       
-      // Replace the old text in the HTML
-      if (found) {
-        modifiedHtml = modifiedHtml.replace(oldText, replacement);
+      const regex = new RegExp(pattern, 'i');
+      const match = modifiedHtml.match(regex);
+      
+      console.log(`   ${match ? '✅' : '❌'} Text found in HTML:`, !!match);
+      
+      if (match) {
+        const matchedText = match[0];
+        
+        // Escape the new text for HTML
+        const newTextEscaped = change.new_text
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
+        
+        // Create LARGE, VISIBLE inline buttons
+        const acceptBtn = `<button data-action="accept" data-change-id="${change.id}" style="display: inline-block; padding: 6px 12px; background: linear-gradient(135deg, rgba(34, 197, 94, 0.4), rgba(34, 197, 94, 0.3)); color: rgb(22, 163, 74); border: 2px solid rgb(34, 197, 94); border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; margin-left: 12px; vertical-align: middle; box-shadow: 0 2px 4px rgba(34, 197, 94, 0.3); transition: all 0.2s;">✓ Accept</button>`;
+        const rejectBtn = `<button data-action="reject" data-change-id="${change.id}" style="display: inline-block; padding: 6px 12px; background: linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(239, 68, 68, 0.3)); color: rgb(220, 38, 38); border: 2px solid rgb(239, 68, 68); border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; margin-left: 8px; vertical-align: middle; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3); transition: all 0.2s;">✗ Reject</button>`;
+        
+        const replacement = `<span class="change-container" data-change-id="${change.id}" style="background: rgba(255, 255, 0, 0.2); padding: 4px 6px; border-radius: 4px; display: inline; border: 1px dashed rgba(255, 193, 7, 0.5);">` +
+          `<span class="old-text" style="text-decoration: line-through; color: #000000;">${matchedText}</span>` +
+          `<span class="new-text" style="text-decoration: underline; color: #DC2626; font-weight: 600;">${newTextEscaped}</span>` +
+          acceptBtn + rejectBtn +
+          `</span>`;
+        
+        modifiedHtml = modifiedHtml.replace(matchedText, replacement);
         console.log(`   ✅ Buttons injected for change ${idx + 1}`);
       } else {
         console.log(`   ⚠️ Could not inject buttons for change ${idx + 1}`);
