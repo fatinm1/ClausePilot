@@ -66,6 +66,11 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       const html = docData.html || '';
       const text = docData.text || documentText;
       
+      console.log('📄 Document data loaded:');
+      console.log('  - HTML length:', html.length);
+      console.log('  - Text length:', text.length);
+      console.log('  - HTML starts with:', html.substring(0, 100));
+      
       // Generate changes
       const changesResponse = await fetch(`/v1/changes/generate`, {
         method: 'POST',
@@ -92,7 +97,10 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       }));
       
       setChanges(generatedChanges);
-      setDocumentHtml(injectChangesIntoHtml(html, generatedChanges));
+      const injectedHtml = injectChangesIntoHtml(html, generatedChanges);
+      console.log('📝 After injection, HTML length:', injectedHtml.length);
+      console.log('📝 Buttons in injected HTML:', (injectedHtml.match(/data-action="accept"/g) || []).length);
+      setDocumentHtml(injectedHtml);
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate changes');
@@ -148,8 +156,16 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     
     if (buttonCount === 0 && changesList.length > 0) {
       console.error('⚠️ WARNING: No buttons were injected! Text matching may have failed.');
-      console.log('Sample HTML (first 200 chars):', modifiedHtml.substring(0, 200));
-      console.log('Sample change text:', changesList[0]?.current_text.substring(0, 50));
+      console.log('Sample HTML (first 500 chars):', modifiedHtml.substring(0, 500));
+      console.log('Sample change 1 - Raw text:', changesList[0]?.current_text);
+      console.log('Sample change 1 - Escaped text:', changesList[0]?.current_text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'));
+      console.log('HTML contains "September":', modifiedHtml.includes('September'));
+      console.log('HTML contains "Dear":', modifiedHtml.includes('Dear'));
+      console.log('HTML contains "NAME":', modifiedHtml.includes('NAME'));
     }
     
     return modifiedHtml;
