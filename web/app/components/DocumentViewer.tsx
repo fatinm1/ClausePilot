@@ -330,21 +330,33 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       const regex = new RegExp(pattern, 'i');
       let match = modifiedHtml.match(regex);
       
+      // DEBUG: Always log for signature fields
+      const isSignatureField = change.current_text.startsWith('By:') || change.current_text.startsWith('Title:') || change.current_text.startsWith('For:') || change.current_text.startsWith('Date:');
+      if (isSignatureField) {
+        console.log(`      🔍 SIGNATURE FIELD DETECTED: "${change.current_text.substring(0, 40)}"`);
+        console.log(`      🔍 Initial match result: ${match ? 'FOUND' : 'NOT FOUND'}`);
+      }
+      
       // FALLBACK for signature fields: If main regex fails, try simpler matching
-      if (!match && (change.current_text.startsWith('By:') || change.current_text.startsWith('Title:') || change.current_text.startsWith('For:') || change.current_text.startsWith('Date:'))) {
-        console.log(`      🔄 Trying fallback for signature field: ${change.current_text.substring(0, 30)}`);
+      if (!match && isSignatureField) {
+        console.log(`      🔄 ACTIVATING FALLBACK...`);
         
         // Extract the label (e.g., "By:", "Title:")
         const label = change.current_text.split(':')[0] + ':';
+        console.log(`      🔄 Looking for label: "${label}"`);
         
         // Find where the label appears in HTML and grab everything until </p>
         const labelIndex = modifiedHtml.indexOf(label);
+        console.log(`      🔄 Label found at index: ${labelIndex}`);
+        
         if (labelIndex !== -1) {
           let endIndex = modifiedHtml.indexOf('</p>', labelIndex);
           if (endIndex === -1) endIndex = labelIndex + 400;
           const fullText = modifiedHtml.substring(labelIndex, endIndex);
           match = [fullText];
-          console.log(`      ✅ Fallback matched: "${fullText.substring(0, 100)}..."`);
+          console.log(`      ✅ FALLBACK SUCCESS! Matched: "${fullText.substring(0, 100)}..."`);
+        } else {
+          console.log(`      ❌ FALLBACK FAILED - Label not found in HTML`);
         }
       }
       
