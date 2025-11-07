@@ -39,6 +39,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [documentHtml, setDocumentHtml] = useState<string>('');
+  const [originalHtml, setOriginalHtml] = useState<string>(''); // Cache original HTML
 
   // Generate changes when component mounts
   useEffect(() => {
@@ -70,6 +71,9 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       console.log('  - HTML length:', html.length);
       console.log('  - Text length:', text.length);
       console.log('  - HTML starts with:', html.substring(0, 100));
+      
+      // Cache the original HTML for fast regeneration
+      setOriginalHtml(html);
       
       // Generate changes
       const changesResponse = await fetch(`/v1/changes/generate`, {
@@ -279,25 +283,16 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   
   const regenerateHtmlWithChanges = (updatedChanges: Change[]) => {
     console.log('🔄 Regenerating HTML with updated changes');
-    // Get the original HTML from the document
-    const fetchOriginalHtml = async () => {
-      try {
-        const docResponse = await fetch(`/v1/documents/${documentId}/text`, {
-          headers: { 'X-User-ID': '1' },
-          credentials: 'include',
-        });
-        const docData = await docResponse.json();
-        const originalHtml = docData.html || '';
-        
-        // Inject changes with their current status
-        const newHtml = injectChangesWithStatus(originalHtml, updatedChanges);
-        setDocumentHtml(newHtml);
-        console.log('✅ HTML regenerated successfully');
-      } catch (err) {
-        console.error('Failed to regenerate HTML:', err);
-      }
-    };
-    fetchOriginalHtml();
+    console.log(`   Using cached original HTML (${originalHtml.length} chars)`);
+    
+    // Use cached original HTML for instant regeneration
+    if (originalHtml) {
+      const newHtml = injectChangesWithStatus(originalHtml, updatedChanges);
+      setDocumentHtml(newHtml);
+      console.log('✅ HTML regenerated instantly from cache');
+    } else {
+      console.error('⚠️ Original HTML not cached, cannot regenerate');
+    }
   };
   
   const injectChangesWithStatus = (html: string, changesList: Change[]): string => {
