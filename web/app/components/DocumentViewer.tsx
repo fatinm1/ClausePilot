@@ -300,8 +300,10 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     
     // Only inject pending changes (not accepted/rejected)
     const pendingChanges = changesList.filter(c => c.status === 'pending');
+    const acceptedChanges = changesList.filter(c => c.status === 'accepted');
+    const rejectedChanges = changesList.filter(c => c.status === 'rejected');
     
-    console.log(`🔧 Injecting ${pendingChanges.length} pending changes (${changesList.length} total)`);
+    console.log(`🔧 Injecting changes: ${pendingChanges.length} pending, ${acceptedChanges.length} accepted, ${rejectedChanges.length} rejected`);
     
     pendingChanges.forEach((change, idx) => {
       // Same regex pattern as before
@@ -343,12 +345,12 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       }
     });
     
-    // Now add accepted/rejected changes as plain text
+    // Now handle accepted/rejected changes
     changesList.filter(c => c.status !== 'pending').forEach(change => {
       const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       
-      const textToFind = change.status === 'accepted' ? change.new_text : change.current_text;
-      const textChars = textToFind.split('');
+      // ALWAYS search for current_text (old text) in the original HTML
+      const textChars = change.current_text.split('');
       const pattern = textChars.map(char => {
         if (char === ' ') {
           return '(?:<span[^>]*>)?(?:&nbsp;| )(?:</span>)?';
@@ -365,12 +367,33 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       
       if (match) {
         const matchedText = match[0];
-        const displayText = textToFind.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
-        const statusBadge = change.status === 'accepted' 
-          ? '<span style="color: #22C55E; margin-left: 8px; font-size: 14px; font-weight: bold;">✓</span>'
-          : '<span style="color: #EF4444; margin-left: 8px; font-size: 14px; font-weight: bold;">✗</span>';
         
-        modifiedHtml = modifiedHtml.replace(matchedText, displayText + statusBadge);
+        // Replace with appropriate text based on status
+        let replacement;
+        if (change.status === 'accepted') {
+          // Show new text with green checkmark
+          const newTextEscaped = change.new_text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
+          const statusBadge = '<span style="color: #22C55E; margin-left: 8px; font-size: 14px; font-weight: bold;">✓ Accepted</span>';
+          replacement = `<span style="color: #000000;">${newTextEscaped}</span>${statusBadge}`;
+        } else {
+          // Show old text with red X
+          const oldTextEscaped = change.current_text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
+          const statusBadge = '<span style="color: #EF4444; margin-left: 8px; font-size: 14px; font-weight: bold;">✗ Rejected</span>';
+          replacement = `<span style="color: #000000;">${oldTextEscaped}</span>${statusBadge}`;
+        }
+        
+        modifiedHtml = modifiedHtml.replace(matchedText, replacement);
+        console.log(`   ✅ ${change.status === 'accepted' ? 'Accepted' : 'Rejected'} change displayed`);
+      } else {
+        console.log(`   ⚠️ Could not find text for ${change.status} change: "${change.current_text.substring(0, 40)}..."`);
       }
     });
     
