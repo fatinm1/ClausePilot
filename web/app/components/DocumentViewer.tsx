@@ -313,8 +313,9 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       const textChars = change.current_text.split('');
       const pattern = textChars.map((char, charIdx) => {
         if (char === ' ' || char === '\t') {
-          // For whitespace: match any combination of spans, nbsp, spaces
-          return '(?:</span>)?(?:<span[^>]*>)*(?:&nbsp;|\\s| )+(?:</span>)?(?:<span[^>]*>)*';
+          // For whitespace: match space/nbsp, then any combo of spans/nbsp/spaces
+          // This handles "For: \t" where space is in first span, then </span><span>, then 8 nbsp
+          return '(?:&nbsp;|\\s| )(?:(?:</span>|<span[^>]*>|&nbsp;|\\s| )*)';
         } else if (char === '_') {
           // Underscores might be repeated (e.g., "_______")
           const escaped = escapeRegex(char);
@@ -365,6 +366,13 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
           if (fiveIndex !== -1) {
             console.log(`      Found "five" in HTML at index ${fiveIndex}`);
             console.log(`      HTML: "${modifiedHtml.substring(fiveIndex, fiveIndex + 250)}"`);
+          } else {
+            console.log(`      "five" not found in HTML - checking for "5"`);
+            const numIndex = modifiedHtml.indexOf('5');
+            if (numIndex !== -1) {
+              console.log(`      Found "5" at index ${numIndex}`);
+              console.log(`      HTML: "${modifiedHtml.substring(numIndex, numIndex + 250)}"`);
+            }
           }
         }
       }
@@ -378,8 +386,8 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       const textChars = change.current_text.split('');
       const pattern = textChars.map((char, charIdx) => {
         if (char === ' ' || char === '\t') {
-          // For whitespace: match any combination of spans, nbsp, spaces
-          return '(?:</span>)?(?:<span[^>]*>)*(?:&nbsp;|\\s)+(?:</span>)?(?:<span[^>]*>)*';
+          // For whitespace: match space/nbsp, then any combo of spans/nbsp/spaces
+          return '(?:&nbsp;|\\s| )(?:(?:</span>|<span[^>]*>|&nbsp;|\\s| )*)';
         } else if (char === '_') {
           // Underscores might be repeated (e.g., "_______")
           const escaped = escapeRegex(char);
