@@ -328,7 +328,25 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       }).join('');
       
       const regex = new RegExp(pattern, 'i');
-      const match = modifiedHtml.match(regex);
+      let match = modifiedHtml.match(regex);
+      
+      // FALLBACK for signature fields: If main regex fails, try simpler matching
+      if (!match && (change.current_text.startsWith('By:') || change.current_text.startsWith('Title:') || change.current_text.startsWith('For:') || change.current_text.startsWith('Date:'))) {
+        console.log(`      🔄 Trying fallback for signature field: ${change.current_text.substring(0, 30)}`);
+        
+        // Extract the label (e.g., "By:", "Title:")
+        const label = change.current_text.split(':')[0] + ':';
+        
+        // Find where the label appears in HTML and grab everything until </p>
+        const labelIndex = modifiedHtml.indexOf(label);
+        if (labelIndex !== -1) {
+          let endIndex = modifiedHtml.indexOf('</p>', labelIndex);
+          if (endIndex === -1) endIndex = labelIndex + 400;
+          const fullText = modifiedHtml.substring(labelIndex, endIndex);
+          match = [fullText];
+          console.log(`      ✅ Fallback matched: "${fullText.substring(0, 100)}..."`);
+        }
+      }
       
       if (match) {
         const matchedText = match[0];
@@ -432,7 +450,18 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       }).join('');
       
       const regex = new RegExp(pattern, 'i');
-      const match = modifiedHtml.match(regex);
+      let match = modifiedHtml.match(regex);
+      
+      // FALLBACK for signature fields in accepted/rejected
+      if (!match && (change.current_text.startsWith('By:') || change.current_text.startsWith('Title:') || change.current_text.startsWith('For:') || change.current_text.startsWith('Date:'))) {
+        const label = change.current_text.split(':')[0] + ':';
+        const labelIndex = modifiedHtml.indexOf(label);
+        if (labelIndex !== -1) {
+          let endIndex = modifiedHtml.indexOf('</p>', labelIndex);
+          if (endIndex === -1) endIndex = labelIndex + 400;
+          match = [modifiedHtml.substring(labelIndex, endIndex)];
+        }
+      }
       
       if (match) {
         const matchedText = match[0];
