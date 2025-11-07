@@ -342,6 +342,20 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
           `</span>`;
         
         modifiedHtml = modifiedHtml.replace(matchedText, replacement);
+      } else {
+        // Debug: Show what we're looking for vs what's in the HTML
+        if (change.current_text.includes('For:')) {
+          console.log(`   🔍 Debugging "For:" change:`);
+          console.log(`      Looking for: "${change.current_text}"`);
+          // Find the approximate location in HTML
+          const forIndex = modifiedHtml.toLowerCase().indexOf('for:');
+          if (forIndex !== -1) {
+            console.log(`      Found "For:" at index ${forIndex}`);
+            console.log(`      Context: "${modifiedHtml.substring(forIndex, forIndex + 200)}"`);
+          } else {
+            console.log(`      "For:" not found anywhere in HTML!`);
+          }
+        }
       }
     });
     
