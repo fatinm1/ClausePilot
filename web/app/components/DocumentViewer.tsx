@@ -349,16 +349,22 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         modifiedHtml = modifiedHtml.replace(matchedText, replacement);
       } else {
         // Debug: Show what we're looking for vs what's in the HTML
+        console.log(`   🔍 FAILED TO MATCH: "${change.current_text.substring(0, 50)}"`);
+        console.log(`      Pattern: ${pattern.substring(0, 200)}...`);
+        
         if (change.current_text.includes('For:')) {
-          console.log(`   🔍 Debugging "For:" change:`);
-          console.log(`      Looking for: "${change.current_text}"`);
-          // Find the approximate location in HTML
           const forIndex = modifiedHtml.toLowerCase().indexOf('for:');
           if (forIndex !== -1) {
-            console.log(`      Found "For:" at index ${forIndex}`);
-            console.log(`      Context: "${modifiedHtml.substring(forIndex, forIndex + 200)}"`);
-          } else {
-            console.log(`      "For:" not found anywhere in HTML!`);
+            console.log(`      Found "For:" in HTML at index ${forIndex}`);
+            console.log(`      HTML: "${modifiedHtml.substring(forIndex, forIndex + 250)}"`);
+          }
+        }
+        
+        if (change.current_text.includes('five')) {
+          const fiveIndex = modifiedHtml.toLowerCase().indexOf('five');
+          if (fiveIndex !== -1) {
+            console.log(`      Found "five" in HTML at index ${fiveIndex}`);
+            console.log(`      HTML: "${modifiedHtml.substring(fiveIndex, fiveIndex + 250)}"`);
           }
         }
       }
