@@ -355,31 +355,41 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         
         // Debug signature block fields
         if (change.current_text.includes('By:')) {
+          console.log(`      🚨 SEARCHING FOR "By:" IN HTML...`);
           const byIndex = modifiedHtml.indexOf('By:');
+          console.log(`      🚨 Search result: index = ${byIndex}`);
           if (byIndex !== -1) {
-            console.log(`      Found "By:" in HTML at index ${byIndex}`);
-            console.log(`      HTML: "${modifiedHtml.substring(byIndex, byIndex + 350)}"`);
+            console.log(`      ✅ Found "By:" in HTML at index ${byIndex}`);
+            console.log(`      📋 HTML context: "${modifiedHtml.substring(byIndex, byIndex + 350)}"`);
+          } else {
+            console.log(`      ❌ "By:" NOT FOUND in HTML at all!`);
+            // Check if it exists with different casing
+            const byIndexLower = modifiedHtml.toLowerCase().indexOf('by:');
+            console.log(`      Case-insensitive search: ${byIndexLower}`);
           }
         }
         if (change.current_text.includes('Title:')) {
+          console.log(`      🚨 SEARCHING FOR "Title:" IN HTML...`);
           const titleIndex = modifiedHtml.indexOf('Title:');
+          console.log(`      🚨 Search result: index = ${titleIndex}`);
           if (titleIndex !== -1) {
-            console.log(`      Found "Title:" in HTML at index ${titleIndex}`);
-            console.log(`      HTML: "${modifiedHtml.substring(titleIndex, titleIndex + 350)}"`);
+            console.log(`      📋 HTML context: "${modifiedHtml.substring(titleIndex, titleIndex + 350)}"`);
           }
         }
         if (change.current_text.includes('For:')) {
+          console.log(`      🚨 SEARCHING FOR "For:" IN HTML...`);
           const forIndex = modifiedHtml.indexOf('For:');
+          console.log(`      🚨 Search result: index = ${forIndex}`);
           if (forIndex !== -1) {
-            console.log(`      Found "For:" in HTML at index ${forIndex}`);
-            console.log(`      HTML: "${modifiedHtml.substring(forIndex, forIndex + 350)}"`);
+            console.log(`      📋 HTML context: "${modifiedHtml.substring(forIndex, forIndex + 350)}"`);
           }
         }
         if (change.current_text.includes('Date:')) {
+          console.log(`      🚨 SEARCHING FOR "Date:" IN HTML...`);
           const dateIndex = modifiedHtml.indexOf('Date:');
+          console.log(`      🚨 Search result: index = ${dateIndex}`);
           if (dateIndex !== -1) {
-            console.log(`      Found "Date:" in HTML at index ${dateIndex}`);
-            console.log(`      HTML: "${modifiedHtml.substring(dateIndex, dateIndex + 350)}"`);
+            console.log(`      📋 HTML context: "${modifiedHtml.substring(dateIndex, dateIndex + 350)}"`);
           }
         }
         
