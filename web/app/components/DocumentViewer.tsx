@@ -146,6 +146,12 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     const buttonCount = (modifiedHtml.match(/data-action="accept"/g) || []).length;
     console.log(`✅ Injection complete. Total accept buttons in HTML: ${buttonCount}`);
     
+    if (buttonCount === 0 && changesList.length > 0) {
+      console.error('⚠️ WARNING: No buttons were injected! Text matching may have failed.');
+      console.log('Sample HTML (first 200 chars):', modifiedHtml.substring(0, 200));
+      console.log('Sample change text:', changesList[0]?.current_text.substring(0, 50));
+    }
+    
     return modifiedHtml;
   };
 
@@ -621,6 +627,9 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       {/* Change summary sidebar */}
       <div className="bg-white/5 border border-white/10 rounded-lg p-6">
         <h3 className="text-lg font-semibold text-white mb-4">Changes Summary</h3>
+        <div className="text-xs text-yellow-400 mb-3 p-2 bg-yellow-500/10 rounded border border-yellow-500/20">
+          ⚠️ Inline buttons should appear in the document above. If you don't see them, check the browser console (F12) for debugging info.
+        </div>
         <div className="space-y-2">
           {changes.map((change, idx) => (
             <div
