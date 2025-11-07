@@ -353,11 +353,33 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         console.log(`   🔍 FAILED TO MATCH: "${change.current_text.substring(0, 50)}"`);
         console.log(`      Pattern: ${pattern.substring(0, 200)}...`);
         
+        // Debug signature block fields
+        if (change.current_text.includes('By:')) {
+          const byIndex = modifiedHtml.indexOf('By:');
+          if (byIndex !== -1) {
+            console.log(`      Found "By:" in HTML at index ${byIndex}`);
+            console.log(`      HTML: "${modifiedHtml.substring(byIndex, byIndex + 350)}"`);
+          }
+        }
+        if (change.current_text.includes('Title:')) {
+          const titleIndex = modifiedHtml.indexOf('Title:');
+          if (titleIndex !== -1) {
+            console.log(`      Found "Title:" in HTML at index ${titleIndex}`);
+            console.log(`      HTML: "${modifiedHtml.substring(titleIndex, titleIndex + 350)}"`);
+          }
+        }
         if (change.current_text.includes('For:')) {
-          const forIndex = modifiedHtml.toLowerCase().indexOf('for:');
+          const forIndex = modifiedHtml.indexOf('For:');
           if (forIndex !== -1) {
             console.log(`      Found "For:" in HTML at index ${forIndex}`);
-            console.log(`      HTML: "${modifiedHtml.substring(forIndex, forIndex + 250)}"`);
+            console.log(`      HTML: "${modifiedHtml.substring(forIndex, forIndex + 350)}"`);
+          }
+        }
+        if (change.current_text.includes('Date:')) {
+          const dateIndex = modifiedHtml.indexOf('Date:');
+          if (dateIndex !== -1) {
+            console.log(`      Found "Date:" in HTML at index ${dateIndex}`);
+            console.log(`      HTML: "${modifiedHtml.substring(dateIndex, dateIndex + 350)}"`);
           }
         }
         
