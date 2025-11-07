@@ -290,57 +290,99 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   const updateVisualDisplay = (changeId: string, status: 'accepted' | 'rejected') => {
     console.log(`🎨 Updating visual display for change ${changeId} as ${status}`);
     
-    // Find the change container in the DOM
-    const container = document.querySelector(`.change-container[data-change-id="${changeId}"]`) as HTMLElement;
-    if (!container) {
-      console.log(`   ❌ Container not found for change ${changeId}`);
-      return;
-    }
-    
-    console.log(`   ✅ Found container for change ${changeId}`);
-    
-    const oldTextSpan = container.querySelector('.old-text') as HTMLElement;
-    const newTextSpan = container.querySelector('.new-text') as HTMLElement;
-    const acceptBtn = container.querySelector('button[data-action="accept"]') as HTMLElement;
-    const rejectBtn = container.querySelector('button[data-action="reject"]') as HTMLElement;
-    
-    // Remove yellow highlight background
-    container.style.background = 'transparent';
-    container.style.border = 'none';
-    
-    if (status === 'accepted') {
-      console.log(`   ✅ Accepting change - hiding old text, showing new text as normal`);
-      // Hide old text, show new text as normal (accepted)
-      if (oldTextSpan) {
-        oldTextSpan.style.display = 'none';
+    // Give React a chance to render first
+    setTimeout(() => {
+      // Find the change container in the DOM
+      const container = document.querySelector(`.change-container[data-change-id="${changeId}"]`) as HTMLElement;
+      if (!container) {
+        console.log(`   ❌ Container not found for change ${changeId}`);
+        return;
       }
-      if (newTextSpan) {
-        newTextSpan.style.textDecoration = 'none';
-        newTextSpan.style.color = '#000000';
-        newTextSpan.style.fontWeight = 'normal';
-      }
-      // Replace buttons with green checkmark
-      if (acceptBtn) acceptBtn.remove();
-      if (rejectBtn) rejectBtn.remove();
-      container.innerHTML += '<span style="color: #22C55E; margin-left: 12px; font-size: 16px; font-weight: bold;">✓ Accepted</span>';
       
-    } else if (status === 'rejected') {
-      console.log(`   ❌ Rejecting change - hiding new text, showing old text as normal`);
-      // Hide new text, show old text as normal (rejected)
-      if (newTextSpan) {
-        newTextSpan.style.display = 'none';
+      console.log(`   ✅ Found container for change ${changeId}`);
+      
+      const oldTextSpan = container.querySelector('.old-text') as HTMLElement;
+      const newTextSpan = container.querySelector('.new-text') as HTMLElement;
+      const acceptBtn = container.querySelector('button[data-action="accept"]') as HTMLElement;
+      const rejectBtn = container.querySelector('button[data-action="reject"]') as HTMLElement;
+      
+      // Add transition for smooth animation
+      if (container) {
+        container.style.transition = 'all 0.3s ease';
       }
       if (oldTextSpan) {
-        oldTextSpan.style.textDecoration = 'none';
-        oldTextSpan.style.color = '#000000';
+        oldTextSpan.style.transition = 'all 0.3s ease';
       }
-      // Replace buttons with red X
-      if (acceptBtn) acceptBtn.remove();
-      if (rejectBtn) rejectBtn.remove();
-      container.innerHTML += '<span style="color: #EF4444; margin-left: 12px; font-size: 16px; font-weight: bold;">✗ Rejected</span>';
-    }
-    
-    console.log(`   ✅ Visual update complete for change ${changeId}`);
+      if (newTextSpan) {
+        newTextSpan.style.transition = 'all 0.3s ease';
+      }
+      
+      // Remove yellow highlight background with animation
+      container.style.background = 'transparent';
+      container.style.border = 'none';
+      
+      if (status === 'accepted') {
+        console.log(`   ✅ Accepting change - hiding old text, showing new text as normal`);
+        // Hide old text, show new text as normal (accepted)
+        if (oldTextSpan) {
+          oldTextSpan.style.opacity = '0';
+          setTimeout(() => {
+            oldTextSpan.style.display = 'none';
+          }, 300);
+        }
+        if (newTextSpan) {
+          newTextSpan.style.textDecoration = 'none';
+          newTextSpan.style.color = '#000000';
+          newTextSpan.style.fontWeight = 'normal';
+        }
+        // Replace buttons with green checkmark
+        if (acceptBtn) {
+          acceptBtn.style.opacity = '0';
+          setTimeout(() => acceptBtn.remove(), 300);
+        }
+        if (rejectBtn) {
+          rejectBtn.style.opacity = '0';
+          setTimeout(() => rejectBtn.remove(), 300);
+        }
+        
+        // Add status indicator
+        const statusSpan = document.createElement('span');
+        statusSpan.style.cssText = 'color: #22C55E; margin-left: 12px; font-size: 14px; font-weight: bold; animation: fadeIn 0.3s ease;';
+        statusSpan.textContent = '✓ Accepted';
+        container.appendChild(statusSpan);
+        
+      } else if (status === 'rejected') {
+        console.log(`   ❌ Rejecting change - hiding new text, showing old text as normal`);
+        // Hide new text, show old text as normal (rejected)
+        if (newTextSpan) {
+          newTextSpan.style.opacity = '0';
+          setTimeout(() => {
+            newTextSpan.style.display = 'none';
+          }, 300);
+        }
+        if (oldTextSpan) {
+          oldTextSpan.style.textDecoration = 'none';
+          oldTextSpan.style.color = '#000000';
+        }
+        // Replace buttons with red X
+        if (acceptBtn) {
+          acceptBtn.style.opacity = '0';
+          setTimeout(() => acceptBtn.remove(), 300);
+        }
+        if (rejectBtn) {
+          rejectBtn.style.opacity = '0';
+          setTimeout(() => rejectBtn.remove(), 300);
+        }
+        
+        // Add status indicator
+        const statusSpan = document.createElement('span');
+        statusSpan.style.cssText = 'color: #EF4444; margin-left: 12px; font-size: 14px; font-weight: bold; animation: fadeIn 0.3s ease;';
+        statusSpan.textContent = '✗ Rejected';
+        container.appendChild(statusSpan);
+      }
+      
+      console.log(`   ✅ Visual update complete for change ${changeId}`);
+    }, 50); // Small delay to ensure DOM is ready
   };
 
   const handleDocumentClick = (e: React.MouseEvent) => {
