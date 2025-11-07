@@ -311,16 +311,20 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       
       const textChars = change.current_text.split('');
-      const pattern = textChars.map(char => {
-        if (char === ' ') {
-          return '(?:<span[^>]*>)?(?:&nbsp;| )(?:</span>)?';
-        } else if (char === '\t') {
-          return '(?:<span[^>]*>)?(?:&nbsp;){8}(?:</span>)?';
+      const pattern = textChars.map((char, charIdx) => {
+        if (char === ' ' || char === '\t') {
+          // For whitespace: match any combination of spans, nbsp, spaces
+          return '(?:</span>)?(?:<span[^>]*>)*(?:&nbsp;|\\s| )+(?:</span>)?(?:<span[^>]*>)*';
+        } else if (char === '_') {
+          // Underscores might be repeated (e.g., "_______")
+          const escaped = escapeRegex(char);
+          return `(?:</span>)?(?:<span[^>]*>)*${escaped}+(?:</span>)?(?:<span[^>]*>)*`;
         } else {
+          // Regular character: allow span tags before and after
           const escaped = escapeRegex(char).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          return `(?:<span[^>]*>)?${escaped}(?:</span>)?`;
+          return `(?:</span>)?(?:<span[^>]*>)*${escaped}(?:</span>)?(?:<span[^>]*>)*`;
         }
-      }).join('(?:<span[^>]*>)?(?:</span>)?');
+      }).join('');
       
       const regex = new RegExp(pattern, 'i');
       const match = modifiedHtml.match(regex);
