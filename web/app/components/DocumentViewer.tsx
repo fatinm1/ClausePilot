@@ -130,12 +130,10 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       // Each character/space might be in its own <span>
       const textChars = change.current_text.split('');
       const pattern = textChars.map(char => {
-        if (char === ' ') {
-          // Space could be literal or &nbsp; or inside a span
-          return '(?:<span[^>]*>)?(?:&nbsp;| )(?:</span>)?';
-        } else if (char === '\t') {
-          // Tab is converted to 8 &nbsp;
-          return '(?:<span[^>]*>)?(?:&nbsp;){8}(?:</span>)?';
+        if (char === ' ' || char === '\t') {
+          // Flexible whitespace: could be space, nbsp, or tab (8 nbsp)
+          // This handles cases where AI says "For: Company" but doc has "For:\tCompany"
+          return '(?:<span[^>]*>)?(?:&nbsp;{1,8}| |\\s)(?:</span>)?(?:<span[^>]*>)?(?:&nbsp;{1,8})?(?:</span>)?';
         } else {
           // Regular character, might be in a span
           const escaped = escapeRegex(char).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -366,10 +364,9 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       // ALWAYS search for current_text (old text) in the original HTML
       const textChars = change.current_text.split('');
       const pattern = textChars.map(char => {
-        if (char === ' ') {
-          return '(?:<span[^>]*>)?(?:&nbsp;| )(?:</span>)?';
-        } else if (char === '\t') {
-          return '(?:<span[^>]*>)?(?:&nbsp;){8}(?:</span>)?';
+        if (char === ' ' || char === '\t') {
+          // Flexible whitespace: could be space, nbsp, or tab (8 nbsp)
+          return '(?:<span[^>]*>)?(?:&nbsp;{1,8}| |\\s)(?:</span>)?(?:<span[^>]*>)?(?:&nbsp;{1,8})?(?:</span>)?';
         } else {
           const escaped = escapeRegex(char).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
           return `(?:<span[^>]*>)?${escaped}(?:</span>)?`;
