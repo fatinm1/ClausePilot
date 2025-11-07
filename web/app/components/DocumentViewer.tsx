@@ -255,36 +255,143 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
 
   const handleAccept = (changeId: string) => {
     console.log(`✅ handleAccept called for change ${changeId}`);
-    setChanges((prev) =>
-      prev.map((c) =>
+    setChanges((prev) => {
+      const updated = prev.map((c) =>
         c.id === changeId ? { ...c, status: 'accepted' } : c
-      )
-    );
-    // Update visual display immediately
-    updateVisualDisplay(changeId, 'accepted');
+      );
+      // Regenerate HTML with updated changes
+      regenerateHtmlWithChanges(updated);
+      return updated;
+    });
   };
 
   const handleReject = (changeId: string) => {
     console.log(`❌ handleReject called for change ${changeId}`);
-    setChanges((prev) =>
-      prev.map((c) =>
+    setChanges((prev) => {
+      const updated = prev.map((c) =>
         c.id === changeId ? { ...c, status: 'rejected' } : c
-      )
-    );
-    // Update visual display immediately
-    updateVisualDisplay(changeId, 'rejected');
+      );
+      // Regenerate HTML with updated changes
+      regenerateHtmlWithChanges(updated);
+      return updated;
+    });
+  };
+  
+  const regenerateHtmlWithChanges = (updatedChanges: Change[]) => {
+    console.log('🔄 Regenerating HTML with updated changes');
+    // Get the original HTML from the document
+    const fetchOriginalHtml = async () => {
+      try {
+        const docResponse = await fetch(`/v1/documents/${documentId}/text`, {
+          headers: { 'X-User-ID': '1' },
+          credentials: 'include',
+        });
+        const docData = await docResponse.json();
+        const originalHtml = docData.html || '';
+        
+        // Inject changes with their current status
+        const newHtml = injectChangesWithStatus(originalHtml, updatedChanges);
+        setDocumentHtml(newHtml);
+        console.log('✅ HTML regenerated successfully');
+      } catch (err) {
+        console.error('Failed to regenerate HTML:', err);
+      }
+    };
+    fetchOriginalHtml();
+  };
+  
+  const injectChangesWithStatus = (html: string, changesList: Change[]): string => {
+    let modifiedHtml = html;
+    
+    // Only inject pending changes (not accepted/rejected)
+    const pendingChanges = changesList.filter(c => c.status === 'pending');
+    
+    console.log(`🔧 Injecting ${pendingChanges.length} pending changes (${changesList.length} total)`);
+    
+    pendingChanges.forEach((change, idx) => {
+      // Same regex pattern as before
+      const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      
+      const textChars = change.current_text.split('');
+      const pattern = textChars.map(char => {
+        if (char === ' ') {
+          return '(?:<span[^>]*>)?(?:&nbsp;| )(?:</span>)?';
+        } else if (char === '\t') {
+          return '(?:<span[^>]*>)?(?:&nbsp;){8}(?:</span>)?';
+        } else {
+          const escaped = escapeRegex(char).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return `(?:<span[^>]*>)?${escaped}(?:</span>)?`;
+        }
+      }).join('(?:<span[^>]*>)?(?:</span>)?');
+      
+      const regex = new RegExp(pattern, 'i');
+      const match = modifiedHtml.match(regex);
+      
+      if (match) {
+        const matchedText = match[0];
+        const newTextEscaped = change.new_text
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
+        
+        const acceptBtn = `<button data-action="accept" data-change-id="${change.id}" style="display: inline-block; padding: 6px 12px; background: linear-gradient(135deg, rgba(34, 197, 94, 0.4), rgba(34, 197, 94, 0.3)); color: rgb(22, 163, 74); border: 2px solid rgb(34, 197, 94); border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; margin-left: 12px; vertical-align: middle; box-shadow: 0 2px 4px rgba(34, 197, 94, 0.3); transition: all 0.2s;">✓ Accept</button>`;
+        const rejectBtn = `<button data-action="reject" data-change-id="${change.id}" style="display: inline-block; padding: 6px 12px; background: linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(239, 68, 68, 0.3)); color: rgb(220, 38, 38); border: 2px solid rgb(239, 68, 68); border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; margin-left: 8px; vertical-align: middle; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3); transition: all 0.2s;">✗ Reject</button>`;
+        
+        const replacement = `<span class="change-container" data-change-id="${change.id}" style="background: rgba(255, 255, 0, 0.2); padding: 4px 6px; border-radius: 4px; display: inline; border: 1px dashed rgba(255, 193, 7, 0.5);">` +
+          `<span class="old-text" style="text-decoration: line-through; color: #000000;">${matchedText}</span>` +
+          `<span class="new-text" style="text-decoration: underline; color: #DC2626; font-weight: 600;">${newTextEscaped}</span>` +
+          acceptBtn + rejectBtn +
+          `</span>`;
+        
+        modifiedHtml = modifiedHtml.replace(matchedText, replacement);
+      }
+    });
+    
+    // Now add accepted/rejected changes as plain text
+    changesList.filter(c => c.status !== 'pending').forEach(change => {
+      const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      
+      const textToFind = change.status === 'accepted' ? change.new_text : change.current_text;
+      const textChars = textToFind.split('');
+      const pattern = textChars.map(char => {
+        if (char === ' ') {
+          return '(?:<span[^>]*>)?(?:&nbsp;| )(?:</span>)?';
+        } else if (char === '\t') {
+          return '(?:<span[^>]*>)?(?:&nbsp;){8}(?:</span>)?';
+        } else {
+          const escaped = escapeRegex(char).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return `(?:<span[^>]*>)?${escaped}(?:</span>)?`;
+        }
+      }).join('(?:<span[^>]*>)?(?:</span>)?');
+      
+      const regex = new RegExp(pattern, 'i');
+      const match = modifiedHtml.match(regex);
+      
+      if (match) {
+        const matchedText = match[0];
+        const displayText = textToFind.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
+        const statusBadge = change.status === 'accepted' 
+          ? '<span style="color: #22C55E; margin-left: 8px; font-size: 14px; font-weight: bold;">✓</span>'
+          : '<span style="color: #EF4444; margin-left: 8px; font-size: 14px; font-weight: bold;">✗</span>';
+        
+        modifiedHtml = modifiedHtml.replace(matchedText, displayText + statusBadge);
+      }
+    });
+    
+    return modifiedHtml;
   };
 
   const handleAcceptAll = () => {
     const updated = changes.map((c) => ({ ...c, status: 'accepted' }));
     setChanges(updated);
-    updated.forEach(c => updateVisualDisplay(c.id, 'accepted'));
+    regenerateHtmlWithChanges(updated);
   };
 
   const handleRejectAll = () => {
     const updated = changes.map((c) => ({ ...c, status: 'rejected' }));
     setChanges(updated);
-    updated.forEach(c => updateVisualDisplay(c.id, 'rejected'));
+    regenerateHtmlWithChanges(updated);
   };
 
   const updateVisualDisplay = (changeId: string, status: 'accepted' | 'rejected') => {
