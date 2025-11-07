@@ -415,6 +415,14 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       setApplying(true);
       setError(null);
 
+      // Filter and send only accepted changes
+      const acceptedChanges = changes.filter(c => c.status === 'accepted');
+      
+      console.log(`📤 Sending ${acceptedChanges.length} accepted changes to backend`);
+      acceptedChanges.forEach((c, idx) => {
+        console.log(`   ${idx + 1}. ${c.current_text.substring(0, 40)} → ${c.new_text.substring(0, 40)}`);
+      });
+      
       const response = await fetch(`/v1/changes/apply-accepted/${documentId}`, {
         method: 'POST',
         headers: {
@@ -423,7 +431,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         },
         credentials: 'include',
         body: JSON.stringify({
-          changes: changes,
+          accepted_changes: acceptedChanges,
         }),
       });
 
