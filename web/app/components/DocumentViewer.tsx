@@ -113,37 +113,43 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     let modifiedHtml = html;
     
     changesList.forEach((change, idx) => {
-      const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      let match = null;
       
-      // Build a VERY flexible regex that allows ANY HTML tags/whitespace between characters
-      const textChars = change.current_text.split('');
-      const pattern = textChars.map((char, charIdx) => {
-        if (char === ' ' || char === '\t') {
-          // For whitespace: match any combination of spans, nbsp, spaces
-          // Allow multiple span tags in between
-          return '(?:</span>)?(?:<span[^>]*>)*(?:&nbsp;|\\s)+(?:</span>)?(?:<span[^>]*>)*';
-        } else if (char === '_') {
-          // Underscores might be repeated (e.g., "_______")
-          const escaped = escapeRegex(char);
-          return `(?:</span>)?(?:<span[^>]*>)*${escaped}+(?:</span>)?(?:<span[^>]*>)*`;
-        } else {
-          // Regular character: allow span tags before and after
-          const escaped = escapeRegex(char).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          return `(?:</span>)?(?:<span[^>]*>)*${escaped}(?:</span>)?(?:<span[^>]*>)*`;
-        }
-      }).join('');
+      // OPTIMIZED: Use simple string matching instead of complex regex
+      // Check if it's a signature field first (these are easiest)
+      const isSignatureField = change.current_text.startsWith('By:') || 
+                               change.current_text.startsWith('Title:') || 
+                               change.current_text.startsWith('For:') || 
+                               change.current_text.startsWith('Date:');
       
-      const regex = new RegExp(pattern, 'i');
-      let match = modifiedHtml.match(regex);
-      
-      // FALLBACK for signature fields: If regex fails, use simple label search
-      if (!match && (change.current_text.startsWith('By:') || change.current_text.startsWith('Title:') || change.current_text.startsWith('For:') || change.current_text.startsWith('Date:'))) {
+      if (isSignatureField) {
+        // For signature fields, just find the label and grab the paragraph
         const label = change.current_text.split(':')[0] + ':';
         const labelIndex = modifiedHtml.indexOf(label);
         if (labelIndex !== -1) {
           let endIndex = modifiedHtml.indexOf('</p>', labelIndex);
           if (endIndex === -1) endIndex = labelIndex + 400;
           match = [modifiedHtml.substring(labelIndex, endIndex)];
+        }
+      } else {
+        // For other text, use simple indexOf with some context checking
+        // Remove extra whitespace for matching
+        const searchText = change.current_text.trim();
+        const startIdx = modifiedHtml.indexOf(searchText);
+        
+        if (startIdx !== -1) {
+          // Found exact text - use it
+          match = [searchText];
+        } else {
+          // Try finding just the first few words
+          const firstWords = searchText.split(/\s+/).slice(0, 3).join(' ');
+          const idx = modifiedHtml.indexOf(firstWords);
+          if (idx !== -1) {
+            // Found beginning, grab a chunk
+            let endIdx = modifiedHtml.indexOf('</span>', idx + firstWords.length);
+            if (endIdx === -1) endIdx = idx + change.current_text.length * 3;
+            match = [modifiedHtml.substring(idx, endIdx)];
+          }
         }
       }
       

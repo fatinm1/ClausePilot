@@ -350,23 +350,29 @@ def get_document_text(user, document_id):
                 html_parts.append('<p style="margin: 0; line-height: 1.5em;">&nbsp;</p>')
                 continue
             
-            # Build HTML for runs with formatting
+            # Build HTML for runs with formatting - OPTIMIZED to reduce DOM size
             runs_html = []
             for run in paragraph.runs:
                 text = run.text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                 text = text.replace('\t', '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;')  # 8 spaces per tab for Word-like indentation
                 
-                style_parts = ['color: #000000']  # Force black text
+                # Only add <span> if there's actual formatting
+                has_formatting = run.bold or run.italic or run.underline
                 
-                if run.bold:
-                    style_parts.append('font-weight: bold')
-                if run.italic:
-                    style_parts.append('font-style: italic')
-                if run.underline:
-                    style_parts.append('text-decoration: underline')
-                
-                style_attr = f' style="{"; ".join(style_parts)}"'
-                runs_html.append(f'<span{style_attr}>{text}</span>')
+                if has_formatting:
+                    style_parts = []
+                    if run.bold:
+                        style_parts.append('font-weight: bold')
+                    if run.italic:
+                        style_parts.append('font-style: italic')
+                    if run.underline:
+                        style_parts.append('text-decoration: underline')
+                    
+                    style_attr = f' style="{"; ".join(style_parts)}"'
+                    runs_html.append(f'<span{style_attr}>{text}</span>')
+                else:
+                    # No formatting - just use plain text (MUCH faster!)
+                    runs_html.append(text)
             
             # Build paragraph HTML with Word-like styling
             para_style = [
