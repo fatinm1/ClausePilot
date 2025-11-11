@@ -67,10 +67,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       const html = docData.html || '';
       const text = docData.text || documentText;
       
-      console.log('📄 Document data loaded:');
-      console.log('  - HTML length:', html.length);
-      console.log('  - Text length:', text.length);
-      console.log('  - HTML starts with:', html.substring(0, 100));
+      // Document loaded successfully
       
       // Cache the original HTML for fast regeneration
       setOriginalHtml(html);
@@ -102,8 +99,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       
       setChanges(generatedChanges);
       const injectedHtml = injectChangesIntoHtml(html, generatedChanges);
-      console.log('📝 After injection, HTML length:', injectedHtml.length);
-      console.log('📝 Buttons in injected HTML:', (injectedHtml.match(/data-action="accept"/g) || []).length);
+      // Changes injected into HTML
       setDocumentHtml(injectedHtml);
       
     } catch (err) {
@@ -114,16 +110,9 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   };
 
   const injectChangesIntoHtml = (html: string, changesList: Change[]): string => {
-    // The backend wraps each word/char in <span> tags, so we need to search across tags
-    // Strategy: Create a regex pattern that matches the text even when split across spans
     let modifiedHtml = html;
     
-    console.log('🔧 Injecting', changesList.length, 'changes into HTML');
-    
     changesList.forEach((change, idx) => {
-      console.log(`📝 Change ${idx + 1}: "${change.current_text.substring(0, 30)}..." → "${change.new_text.substring(0, 30)}..."`);
-      
-      // Escape special regex characters in the search text
       const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       
       // Build a VERY flexible regex that allows ANY HTML tags/whitespace between characters
@@ -147,8 +136,6 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       const regex = new RegExp(pattern, 'i');
       const match = modifiedHtml.match(regex);
       
-      console.log(`   ${match ? '✅' : '❌'} Text found in HTML:`, !!match);
-      
       if (match) {
         const matchedText = match[0];
         
@@ -170,28 +157,8 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
           `</span>`;
         
         modifiedHtml = modifiedHtml.replace(matchedText, replacement);
-        console.log(`   ✅ Buttons injected for change ${idx + 1}`);
-      } else {
-        console.log(`   ⚠️ Could not inject buttons for change ${idx + 1}`);
       }
     });
-    
-    const buttonCount = (modifiedHtml.match(/data-action="accept"/g) || []).length;
-    console.log(`✅ Injection complete. Total accept buttons in HTML: ${buttonCount}`);
-    
-    if (buttonCount === 0 && changesList.length > 0) {
-      console.error('⚠️ WARNING: No buttons were injected! Text matching may have failed.');
-      console.log('Sample HTML (first 500 chars):', modifiedHtml.substring(0, 500));
-      console.log('Sample change 1 - Raw text:', changesList[0]?.current_text);
-      console.log('Sample change 1 - Escaped text:', changesList[0]?.current_text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'));
-      console.log('HTML contains "September":', modifiedHtml.includes('September'));
-      console.log('HTML contains "Dear":', modifiedHtml.includes('Dear'));
-      console.log('HTML contains "NAME":', modifiedHtml.includes('NAME'));
-    }
     
     return modifiedHtml;
   };
@@ -259,40 +226,29 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   };
 
   const handleAccept = (changeId: string) => {
-    console.log(`✅ handleAccept called for change ${changeId}`);
     setChanges((prev) => {
       const updated = prev.map((c) =>
         c.id === changeId ? { ...c, status: 'accepted' } : c
       );
-      // Regenerate HTML with updated changes
       regenerateHtmlWithChanges(updated);
       return updated;
     });
   };
 
   const handleReject = (changeId: string) => {
-    console.log(`❌ handleReject called for change ${changeId}`);
     setChanges((prev) => {
       const updated = prev.map((c) =>
         c.id === changeId ? { ...c, status: 'rejected' } : c
       );
-      // Regenerate HTML with updated changes
       regenerateHtmlWithChanges(updated);
       return updated;
     });
   };
   
   const regenerateHtmlWithChanges = (updatedChanges: Change[]) => {
-    console.log('🔄 Regenerating HTML with updated changes');
-    console.log(`   Using cached original HTML (${originalHtml.length} chars)`);
-    
-    // Use cached original HTML for instant regeneration
     if (originalHtml) {
       const newHtml = injectChangesWithStatus(originalHtml, updatedChanges);
       setDocumentHtml(newHtml);
-      console.log('✅ HTML regenerated instantly from cache');
-    } else {
-      console.error('⚠️ Original HTML not cached, cannot regenerate');
     }
   };
   
@@ -303,8 +259,6 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     const pendingChanges = changesList.filter(c => c.status === 'pending');
     const acceptedChanges = changesList.filter(c => c.status === 'accepted');
     const rejectedChanges = changesList.filter(c => c.status === 'rejected');
-    
-    console.log(`🔧 Injecting changes: ${pendingChanges.length} pending, ${acceptedChanges.length} accepted, ${rejectedChanges.length} rejected`);
     
     pendingChanges.forEach((change, idx) => {
       // Same regex pattern as before
@@ -330,33 +284,18 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       const regex = new RegExp(pattern, 'i');
       let match = modifiedHtml.match(regex);
       
-      // DEBUG: Always log for signature fields
-      const isSignatureField = change.current_text.startsWith('By:') || change.current_text.startsWith('Title:') || change.current_text.startsWith('For:') || change.current_text.startsWith('Date:');
-      if (isSignatureField) {
-        console.log(`      🔍 SIGNATURE FIELD DETECTED: "${change.current_text.substring(0, 40)}"`);
-        console.log(`      🔍 Initial match result: ${match ? 'FOUND' : 'NOT FOUND'}`);
-      }
-      
       // FALLBACK for signature fields: If main regex fails, try simpler matching
+      const isSignatureField = change.current_text.startsWith('By:') || change.current_text.startsWith('Title:') || change.current_text.startsWith('For:') || change.current_text.startsWith('Date:');
       if (!match && isSignatureField) {
-        console.log(`      🔄 ACTIVATING FALLBACK...`);
-        
-        // Extract the label (e.g., "By:", "Title:")
+        // Extract the label (e.g., "By:", "Title:") and find it in HTML
         const label = change.current_text.split(':')[0] + ':';
-        console.log(`      🔄 Looking for label: "${label}"`);
-        
-        // Find where the label appears in HTML and grab everything until </p>
         const labelIndex = modifiedHtml.indexOf(label);
-        console.log(`      🔄 Label found at index: ${labelIndex}`);
         
         if (labelIndex !== -1) {
+          // Grab everything from label until end of paragraph
           let endIndex = modifiedHtml.indexOf('</p>', labelIndex);
           if (endIndex === -1) endIndex = labelIndex + 400;
-          const fullText = modifiedHtml.substring(labelIndex, endIndex);
-          match = [fullText];
-          console.log(`      ✅ FALLBACK SUCCESS! Matched: "${fullText.substring(0, 100)}..."`);
-        } else {
-          console.log(`      ❌ FALLBACK FAILED - Label not found in HTML`);
+          match = [modifiedHtml.substring(labelIndex, endIndex)];
         }
       }
       
@@ -378,66 +317,8 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
           `</span>`;
         
         modifiedHtml = modifiedHtml.replace(matchedText, replacement);
-      } else {
-        // Debug: Show what we're looking for vs what's in the HTML
-        console.log(`   🔍 FAILED TO MATCH: "${change.current_text.substring(0, 50)}"`);
-        console.log(`      Pattern: ${pattern.substring(0, 200)}...`);
-        
-        // Debug signature block fields
-        if (change.current_text.includes('By:')) {
-          console.log(`      🚨 SEARCHING FOR "By:" IN HTML...`);
-          const byIndex = modifiedHtml.indexOf('By:');
-          console.log(`      🚨 Search result: index = ${byIndex}`);
-          if (byIndex !== -1) {
-            console.log(`      ✅ Found "By:" in HTML at index ${byIndex}`);
-            console.log(`      📋 HTML context: "${modifiedHtml.substring(byIndex, byIndex + 350)}"`);
-          } else {
-            console.log(`      ❌ "By:" NOT FOUND in HTML at all!`);
-            // Check if it exists with different casing
-            const byIndexLower = modifiedHtml.toLowerCase().indexOf('by:');
-            console.log(`      Case-insensitive search: ${byIndexLower}`);
-          }
-        }
-        if (change.current_text.includes('Title:')) {
-          console.log(`      🚨 SEARCHING FOR "Title:" IN HTML...`);
-          const titleIndex = modifiedHtml.indexOf('Title:');
-          console.log(`      🚨 Search result: index = ${titleIndex}`);
-          if (titleIndex !== -1) {
-            console.log(`      📋 HTML context: "${modifiedHtml.substring(titleIndex, titleIndex + 350)}"`);
-          }
-        }
-        if (change.current_text.includes('For:')) {
-          console.log(`      🚨 SEARCHING FOR "For:" IN HTML...`);
-          const forIndex = modifiedHtml.indexOf('For:');
-          console.log(`      🚨 Search result: index = ${forIndex}`);
-          if (forIndex !== -1) {
-            console.log(`      📋 HTML context: "${modifiedHtml.substring(forIndex, forIndex + 350)}"`);
-          }
-        }
-        if (change.current_text.includes('Date:')) {
-          console.log(`      🚨 SEARCHING FOR "Date:" IN HTML...`);
-          const dateIndex = modifiedHtml.indexOf('Date:');
-          console.log(`      🚨 Search result: index = ${dateIndex}`);
-          if (dateIndex !== -1) {
-            console.log(`      📋 HTML context: "${modifiedHtml.substring(dateIndex, dateIndex + 350)}"`);
-          }
-        }
-        
-        if (change.current_text.includes('five')) {
-          const fiveIndex = modifiedHtml.toLowerCase().indexOf('five');
-          if (fiveIndex !== -1) {
-            console.log(`      Found "five" in HTML at index ${fiveIndex}`);
-            console.log(`      HTML: "${modifiedHtml.substring(fiveIndex, fiveIndex + 250)}"`);
-          } else {
-            console.log(`      "five" not found in HTML - checking for "5"`);
-            const numIndex = modifiedHtml.indexOf('5');
-            if (numIndex !== -1) {
-              console.log(`      Found "5" at index ${numIndex}`);
-              console.log(`      HTML: "${modifiedHtml.substring(numIndex, numIndex + 250)}"`);
-            }
-          }
-        }
       }
+      // Skip logging for failed matches (performance optimization)
     });
     
     // Now handle accepted/rejected changes
@@ -501,9 +382,6 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         }
         
         modifiedHtml = modifiedHtml.replace(matchedText, replacement);
-        console.log(`   ✅ ${change.status === 'accepted' ? 'Accepted' : 'Rejected'} change displayed`);
-      } else {
-        console.log(`   ⚠️ Could not find text for ${change.status} change: "${change.current_text.substring(0, 40)}..."`);
       }
     });
     
@@ -523,18 +401,9 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   };
 
   const updateVisualDisplay = (changeId: string, status: 'accepted' | 'rejected') => {
-    console.log(`🎨 Updating visual display for change ${changeId} as ${status}`);
-    
-    // Give React a chance to render first
     setTimeout(() => {
-      // Find the change container in the DOM
       const container = document.querySelector(`.change-container[data-change-id="${changeId}"]`) as HTMLElement;
-      if (!container) {
-        console.log(`   ❌ Container not found for change ${changeId}`);
-        return;
-      }
-      
-      console.log(`   ✅ Found container for change ${changeId}`);
+      if (!container) return;
       
       const oldTextSpan = container.querySelector('.old-text') as HTMLElement;
       const newTextSpan = container.querySelector('.new-text') as HTMLElement;
@@ -542,22 +411,15 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       const rejectBtn = container.querySelector('button[data-action="reject"]') as HTMLElement;
       
       // Add transition for smooth animation
-      if (container) {
-        container.style.transition = 'all 0.3s ease';
-      }
-      if (oldTextSpan) {
-        oldTextSpan.style.transition = 'all 0.3s ease';
-      }
-      if (newTextSpan) {
-        newTextSpan.style.transition = 'all 0.3s ease';
-      }
+      if (container) container.style.transition = 'all 0.3s ease';
+      if (oldTextSpan) oldTextSpan.style.transition = 'all 0.3s ease';
+      if (newTextSpan) newTextSpan.style.transition = 'all 0.3s ease';
       
       // Remove yellow highlight background with animation
       container.style.background = 'transparent';
       container.style.border = 'none';
       
       if (status === 'accepted') {
-        console.log(`   ✅ Accepting change - hiding old text, showing new text as normal`);
         // Hide old text, show new text as normal (accepted)
         if (oldTextSpan) {
           oldTextSpan.style.opacity = '0';
@@ -587,7 +449,6 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         container.appendChild(statusSpan);
         
       } else if (status === 'rejected') {
-        console.log(`   ❌ Rejecting change - hiding new text, showing old text as normal`);
         // Hide new text, show old text as normal (rejected)
         if (newTextSpan) {
           newTextSpan.style.opacity = '0';
@@ -615,23 +476,16 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         statusSpan.textContent = '✗ Rejected';
         container.appendChild(statusSpan);
       }
-      
-      console.log(`   ✅ Visual update complete for change ${changeId}`);
     }, 50); // Small delay to ensure DOM is ready
   };
 
   const handleDocumentClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
-    
-    console.log('🖱️ Document clicked:', target.tagName, target.getAttribute('data-action'));
-    
-    // Check if clicked on accept/reject button
     const button = target.closest('[data-action]');
+    
     if (button) {
       const action = button.getAttribute('data-action');
       const changeId = button.getAttribute('data-change-id');
-      
-      console.log(`🎯 Button clicked: action=${action}, changeId=${changeId}`);
       
       if (changeId) {
         if (action === 'accept') {
@@ -652,11 +506,6 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
 
       // Filter and send only accepted changes
       const acceptedChanges = changes.filter(c => c.status === 'accepted');
-      
-      console.log(`📤 Sending ${acceptedChanges.length} accepted changes to backend`);
-      acceptedChanges.forEach((c, idx) => {
-        console.log(`   ${idx + 1}. ${c.current_text.substring(0, 40)} → ${c.new_text.substring(0, 40)}`);
-      });
       
       const response = await fetch(`/v1/changes/apply-accepted/${documentId}`, {
         method: 'POST',
