@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import logging
+import base64
 from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app, send_file
 from werkzeug.utils import secure_filename
@@ -346,13 +347,48 @@ def get_document_text(user, document_id):
         # Convert document to HTML with formatting preserved
         html_parts = []
         for paragraph in doc.paragraphs:
+            # Check if paragraph has no text but might have images
             if not paragraph.text.strip():
-                html_parts.append('<p style="margin: 0; line-height: 1.5em;">&nbsp;</p>')
-                continue
+                # Check if there are any drawings (images) in the paragraph
+                has_image = False
+                try:
+                    if hasattr(paragraph, '_element'):
+                        drawings = paragraph._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}drawing')
+                        if drawings:
+                            has_image = True
+                except:
+                    pass
+                
+                if not has_image:
+                    html_parts.append('<p style="margin: 0; line-height: 1.5em;">&nbsp;</p>')
+                    continue
+                # If has image, continue to process runs below
             
             # Build HTML for runs with formatting - OPTIMIZED to reduce DOM size
             runs_html = []
             for run in paragraph.runs:
+                # Check if run contains an image
+                try:
+                    # Check for inline shapes (images)
+                    if hasattr(run, '_element') and run._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}drawing'):
+                        # Try to extract image data
+                        for drawing in run._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}drawing'):
+                            for blip in drawing.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/main}blip'):
+                                embed = blip.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed')
+                                if embed:
+                                    image_part = doc.part.related_parts[embed]
+                                    image_bytes = image_part.blob
+                                    # Convert to base64
+                                    image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                                    # Determine content type
+                                    content_type = image_part.content_type
+                                    # Add image as HTML
+                                    runs_html.append(f'<img src="data:{content_type};base64,{image_base64}" style="max-width: 200px; max-height: 100px; vertical-align: middle;" />')
+                        continue
+                except Exception as e:
+                    logger.warning(f"Error extracting image from run: {e}")
+                
+                # Regular text processing
                 text = run.text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                 text = text.replace('\t', '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;')  # 8 spaces per tab for Word-like indentation
                 
