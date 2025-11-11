@@ -34,6 +34,16 @@ interface DocumentViewerProps {
   signatureFile?: File | null;
 }
 
+// Helper function to convert File to data URL
+const fileToDataUrl = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target?.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
 export default function DocumentViewer({ documentId, documentText, onComplete, firmDetails, customRules, signatureFile }: DocumentViewerProps) {
   const [changes, setChanges] = useState<Change[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,9 +148,16 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       setChanges(generatedChanges);
       let injectedHtml = injectChangesIntoHtml(html, generatedChanges);
       
-      // Inject signature preview if available
-      if (signatureDataUrl) {
-        injectedHtml = injectSignaturePreview(injectedHtml, signatureDataUrl);
+      // Inject signature preview if available (check both state and prop)
+      const currentSignatureUrl = signatureDataUrl || (signatureFile ? await fileToDataUrl(signatureFile) : null);
+      if (currentSignatureUrl) {
+        console.log('🖼️ Injecting signature during initial load');
+        injectedHtml = injectSignaturePreview(injectedHtml, currentSignatureUrl);
+        if (!signatureDataUrl) {
+          setSignatureDataUrl(currentSignatureUrl);
+        }
+      } else {
+        console.log('⚠️ No signature to inject during initial load');
       }
       
       // Changes injected into HTML
