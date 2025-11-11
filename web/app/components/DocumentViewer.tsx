@@ -237,12 +237,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   };
 
   const handleAccept = (changeId: string) => {
-    // Update state
-    setChanges((prev) =>
-      prev.map((c) => (c.id === changeId ? { ...c, status: 'accepted' } : c))
-    );
-    
-    // Instantly update DOM (no expensive regeneration)
+    // Instantly update DOM (no React re-render!)
     const container = document.querySelector(`.change-container[data-change-id="${changeId}"]`) as HTMLElement;
     if (!container) return;
     
@@ -268,15 +263,16 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     statusSpan.style.cssText = 'color: #22C55E; margin-left: 8px; font-size: 14px; font-weight: bold;';
     statusSpan.textContent = '✓ Accepted';
     container.appendChild(statusSpan);
+    
+    // Update state WITHOUT triggering re-render (update in-place for later use)
+    const changeIndex = changes.findIndex(c => c.id === changeId);
+    if (changeIndex !== -1) {
+      changes[changeIndex].status = 'accepted';
+    }
   };
 
   const handleReject = (changeId: string) => {
-    // Update state
-    setChanges((prev) =>
-      prev.map((c) => (c.id === changeId ? { ...c, status: 'rejected' } : c))
-    );
-    
-    // Instantly update DOM (no expensive regeneration)
+    // Instantly update DOM (no React re-render!)
     const container = document.querySelector(`.change-container[data-change-id="${changeId}"]`) as HTMLElement;
     if (!container) return;
     
@@ -301,6 +297,12 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     statusSpan.style.cssText = 'color: #EF4444; margin-left: 8px; font-size: 14px; font-weight: bold;';
     statusSpan.textContent = '✗ Rejected';
     container.appendChild(statusSpan);
+    
+    // Update state WITHOUT triggering re-render (update in-place for later use)
+    const changeIndex = changes.findIndex(c => c.id === changeId);
+    if (changeIndex !== -1) {
+      changes[changeIndex].status = 'rejected';
+    }
   };
   
   const injectChangesWithStatus = (html: string, changesList: Change[]): string => {
