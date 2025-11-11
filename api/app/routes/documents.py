@@ -344,6 +344,13 @@ def get_document_text(user, document_id):
         # Join with single newline to preserve exact document structure
         full_text = '\n'.join(text_parts)
         
+        # DEBUG: Count images in document
+        total_images = 0
+        for rel in doc.part.rels.values():
+            if "image" in rel.target_ref:
+                total_images += 1
+        logger.info(f"📸 Document contains {total_images} image(s) in relationships")
+        
         # Convert document to HTML with formatting preserved
         html_parts = []
         for paragraph in doc.paragraphs:
@@ -367,26 +374,62 @@ def get_document_text(user, document_id):
             # Build HTML for runs with formatting - OPTIMIZED to reduce DOM size
             runs_html = []
             for run in paragraph.runs:
-                # Check if run contains an image
+                # Check if run contains an image - try multiple methods
+                image_found = False
                 try:
-                    # Check for inline shapes (images)
-                    if hasattr(run, '_element') and run._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}drawing'):
-                        # Try to extract image data
-                        for drawing in run._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}drawing'):
-                            for blip in drawing.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/main}blip'):
-                                embed = blip.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed')
-                                if embed:
-                                    image_part = doc.part.related_parts[embed]
-                                    image_bytes = image_part.blob
-                                    # Convert to base64
-                                    image_base64 = base64.b64encode(image_bytes).decode('utf-8')
-                                    # Determine content type
-                                    content_type = image_part.content_type
-                                    # Add image as HTML
-                                    runs_html.append(f'<img src="data:{content_type};base64,{image_base64}" style="max-width: 200px; max-height: 100px; vertical-align: middle;" />')
-                        continue
+                    # Method 1: Check for drawing elements (inline images)
+                    if hasattr(run, '_element'):
+                        drawings = run._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}drawing')
+                        if drawings:
+                            logger.info(f"Found {len(drawings)} drawing elements in run")
+                            for drawing in drawings:
+                                blips = drawing.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/main}blip')
+                                logger.info(f"Found {len(blips)} blips in drawing")
+                                for blip in blips:
+                                    embed = blip.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed')
+                                    logger.info(f"Blip embed ID: {embed}")
+                                    if embed:
+                                        try:
+                                            image_part = doc.part.related_parts[embed]
+                                            image_bytes = image_part.blob
+                                            # Convert to base64
+                                            image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                                            # Determine content type
+                                            content_type = image_part.content_type
+                                            logger.info(f"Successfully extracted image: {content_type}, size: {len(image_bytes)} bytes")
+                                            # Add image as HTML
+                                            runs_html.append(f'<img src="data:{content_type};base64,{image_base64}" style="max-width: 300px; max-height: 150px; vertical-align: middle; display: inline-block;" alt="Signature" />')
+                                            image_found = True
+                                        except Exception as e:
+                                            logger.error(f"Error extracting image data: {e}")
+                        
+                        # Method 2: Check for pict elements (older Word format images)
+                        if not image_found:
+                            picts = run._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pict')
+                            if picts:
+                                logger.info(f"Found {len(picts)} pict elements (old format images)")
+                                for pict in picts:
+                                    # Try to find imagedata in VML
+                                    imagedatas = pict.findall('.//{urn:schemas-microsoft-com:vml}imagedata')
+                                    for imagedata in imagedatas:
+                                        rel_id = imagedata.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id')
+                                        if rel_id:
+                                            try:
+                                                image_part = doc.part.related_parts[rel_id]
+                                                image_bytes = image_part.blob
+                                                image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                                                content_type = image_part.content_type
+                                                logger.info(f"Successfully extracted pict image: {content_type}")
+                                                runs_html.append(f'<img src="data:{content_type};base64,{image_base64}" style="max-width: 300px; max-height: 150px; vertical-align: middle; display: inline-block;" alt="Signature" />')
+                                                image_found = True
+                                            except Exception as e:
+                                                logger.error(f"Error extracting pict image: {e}")
+                        
+                        if image_found:
+                            continue
+                            
                 except Exception as e:
-                    logger.warning(f"Error extracting image from run: {e}")
+                    logger.error(f"Error extracting image from run: {e}", exc_info=True)
                 
                 # Regular text processing
                 text = run.text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
