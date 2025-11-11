@@ -464,6 +464,94 @@ def get_document_text(user, document_id):
             style_attr = f' style="{"; ".join(para_style)}"'
             html_parts.append(f'<p{style_attr}>{"".join(runs_html)}</p>')
         
+        # Process tables (signature blocks are often in tables!)
+        logger.info(f"📋 Document contains {len(doc.tables)} table(s)")
+        for table_idx, table in enumerate(doc.tables):
+            logger.info(f"Processing table {table_idx + 1}")
+            table_html = '<table style="width: 100%; border-collapse: collapse; margin: 10pt 0;">'
+            
+            for row in table.rows:
+                table_html += '<tr>'
+                for cell in row.cells:
+                    table_html += '<td style="padding: 8px; vertical-align: top;">'
+                    
+                    # Process each paragraph in the cell
+                    for para in cell.paragraphs:
+                        cell_runs_html = []
+                        for run in para.runs:
+                            # Check for images in table cells
+                            image_found = False
+                            try:
+                                if hasattr(run, '_element'):
+                                    drawings = run._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}drawing')
+                                    if drawings:
+                                        logger.info(f"Found image in table cell!")
+                                        for drawing in drawings:
+                                            blips = drawing.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/main}blip')
+                                            for blip in blips:
+                                                embed = blip.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed')
+                                                if embed:
+                                                    try:
+                                                        image_part = doc.part.related_parts[embed]
+                                                        image_bytes = image_part.blob
+                                                        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                                                        content_type = image_part.content_type
+                                                        logger.info(f"✅ Successfully extracted table image: {content_type}")
+                                                        cell_runs_html.append(f'<img src="data:{content_type};base64,{image_base64}" style="max-width: 300px; max-height: 150px; display: block; margin: 5px 0;" alt="Signature" />')
+                                                        image_found = True
+                                                    except Exception as e:
+                                                        logger.error(f"Error extracting table image: {e}")
+                                    
+                                    if not image_found:
+                                        picts = run._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pict')
+                                        if picts:
+                                            for pict in picts:
+                                                imagedatas = pict.findall('.//{urn:schemas-microsoft-com:vml}imagedata')
+                                                for imagedata in imagedatas:
+                                                    rel_id = imagedata.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id')
+                                                    if rel_id:
+                                                        try:
+                                                            image_part = doc.part.related_parts[rel_id]
+                                                            image_bytes = image_part.blob
+                                                            image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                                                            content_type = image_part.content_type
+                                                            cell_runs_html.append(f'<img src="data:{content_type};base64,{image_base64}" style="max-width: 300px; max-height: 150px; display: block; margin: 5px 0;" alt="Signature" />')
+                                                            image_found = True
+                                                        except Exception as e:
+                                                            logger.error(f"Error extracting pict in table: {e}")
+                                    
+                                    if image_found:
+                                        continue
+                            except Exception as e:
+                                logger.error(f"Error processing table image: {e}")
+                            
+                            # Regular text in table cell
+                            text = run.text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                            text = text.replace('\t', '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;')
+                            
+                            if run.bold or run.italic or run.underline:
+                                style_parts = []
+                                if run.bold:
+                                    style_parts.append('font-weight: bold')
+                                if run.italic:
+                                    style_parts.append('font-style: italic')
+                                if run.underline:
+                                    style_parts.append('text-decoration: underline')
+                                style_attr = f' style="{"; ".join(style_parts)}"'
+                                cell_runs_html.append(f'<span{style_attr}>{text}</span>')
+                            else:
+                                cell_runs_html.append(text)
+                        
+                        table_html += ''.join(cell_runs_html)
+                        if para != cell.paragraphs[-1]:  # Add line break between paragraphs
+                            table_html += '<br/>'
+                    
+                    table_html += '</td>'
+                table_html += '</tr>'
+            
+            table_html += '</table>'
+            html_parts.append(table_html)
+        
         html = '\n'.join(html_parts)
         
         return jsonify({
