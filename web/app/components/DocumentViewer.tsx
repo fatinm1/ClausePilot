@@ -134,7 +134,18 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       }).join('');
       
       const regex = new RegExp(pattern, 'i');
-      const match = modifiedHtml.match(regex);
+      let match = modifiedHtml.match(regex);
+      
+      // FALLBACK for signature fields: If regex fails, use simple label search
+      if (!match && (change.current_text.startsWith('By:') || change.current_text.startsWith('Title:') || change.current_text.startsWith('For:') || change.current_text.startsWith('Date:'))) {
+        const label = change.current_text.split(':')[0] + ':';
+        const labelIndex = modifiedHtml.indexOf(label);
+        if (labelIndex !== -1) {
+          let endIndex = modifiedHtml.indexOf('</p>', labelIndex);
+          if (endIndex === -1) endIndex = labelIndex + 400;
+          match = [modifiedHtml.substring(labelIndex, endIndex)];
+        }
+      }
       
       if (match) {
         const matchedText = match[0];
@@ -226,30 +237,70 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   };
 
   const handleAccept = (changeId: string) => {
-    setChanges((prev) => {
-      const updated = prev.map((c) =>
-        c.id === changeId ? { ...c, status: 'accepted' } : c
-      );
-      regenerateHtmlWithChanges(updated);
-      return updated;
-    });
+    // Update state
+    setChanges((prev) =>
+      prev.map((c) => (c.id === changeId ? { ...c, status: 'accepted' } : c))
+    );
+    
+    // Instantly update DOM (no expensive regeneration)
+    const container = document.querySelector(`.change-container[data-change-id="${changeId}"]`) as HTMLElement;
+    if (!container) return;
+    
+    const oldTextSpan = container.querySelector('.old-text') as HTMLElement;
+    const newTextSpan = container.querySelector('.new-text') as HTMLElement;
+    const acceptBtn = container.querySelector('button[data-action="accept"]') as HTMLElement;
+    const rejectBtn = container.querySelector('button[data-action="reject"]') as HTMLElement;
+    
+    // Remove highlight and hide old text
+    container.style.background = 'transparent';
+    container.style.border = 'none';
+    if (oldTextSpan) oldTextSpan.style.display = 'none';
+    if (newTextSpan) {
+      newTextSpan.style.textDecoration = 'none';
+      newTextSpan.style.color = '#000000';
+      newTextSpan.style.fontWeight = 'normal';
+    }
+    
+    // Remove buttons and add checkmark
+    if (acceptBtn) acceptBtn.remove();
+    if (rejectBtn) rejectBtn.remove();
+    const statusSpan = document.createElement('span');
+    statusSpan.style.cssText = 'color: #22C55E; margin-left: 8px; font-size: 14px; font-weight: bold;';
+    statusSpan.textContent = '✓ Accepted';
+    container.appendChild(statusSpan);
   };
 
   const handleReject = (changeId: string) => {
-    setChanges((prev) => {
-      const updated = prev.map((c) =>
-        c.id === changeId ? { ...c, status: 'rejected' } : c
-      );
-      regenerateHtmlWithChanges(updated);
-      return updated;
-    });
-  };
-  
-  const regenerateHtmlWithChanges = (updatedChanges: Change[]) => {
-    if (originalHtml) {
-      const newHtml = injectChangesWithStatus(originalHtml, updatedChanges);
-      setDocumentHtml(newHtml);
+    // Update state
+    setChanges((prev) =>
+      prev.map((c) => (c.id === changeId ? { ...c, status: 'rejected' } : c))
+    );
+    
+    // Instantly update DOM (no expensive regeneration)
+    const container = document.querySelector(`.change-container[data-change-id="${changeId}"]`) as HTMLElement;
+    if (!container) return;
+    
+    const oldTextSpan = container.querySelector('.old-text') as HTMLElement;
+    const newTextSpan = container.querySelector('.new-text') as HTMLElement;
+    const acceptBtn = container.querySelector('button[data-action="accept"]') as HTMLElement;
+    const rejectBtn = container.querySelector('button[data-action="reject"]') as HTMLElement;
+    
+    // Remove highlight and hide new text
+    container.style.background = 'transparent';
+    container.style.border = 'none';
+    if (newTextSpan) newTextSpan.style.display = 'none';
+    if (oldTextSpan) {
+      oldTextSpan.style.textDecoration = 'none';
+      oldTextSpan.style.color = '#000000';
     }
+    
+    // Remove buttons and add X
+    if (acceptBtn) acceptBtn.remove();
+    if (rejectBtn) rejectBtn.remove();
+    const statusSpan = document.createElement('span');
+    statusSpan.style.cssText = 'color: #EF4444; margin-left: 8px; font-size: 14px; font-weight: bold;';
+    statusSpan.textContent = '✗ Rejected';
+    container.appendChild(statusSpan);
   };
   
   const injectChangesWithStatus = (html: string, changesList: Change[]): string => {
@@ -389,94 +440,27 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   };
 
   const handleAcceptAll = () => {
-    const updated = changes.map((c) => ({ ...c, status: 'accepted' }));
-    setChanges(updated);
-    regenerateHtmlWithChanges(updated);
+    setChanges((prev) => {
+      const updated = prev.map((c) => ({ ...c, status: 'accepted' }));
+      // For "accept all", regenerate HTML (less frequent operation, acceptable)
+      if (originalHtml) {
+        const newHtml = injectChangesWithStatus(originalHtml, updated);
+        setDocumentHtml(newHtml);
+      }
+      return updated;
+    });
   };
 
   const handleRejectAll = () => {
-    const updated = changes.map((c) => ({ ...c, status: 'rejected' }));
-    setChanges(updated);
-    regenerateHtmlWithChanges(updated);
-  };
-
-  const updateVisualDisplay = (changeId: string, status: 'accepted' | 'rejected') => {
-    setTimeout(() => {
-      const container = document.querySelector(`.change-container[data-change-id="${changeId}"]`) as HTMLElement;
-      if (!container) return;
-      
-      const oldTextSpan = container.querySelector('.old-text') as HTMLElement;
-      const newTextSpan = container.querySelector('.new-text') as HTMLElement;
-      const acceptBtn = container.querySelector('button[data-action="accept"]') as HTMLElement;
-      const rejectBtn = container.querySelector('button[data-action="reject"]') as HTMLElement;
-      
-      // Add transition for smooth animation
-      if (container) container.style.transition = 'all 0.3s ease';
-      if (oldTextSpan) oldTextSpan.style.transition = 'all 0.3s ease';
-      if (newTextSpan) newTextSpan.style.transition = 'all 0.3s ease';
-      
-      // Remove yellow highlight background with animation
-      container.style.background = 'transparent';
-      container.style.border = 'none';
-      
-      if (status === 'accepted') {
-        // Hide old text, show new text as normal (accepted)
-        if (oldTextSpan) {
-          oldTextSpan.style.opacity = '0';
-          setTimeout(() => {
-            oldTextSpan.style.display = 'none';
-          }, 300);
-        }
-        if (newTextSpan) {
-          newTextSpan.style.textDecoration = 'none';
-          newTextSpan.style.color = '#000000';
-          newTextSpan.style.fontWeight = 'normal';
-        }
-        // Replace buttons with green checkmark
-        if (acceptBtn) {
-          acceptBtn.style.opacity = '0';
-          setTimeout(() => acceptBtn.remove(), 300);
-        }
-        if (rejectBtn) {
-          rejectBtn.style.opacity = '0';
-          setTimeout(() => rejectBtn.remove(), 300);
-        }
-        
-        // Add status indicator
-        const statusSpan = document.createElement('span');
-        statusSpan.style.cssText = 'color: #22C55E; margin-left: 12px; font-size: 14px; font-weight: bold; animation: fadeIn 0.3s ease;';
-        statusSpan.textContent = '✓ Accepted';
-        container.appendChild(statusSpan);
-        
-      } else if (status === 'rejected') {
-        // Hide new text, show old text as normal (rejected)
-        if (newTextSpan) {
-          newTextSpan.style.opacity = '0';
-          setTimeout(() => {
-            newTextSpan.style.display = 'none';
-          }, 300);
-        }
-        if (oldTextSpan) {
-          oldTextSpan.style.textDecoration = 'none';
-          oldTextSpan.style.color = '#000000';
-        }
-        // Replace buttons with red X
-        if (acceptBtn) {
-          acceptBtn.style.opacity = '0';
-          setTimeout(() => acceptBtn.remove(), 300);
-        }
-        if (rejectBtn) {
-          rejectBtn.style.opacity = '0';
-          setTimeout(() => rejectBtn.remove(), 300);
-        }
-        
-        // Add status indicator
-        const statusSpan = document.createElement('span');
-        statusSpan.style.cssText = 'color: #EF4444; margin-left: 12px; font-size: 14px; font-weight: bold; animation: fadeIn 0.3s ease;';
-        statusSpan.textContent = '✗ Rejected';
-        container.appendChild(statusSpan);
+    setChanges((prev) => {
+      const updated = prev.map((c) => ({ ...c, status: 'rejected' }));
+      // For "reject all", regenerate HTML (less frequent operation, acceptable)
+      if (originalHtml) {
+        const newHtml = injectChangesWithStatus(originalHtml, updated);
+        setDocumentHtml(newHtml);
       }
-    }, 50); // Small delay to ensure DOM is ready
+      return updated;
+    });
   };
 
   const handleDocumentClick = (e: React.MouseEvent) => {
