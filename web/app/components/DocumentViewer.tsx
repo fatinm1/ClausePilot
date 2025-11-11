@@ -652,22 +652,18 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
           </button>
           <button
             onClick={applyChanges}
-            disabled={applying || pendingCount > 0}
+            disabled={applying}
             className="ml-auto px-6 py-2 bg-[#60A5FA] text-white rounded-lg hover:bg-[#60A5FA]/90 disabled:bg-[#60A5FA]/40 disabled:cursor-not-allowed flex items-center space-x-2"
           >
             {applying ? (
               <>
                 <Loader className="w-5 h-5 animate-spin" />
-                <span>Applying...</span>
+                <span>Generating...</span>
               </>
             ) : (
               <>
                 <Download className="w-5 h-5" />
-                <span>
-                  {pendingCount > 0
-                    ? `Review ${pendingCount} pending change${pendingCount !== 1 ? 's' : ''}`
-                    : 'Generate Final Document'}
-                </span>
+                <span>Download Redlined Document</span>
               </>
             )}
           </button>
