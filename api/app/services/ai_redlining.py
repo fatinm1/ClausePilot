@@ -371,7 +371,24 @@ class AIRedliningService:
                             "location_hint": "Signature block"
                         })
             
-            # Ensure "three years" is changed to "two (2) years" if it exists
+            # Extract target duration from custom rules
+            import re
+            target_years = 2  # Default fallback
+            term_rule_instruction = ""
+            
+            for rule in custom_rules:
+                rule_name = rule.get('name', '').lower()
+                if 'duration' in rule_name or 'term' in rule_name or 'confidentiality' in rule_name:
+                    term_rule_instruction = rule.get('instruction', '')
+                    year_match = re.search(r'(\d+)\s*(?:\(\d+\))?\s*years?', term_rule_instruction, re.IGNORECASE)
+                    if year_match:
+                        target_years = int(year_match.group(1))
+                        logger.info(f"📅 Extracted target duration from custom rule: {target_years} years")
+                        break
+            
+            target_years_text = f"{target_years} ({target_years}) years"
+            
+            # Ensure "three years" is changed to target duration if it exists
             if 'three years' in document_text.lower():
                 has_term_modification = any(
                     'three years' in mod.get('current_text', '').lower() or 
@@ -379,15 +396,15 @@ class AIRedliningService:
                     for mod in modifications
                 )
                 if not has_term_modification:
-                    logger.warning(f"AI didn't generate 'three years' modification - adding it manually")
+                    logger.warning(f"AI didn't generate 'three years' modification - adding it manually with target: {target_years} years")
                     # Try to find the exact text in the document
                     if 'three years' in document_text:
                         modifications.append({
                             "type": "TEXT_REPLACE",
                             "section": "term",
                             "current_text": "three years",
-                            "new_text": "two (2) years",
-                            "reason": "Cap confidentiality term at 2 years maximum",
+                            "new_text": target_years_text,
+                            "reason": term_rule_instruction or f"Change confidentiality term to {target_years} years",
                             "location_hint": "Section 13 - Term"
                         })
                     elif 'three (3) years' in document_text:
@@ -395,8 +412,8 @@ class AIRedliningService:
                             "type": "TEXT_REPLACE",
                             "section": "term",
                             "current_text": "three (3) years",
-                            "new_text": "two (2) years",
-                            "reason": "Cap confidentiality term at 2 years maximum",
+                            "new_text": target_years_text,
+                            "reason": term_rule_instruction or f"Change confidentiality term to {target_years} years",
                             "location_hint": "Section 13 - Term"
                         })
             
@@ -612,18 +629,38 @@ class AIRedliningService:
             
             # Create specific modifications based on rule type
             if 'duration' in rule_name or 'term' in rule_name or 'confidentiality' in rule_name:
-                # Look for various year patterns in the document
+                # Extract target duration from rule instruction
+                import re
+                target_years = 2  # Default fallback
+                
+                # Try to extract number from instruction (e.g., "Change to 5 years" → 5)
+                year_match = re.search(r'(\d+)\s*(?:\(\d+\))?\s*years?', rule_instruction, re.IGNORECASE)
+                if year_match:
+                    target_years = int(year_match.group(1))
+                    logger.info(f"📅 Extracted target duration: {target_years} years from instruction")
+                else:
+                    logger.warning(f"⚠️ Could not extract duration from instruction '{rule_instruction}', using default: {target_years} years")
+                
+                # Build dynamic target pattern
+                target_years_text = f"{target_years} ({target_years}) years" if target_years > 0 else f"{target_years} years"
+                target_years_simple = f"{target_years} years"
+                
+                # Look for various year patterns in the document and replace with target
                 year_patterns = [
-                    ('five (5) years', 'two (2) years'),
-                    ('5 years', '2 years'),
-                    ('three (3) years', 'two (2) years'),
-                    ('3 years', '2 years'),
-                    ('four (4) years', 'two (2) years'),
-                    ('4 years', '2 years'),
-                    ('ten (10) years', 'two (2) years'),
-                    ('10 years', '2 years'),
-                    ('three years', 'two (2) years'),
-                    ('five years', 'two (2) years')
+                    ('five (5) years', target_years_text),
+                    ('5 years', target_years_simple),
+                    ('three (3) years', target_years_text),
+                    ('3 years', target_years_simple),
+                    ('four (4) years', target_years_text),
+                    ('4 years', target_years_simple),
+                    ('ten (10) years', target_years_text),
+                    ('10 years', target_years_simple),
+                    ('seven (7) years', target_years_text),
+                    ('7 years', target_years_simple),
+                    ('three years', target_years_text),
+                    ('five years', target_years_text),
+                    ('seven years', target_years_text),
+                    ('ten years', target_years_text)
                 ]
                 
                 found_pattern = False
@@ -648,7 +685,7 @@ class AIRedliningService:
                         "type": "TEXT_REPLACE",
                         "section": "term",
                         "current_text": "three years",
-                        "new_text": "two (2) years",
+                        "new_text": target_years_text,
                         "reason": rule_instruction,
                         "location_hint": "Confidentiality term section"
                     })
@@ -881,10 +918,11 @@ class AIRedliningService:
             - "Company (name to be provided upon execution)" → "[FIRM_NAME]"
         13. **ABSOLUTELY NEVER** replace "Company" in the first few paragraphs where it defines what "Company" means
         14. If you're unsure whether to replace "Company", DON'T replace it - only replace in signature blocks at the end
-        15. When changing years (e.g., "three years" to "2 years"), ONLY make changes in numbered sections about Term/Duration, NOT in the opening paragraphs
-        16. **FLEXIBLE DATE PATTERN RECOGNITION**: For date insertion rules, use pattern recognition, NOT exact text matching
-        17. Recognize ANY date placeholder pattern (blanks, underscores, brackets, "[DATE]", etc.) and replace with today's date
-        18. Be flexible with date patterns - "Month __, Year", "Month ___, Year", "[DATE]", "Date: _______" all should be recognized and replaced
+        15. When changing years/durations, ONLY make changes in numbered sections about Term/Duration, NOT in the opening paragraphs
+        16. When a term duration rule is provided, extract the target duration from the rule instruction (e.g., "Change to 5 years" means replace with "5 (5) years")
+        17. **FLEXIBLE DATE PATTERN RECOGNITION**: For date insertion rules, use pattern recognition, NOT exact text matching
+        18. Recognize ANY date placeholder pattern (blanks, underscores, brackets, "[DATE]", etc.) and replace with today's date
+        19. Be flexible with date patterns - "Month __, Year", "Month ___, Year", "[DATE]", "Date: _______" all should be recognized and replaced
         
         REDLINING PRINCIPLES:
         - Replace specific text with exact matches
@@ -906,8 +944,8 @@ class AIRedliningService:
                     "type": "TEXT_REPLACE",
                     "section": "confidentiality_term",
                     "current_text": "three years",
-                    "new_text": "two (2) years",
-                    "reason": "Term exceeds maximum allowed duration",
+                    "new_text": "X (X) years",
+                    "reason": "Change term duration as specified in custom rule",
                     "location_hint": "Term section"
                 }
             ],
