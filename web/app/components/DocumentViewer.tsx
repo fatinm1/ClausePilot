@@ -41,11 +41,37 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   const [error, setError] = useState<string | null>(null);
   const [documentHtml, setDocumentHtml] = useState<string>('');
   const [originalHtml, setOriginalHtml] = useState<string>(''); // Cache original HTML
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
 
   // Generate changes when component mounts
   useEffect(() => {
     loadDocumentAndGenerateChanges();
   }, []);
+  
+  // Convert signature file to data URL for preview
+  useEffect(() => {
+    if (signatureFile) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setSignatureDataUrl(e.target?.result as string);
+      };
+      reader.readAsDataURL(signatureFile);
+    } else {
+      setSignatureDataUrl(null);
+    }
+  }, [signatureFile]);
+  
+  // Update document HTML when signature changes
+  useEffect(() => {
+    if (originalHtml) {
+      // Regenerate HTML with current changes and signature
+      let html = injectChangesIntoHtml(originalHtml, changes);
+      if (signatureDataUrl) {
+        html = injectSignaturePreview(html, signatureDataUrl);
+      }
+      setDocumentHtml(html);
+    }
+  }, [signatureDataUrl]);
 
   const loadDocumentAndGenerateChanges = async () => {
     try {
@@ -99,7 +125,13 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       }));
       
       setChanges(generatedChanges);
-      const injectedHtml = injectChangesIntoHtml(html, generatedChanges);
+      let injectedHtml = injectChangesIntoHtml(html, generatedChanges);
+      
+      // Inject signature preview if available
+      if (signatureDataUrl) {
+        injectedHtml = injectSignaturePreview(injectedHtml, signatureDataUrl);
+      }
+      
       // Changes injected into HTML
       setDocumentHtml(injectedHtml);
       
@@ -108,6 +140,28 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     } finally {
       setLoading(false);
     }
+  };
+
+  const injectSignaturePreview = (html: string, signatureDataUrl: string): string => {
+    // Find "Signed:" paragraph and insert signature image after it
+    const signedPattern = /<p[^>]*>Signed:[^<]*<\/p>/i;
+    const match = html.match(signedPattern);
+    
+    if (match) {
+      const signatureHtml = `<div style="margin: 10px 0;"><img src="${signatureDataUrl}" alt="Signature" style="max-width: 300px; max-height: 150px; border: 1px solid #ccc; padding: 5px; background: white;" /></div>`;
+      return html.replace(signedPattern, match[0] + signatureHtml);
+    }
+    
+    // Fallback: Look for "By:" with underscores
+    const byPattern = /<p[^>]*>By:[^<]*_+[^<]*<\/p>/i;
+    const byMatch = html.match(byPattern);
+    
+    if (byMatch) {
+      const signatureHtml = `<div style="margin: 10px 0;"><img src="${signatureDataUrl}" alt="Signature" style="max-width: 300px; max-height: 150px; border: 1px solid #ccc; padding: 5px; background: white;" /></div>`;
+      return html.replace(byPattern, byMatch[0] + signatureHtml);
+    }
+    
+    return html;
   };
 
   const injectChangesIntoHtml = (html: string, changesList: Change[]): string => {
