@@ -2480,6 +2480,107 @@ class DocumentProcessor:
             logger.error(f"Error applying signature: {str(e)}")
             # Don't raise exception - signature is optional
     
+    def apply_accepted_changes(self, document_path: str, accepted_changes: list, signature_path: str = None) -> dict:
+        """
+        Apply accepted changes to the document and optionally insert signature
+        
+        Args:
+            document_path: Path to the original document
+            accepted_changes: List of changes that were accepted
+            signature_path: Optional path to signature image file
+            
+        Returns:
+            dict with success status and output path
+        """
+        try:
+            from docx import Document as DocxDocument
+            from docx.shared import Inches
+            import shutil
+            
+            # Load the original document
+            doc = DocxDocument(document_path)
+            logger.info(f"📄 Applying {len(accepted_changes)} accepted changes")
+            
+            # Apply each accepted change
+            for change in accepted_changes:
+                try:
+                    current_text = change.get('current_text', '')
+                    new_text = change.get('new_text', '')
+                    
+                    if not current_text or not new_text:
+                        continue
+                    
+                    # Replace text in paragraphs
+                    for paragraph in doc.paragraphs:
+                        if current_text in paragraph.text:
+                            # Use the visual formatting method (black strikethrough + red underline)
+                            self._replace_text_in_paragraph(paragraph, current_text, new_text)
+                            logger.info(f"✅ Applied change: '{current_text[:30]}...' → '{new_text[:30]}...'")
+                            break
+                            
+                except Exception as e:
+                    logger.error(f"Error applying change: {e}")
+                    continue
+            
+            # Insert signature if provided
+            if signature_path and os.path.exists(signature_path):
+                logger.info(f"✍️ Inserting signature from: {signature_path}")
+                self._insert_signature(doc, signature_path)
+            
+            # Generate output path
+            output_path = self._generate_output_path(document_path)
+            
+            # Save the document
+            doc.save(output_path)
+            logger.info(f"💾 Saved redlined document to: {output_path}")
+            
+            # Clean up temporary signature file
+            if signature_path and os.path.exists(signature_path):
+                try:
+                    os.remove(signature_path)
+                    logger.info(f"🗑️ Cleaned up temporary signature file")
+                except:
+                    pass
+            
+            return {
+                'success': True,
+                'output_path': output_path,
+                'message': f'Applied {len(accepted_changes)} changes successfully'
+            }
+            
+        except Exception as e:
+            logger.error(f"Error applying accepted changes: {str(e)}", exc_info=True)
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def _insert_signature(self, doc, signature_path: str):
+        """Insert signature image into the document signature block"""
+        try:
+            from docx.shared import Inches
+            
+            # Find the "Signed:" or "By:" field in the document
+            signature_inserted = False
+            
+            for paragraph in doc.paragraphs:
+                text = paragraph.text.strip()
+                
+                # Look for signature line (typically after "Signed:" or near "By:")
+                if text.startswith('Signed:') or (text.startswith('By:') and '_____' in text):
+                    # Insert signature image in the next paragraph or inline
+                    run = paragraph.add_run()
+                    run.add_picture(signature_path, width=Inches(2.0))
+                    signature_inserted = True
+                    logger.info(f"✅ Inserted signature after: {text[:40]}")
+                    break
+            
+            if not signature_inserted:
+                logger.warning("⚠️ Could not find signature location in document")
+                
+        except Exception as e:
+            logger.error(f"Error inserting signature: {str(e)}")
+    
     def _generate_output_path(self, input_path: str) -> str:
         """Generate output path for the processed document"""
         # Create outputs directory if it doesn't exist

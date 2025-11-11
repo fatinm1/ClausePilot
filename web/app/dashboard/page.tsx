@@ -496,6 +496,7 @@ export default function Dashboard() {
             signerName: firmDetails.signerName,
             signerTitle: firmDetails.signerTitle,
           }}
+          signatureFile={signatureFile}
           onComplete={handleChangesReviewComplete}
         />
       ) : !user ? (

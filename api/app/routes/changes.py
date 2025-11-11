@@ -137,8 +137,31 @@ def update_change_status(user):
 def apply_accepted_changes(user, document_id):
     """Apply only the accepted changes to create final document"""
     try:
-        data = request.get_json()
-        accepted_changes = data.get('accepted_changes', [])
+        # Check if request is FormData (with signature) or JSON (without signature)
+        if request.content_type and 'multipart/form-data' in request.content_type:
+            # FormData: Extract changes and signature
+            accepted_changes_str = request.form.get('accepted_changes')
+            if not accepted_changes_str:
+                return jsonify({'error': 'No accepted changes provided'}), 400
+            
+            accepted_changes = json.loads(accepted_changes_str)
+            signature_file = request.files.get('signature')
+            
+            # Save signature file temporarily if provided
+            signature_path = None
+            if signature_file:
+                import tempfile
+                import uuid
+                temp_dir = tempfile.gettempdir()
+                signature_filename = f"signature_{uuid.uuid4().hex}{os.path.splitext(signature_file.filename)[1]}"
+                signature_path = os.path.join(temp_dir, signature_filename)
+                signature_file.save(signature_path)
+                logger.info(f"✍️ Signature file saved to: {signature_path}")
+        else:
+            # JSON (backward compatibility)
+            data = request.get_json()
+            accepted_changes = data.get('accepted_changes', [])
+            signature_path = None
         
         if not accepted_changes:
             return jsonify({'error': 'No accepted changes provided'}), 400
@@ -162,10 +185,7 @@ def apply_accepted_changes(user, document_id):
         from app.services.ai_redlining import AIRedliningService
         ai_service = AIRedliningService()
         
-        # Apply accepted changes
-        # Get signature path if it exists (may not be set on all documents)
-        signature_path = getattr(document, 'signature_path', None)
-        
+        # Apply accepted changes with signature
         result = ai_service.apply_accepted_changes(
             document.file_path, 
             accepted_changes,

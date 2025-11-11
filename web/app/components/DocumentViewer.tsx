@@ -31,9 +31,10 @@ interface DocumentViewerProps {
     signerTitle: string;
   };
   customRules: CustomRule[];
+  signatureFile?: File | null;
 }
 
-export default function DocumentViewer({ documentId, documentText, onComplete, firmDetails, customRules }: DocumentViewerProps) {
+export default function DocumentViewer({ documentId, documentText, onComplete, firmDetails, customRules, signatureFile }: DocumentViewerProps) {
   const [changes, setChanges] = useState<Change[]>([]);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
@@ -499,16 +500,23 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       // Filter and send only accepted changes
       const acceptedChanges = changes.filter(c => c.status === 'accepted');
       
+      // Use FormData to send both changes and signature file
+      const formData = new FormData();
+      formData.append('accepted_changes', JSON.stringify(acceptedChanges));
+      
+      // Add signature file if provided
+      if (signatureFile) {
+        formData.append('signature', signatureFile);
+      }
+      
       const response = await fetch(`/v1/changes/apply-accepted/${documentId}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'X-User-ID': '1',
+          // Don't set Content-Type - let browser set it with boundary for FormData
         },
         credentials: 'include',
-        body: JSON.stringify({
-          accepted_changes: acceptedChanges,
-        }),
+        body: formData,
       });
 
       if (!response.ok) {
