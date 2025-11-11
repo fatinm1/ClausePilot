@@ -60,13 +60,10 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   
   // Convert signature file to data URL for preview
   useEffect(() => {
-    console.log('✍️ Signature file received:', signatureFile ? signatureFile.name : 'None');
     if (signatureFile) {
       const reader = new FileReader();
       reader.onload = (e) => {
-        const dataUrl = e.target?.result as string;
-        console.log('✅ Signature converted to data URL:', dataUrl ? `${dataUrl.substring(0, 50)}...` : 'Failed');
-        setSignatureDataUrl(dataUrl);
+        setSignatureDataUrl(e.target?.result as string);
       };
       reader.readAsDataURL(signatureFile);
     } else {
@@ -76,21 +73,11 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   
   // Update document HTML when signature changes
   useEffect(() => {
-    console.log('📝 Signature changed, regenerating HTML...');
-    console.log('   - originalHtml available:', !!originalHtml);
-    console.log('   - signatureDataUrl available:', !!signatureDataUrl);
-    console.log('   - changes count:', changes.length);
-    
-    if (originalHtml) {
+    if (originalHtml && signatureDataUrl) {
       // Regenerate HTML with current changes and signature
       let html = injectChangesIntoHtml(originalHtml, changes);
-      if (signatureDataUrl) {
-        html = injectSignaturePreview(html, signatureDataUrl);
-      }
+      html = injectSignaturePreview(html, signatureDataUrl);
       setDocumentHtml(html);
-      console.log('✅ HTML regenerated with signature');
-    } else {
-      console.log('⚠️ No originalHtml available yet');
     }
   }, [signatureDataUrl]);
 
@@ -151,13 +138,10 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       // Inject signature preview if available (check both state and prop)
       const currentSignatureUrl = signatureDataUrl || (signatureFile ? await fileToDataUrl(signatureFile) : null);
       if (currentSignatureUrl) {
-        console.log('🖼️ Injecting signature during initial load');
         injectedHtml = injectSignaturePreview(injectedHtml, currentSignatureUrl);
         if (!signatureDataUrl) {
           setSignatureDataUrl(currentSignatureUrl);
         }
-      } else {
-        console.log('⚠️ No signature to inject during initial load');
       }
       
       // Changes injected into HTML
@@ -171,33 +155,23 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   };
 
   const injectSignaturePreview = (html: string, signatureDataUrl: string): string => {
-    console.log('🖼️ Injecting signature preview...');
-    
     // Find "Signed:" paragraph and insert signature image after it
     const signedPattern = /<p[^>]*>Signed:[^<]*<\/p>/i;
     const match = html.match(signedPattern);
     
     if (match) {
-      console.log('✅ Found "Signed:" pattern, injecting signature');
       const signatureHtml = `<div style="margin: 10px 0;"><img src="${signatureDataUrl}" alt="Signature" style="max-width: 300px; max-height: 150px; border: 1px solid #ccc; padding: 5px; background: white;" /></div>`;
       return html.replace(signedPattern, match[0] + signatureHtml);
     }
-    
-    console.log('⚠️ "Signed:" not found, trying "By:" pattern');
     
     // Fallback: Look for "By:" with underscores
     const byPattern = /<p[^>]*>By:[^<]*_+[^<]*<\/p>/i;
     const byMatch = html.match(byPattern);
     
     if (byMatch) {
-      console.log('✅ Found "By:" pattern, injecting signature');
       const signatureHtml = `<div style="margin: 10px 0;"><img src="${signatureDataUrl}" alt="Signature" style="max-width: 300px; max-height: 150px; border: 1px solid #ccc; padding: 5px; background: white;" /></div>`;
       return html.replace(byPattern, byMatch[0] + signatureHtml);
     }
-    
-    console.log('❌ Could not find signature location in HTML');
-    console.log('HTML contains "Signed:":', html.includes('Signed:'));
-    console.log('HTML contains "By:":', html.includes('By:'));
     
     return html;
   };
