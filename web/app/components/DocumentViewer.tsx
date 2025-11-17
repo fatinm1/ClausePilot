@@ -155,24 +155,65 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   };
 
   const injectSignaturePreview = (html: string, signatureDataUrl: string): string => {
-    // Find "Signed:" paragraph and insert signature image after it
-    const signedPattern = /<p[^>]*>Signed:[^<]*<\/p>/i;
-    const match = html.match(signedPattern);
+    const signatureHtml = `<img src="${signatureDataUrl}" alt="Signature" style="max-width: 300px; max-height: 150px; border: 1px solid #ccc; padding: 5px; background: white; display: inline-block; vertical-align: middle; margin-left: 10px;" />`;
+    
+    // Find "Signed:" paragraph - match the full paragraph including nested tags
+    const signedPattern = /<p([^>]*)>(?:(?!<\/p>).)*?Signed:(?:(?!<\/p>).)*?<\/p>/is;
+    let match = html.match(signedPattern);
     
     if (match) {
-      const paragraphWithStrike = match[0].replace(/(_+)/g, '<span style="text-decoration: line-through;">$1</span>');
-      const signatureHtml = `<div style="margin: 10px 0;"><img src="${signatureDataUrl}" alt="Signature" style="max-width: 300px; max-height: 150px; border: 1px solid #ccc; padding: 5px; background: white;" /></div>`;
-      return html.replace(signedPattern, paragraphWithStrike + signatureHtml);
+      const fullParagraph = match[0];
+      // Replace underscores with strikethrough, then insert signature after the last underscore
+      // Find the last underscore position in the HTML
+      const lastUnderscoreIndex = fullParagraph.lastIndexOf('_');
+      
+      if (lastUnderscoreIndex !== -1) {
+        // Find the end of the underscore sequence
+        let underscoreEnd = lastUnderscoreIndex + 1;
+        while (underscoreEnd < fullParagraph.length && fullParagraph[underscoreEnd] === '_') {
+          underscoreEnd++;
+        }
+        
+        // Split: before underscores, underscores, after underscores
+        const beforeUnderscores = fullParagraph.substring(0, lastUnderscoreIndex);
+        const underscores = fullParagraph.substring(lastUnderscoreIndex, underscoreEnd);
+        const afterUnderscores = fullParagraph.substring(underscoreEnd);
+        
+        // Apply strikethrough to underscores and insert signature
+        const replacement = beforeUnderscores + 
+          `<span style="text-decoration: line-through;">${underscores}</span>` + 
+          signatureHtml + 
+          afterUnderscores;
+        
+        return html.replace(signedPattern, replacement);
+      }
     }
     
     // Fallback: Look for "By:" with underscores
-    const byPattern = /<p[^>]*>By:[^<]*_+[^<]*<\/p>/i;
-    const byMatch = html.match(byPattern);
+    const byPattern = /<p([^>]*)>(?:(?!<\/p>).)*?By:(?:(?!<\/p>).)*?_(?:(?!<\/p>).)*?<\/p>/is;
+    let byMatch = html.match(byPattern);
     
     if (byMatch) {
-      const paragraphWithStrike = byMatch[0].replace(/(_+)/g, '<span style="text-decoration: line-through;">$1</span>');
-      const signatureHtml = `<div style="margin: 10px 0;"><img src="${signatureDataUrl}" alt="Signature" style="max-width: 300px; max-height: 150px; border: 1px solid #ccc; padding: 5px; background: white;" /></div>`;
-      return html.replace(byPattern, paragraphWithStrike + signatureHtml);
+      const fullParagraph = byMatch[0];
+      const lastUnderscoreIndex = fullParagraph.lastIndexOf('_');
+      
+      if (lastUnderscoreIndex !== -1) {
+        let underscoreEnd = lastUnderscoreIndex + 1;
+        while (underscoreEnd < fullParagraph.length && fullParagraph[underscoreEnd] === '_') {
+          underscoreEnd++;
+        }
+        
+        const beforeUnderscores = fullParagraph.substring(0, lastUnderscoreIndex);
+        const underscores = fullParagraph.substring(lastUnderscoreIndex, underscoreEnd);
+        const afterUnderscores = fullParagraph.substring(underscoreEnd);
+        
+        const replacement = beforeUnderscores + 
+          `<span style="text-decoration: line-through;">${underscores}</span>` + 
+          signatureHtml + 
+          afterUnderscores;
+        
+        return html.replace(byPattern, replacement);
+      }
     }
     
     return html;

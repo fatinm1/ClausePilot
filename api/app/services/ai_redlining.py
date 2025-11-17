@@ -2597,6 +2597,7 @@ class DocumentProcessor:
         """Insert signature image into the document signature block"""
         try:
             from docx.shared import Inches
+            import re
             
             # Find the "Signed:" or "By:" field in the document
             signature_inserted = False
@@ -2606,24 +2607,61 @@ class DocumentProcessor:
                 
                 # Look for signature line (typically after "Signed:" or near "By:")
                 if text.lower().startswith('signed:') or (text.lower().startswith('by:') and '_' in paragraph.text):
-                    # Apply strikethrough to underscore placeholders
-                    for run in paragraph.runs:
-                        if '_' in run.text:
-                            run.font.strike = True
+                    # Find where underscores end in the text
+                    underscore_match = re.search(r'(_+)', text)
+                    if underscore_match:
+                        underscore_end_pos = underscore_match.end()
+                        
+                        # Clear paragraph and rebuild with signature in correct position
+                        # Save original runs and their formatting
+                        original_runs = list(paragraph.runs)
+                        paragraph.clear()
+                        
+                        # Rebuild paragraph: text before underscores + strikethrough underscores + signature + text after
+                        before_underscores = text[:underscore_match.start()]
+                        underscores = underscore_match.group(1)
+                        after_underscores = text[underscore_match.end():]
+                        
+                        # Add text before underscores (preserve formatting from first run if available)
+                        if original_runs:
+                            run = paragraph.add_run(before_underscores)
+                            if original_runs[0].bold:
+                                run.bold = True
+                            if original_runs[0].italic:
+                                run.italic = True
+                        else:
+                            paragraph.add_run(before_underscores)
+                        
+                        # Add underscores with strikethrough
+                        strike_run = paragraph.add_run(underscores)
+                        strike_run.font.strike = True
+                        
+                        # Add signature image
+                        sig_run = paragraph.add_run()
+                        sig_run.add_picture(signature_path, width=Inches(2.0))
+                        
+                        # Add any text after underscores
+                        if after_underscores:
+                            paragraph.add_run(after_underscores)
                     
-                    # Insert signature image after the underscores
-                    paragraph.add_run(' ')
-                    run = paragraph.add_run()
-                    run.add_picture(signature_path, width=Inches(2.0))
+                    else:
+                        # No underscores found, just add at end with strikethrough on any existing underscores
+                        for run in paragraph.runs:
+                            if '_' in run.text:
+                                run.font.strike = True
+                        paragraph.add_run(' ')
+                        sig_run = paragraph.add_run()
+                        sig_run.add_picture(signature_path, width=Inches(2.0))
+                    
                     signature_inserted = True
-                    logger.info(f"✅ Inserted signature after: {text[:40]}")
+                    logger.info(f"✅ Inserted signature after underscores in: {text[:40]}")
                     break
             
             if not signature_inserted:
                 logger.warning("⚠️ Could not find signature location in document")
                 
         except Exception as e:
-            logger.error(f"Error inserting signature: {str(e)}")
+            logger.error(f"Error inserting signature: {str(e)}", exc_info=True)
     
     def _generate_output_path(self, input_path: str) -> str:
         """Generate output path for the processed document"""
