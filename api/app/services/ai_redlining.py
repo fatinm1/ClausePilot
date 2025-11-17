@@ -2605,8 +2605,14 @@ class DocumentProcessor:
                 text = paragraph.text.strip()
                 
                 # Look for signature line (typically after "Signed:" or near "By:")
-                if text.startswith('Signed:') or (text.startswith('By:') and '_____' in text):
-                    # Insert signature image in the next paragraph or inline
+                if text.lower().startswith('signed:') or (text.lower().startswith('by:') and '_' in paragraph.text):
+                    # Apply strikethrough to underscore placeholders
+                    for run in paragraph.runs:
+                        if '_' in run.text:
+                            run.font.strike = True
+                    
+                    # Insert signature image after the underscores
+                    paragraph.add_run(' ')
                     run = paragraph.add_run()
                     run.add_picture(signature_path, width=Inches(2.0))
                     signature_inserted = True

@@ -160,8 +160,9 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     const match = html.match(signedPattern);
     
     if (match) {
+      const paragraphWithStrike = match[0].replace(/(_+)/g, '<span style="text-decoration: line-through;">$1</span>');
       const signatureHtml = `<div style="margin: 10px 0;"><img src="${signatureDataUrl}" alt="Signature" style="max-width: 300px; max-height: 150px; border: 1px solid #ccc; padding: 5px; background: white;" /></div>`;
-      return html.replace(signedPattern, match[0] + signatureHtml);
+      return html.replace(signedPattern, paragraphWithStrike + signatureHtml);
     }
     
     // Fallback: Look for "By:" with underscores
@@ -169,8 +170,9 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     const byMatch = html.match(byPattern);
     
     if (byMatch) {
+      const paragraphWithStrike = byMatch[0].replace(/(_+)/g, '<span style="text-decoration: line-through;">$1</span>');
       const signatureHtml = `<div style="margin: 10px 0;"><img src="${signatureDataUrl}" alt="Signature" style="max-width: 300px; max-height: 150px; border: 1px solid #ccc; padding: 5px; background: white;" /></div>`;
-      return html.replace(byPattern, byMatch[0] + signatureHtml);
+      return html.replace(byPattern, paragraphWithStrike + signatureHtml);
     }
     
     return html;
