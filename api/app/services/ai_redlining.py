@@ -2539,6 +2539,13 @@ class DocumentProcessor:
             doc = DocxDocument(document_path)
             logger.info(f"📄 Applying {len(accepted_changes)} accepted changes")
             
+            # Build flat list of all paragraphs (including inside tables)
+            all_paragraphs = list(doc.paragraphs)
+            for table in doc.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        all_paragraphs.extend(cell.paragraphs)
+            
             # Apply each accepted change
             for change in accepted_changes:
                 try:
@@ -2547,14 +2554,25 @@ class DocumentProcessor:
                     
                     if not current_text or not new_text:
                         continue
+                    applied = False
                     
-                    # Replace text in paragraphs
-                    for paragraph in doc.paragraphs:
+                    # Replace text in paragraphs (with whitespace-aware matching)
+                    for paragraph in all_paragraphs:
+                        target_text = None
+                        
                         if current_text in paragraph.text:
-                            # Use the visual formatting method (black strikethrough + red underline)
-                            self._replace_text_in_paragraph(paragraph, current_text, new_text)
-                            logger.info(f"✅ Applied change: '{current_text[:30]}...' → '{new_text[:30]}...'")
-                            break
+                            target_text = current_text
+                        else:
+                            target_text = self._find_text_with_whitespace(paragraph.text, current_text)
+                        
+                        if target_text:
+                            if self._replace_text_in_paragraph(paragraph, target_text, new_text):
+                                logger.info(f"✅ Applied change: '{current_text[:30]}...' → '{new_text[:30]}...'")
+                                applied = True
+                                break
+                    
+                    if not applied:
+                        logger.warning(f"⚠️ Could not apply change (text not found): '{current_text[:50]}'")
                             
                 except Exception as e:
                     logger.error(f"Error applying change: {e}")
@@ -2603,47 +2621,35 @@ class DocumentProcessor:
             signature_inserted = False
             
             for paragraph in doc.paragraphs:
-                text = paragraph.text.strip()
+                raw_text = paragraph.text
+                text_lower = raw_text.strip().lower()
                 
                 # Look for signature line (typically after "Signed:" or near "By:")
-                if text.lower().startswith('signed:') or (text.lower().startswith('by:') and '_' in paragraph.text):
-                    # Find where underscores end in the text
-                    underscore_match = re.search(r'(_+)', text)
-                    if underscore_match:
-                        underscore_end_pos = underscore_match.end()
+                if text_lower.startswith('signed:') or (text_lower.startswith('by:') and '_' in raw_text):
+                    # Find ALL underscore sequences so we can insert after the last one
+                    underscore_matches = list(re.finditer(r'(_+)', raw_text))
+                    
+                    if underscore_matches:
+                        last_match = underscore_matches[-1]
+                        before_underscores = raw_text[:last_match.start()]
+                        underscores = last_match.group(0)
+                        after_underscores = raw_text[last_match.end():]
                         
-                        # Clear paragraph and rebuild with signature in correct position
-                        # Save original runs and their formatting
-                        original_runs = list(paragraph.runs)
+                        # Clear paragraph and rebuild with precise ordering
                         paragraph.clear()
                         
-                        # Rebuild paragraph: text before underscores + strikethrough underscores + signature + text after
-                        before_underscores = text[:underscore_match.start()]
-                        underscores = underscore_match.group(1)
-                        after_underscores = text[underscore_match.end():]
-                        
-                        # Add text before underscores (preserve formatting from first run if available)
-                        if original_runs:
-                            run = paragraph.add_run(before_underscores)
-                            if original_runs[0].bold:
-                                run.bold = True
-                            if original_runs[0].italic:
-                                run.italic = True
-                        else:
+                        if before_underscores:
                             paragraph.add_run(before_underscores)
                         
-                        # Add underscores with strikethrough
                         strike_run = paragraph.add_run(underscores)
                         strike_run.font.strike = True
                         
-                        # Add signature image
+                        # Insert signature immediately after the underscores
                         sig_run = paragraph.add_run()
                         sig_run.add_picture(signature_path, width=Inches(2.0))
                         
-                        # Add any text after underscores
                         if after_underscores:
                             paragraph.add_run(after_underscores)
-                    
                     else:
                         # No underscores found, just add at end with strikethrough on any existing underscores
                         for run in paragraph.runs:
@@ -2654,7 +2660,7 @@ class DocumentProcessor:
                         sig_run.add_picture(signature_path, width=Inches(2.0))
                     
                     signature_inserted = True
-                    logger.info(f"✅ Inserted signature after underscores in: {text[:40]}")
+                    logger.info(f"✅ Inserted signature after underscores in: {raw_text[:40]}")
                     break
             
             if not signature_inserted:
