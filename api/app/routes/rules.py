@@ -167,9 +167,7 @@ def update_rule(user, rule_id):
     if not rule:
         return jsonify({'error': 'Rule not found'}), 404
     
-    if rule.user_id != user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
+    # Allow any admin to edit any rule (removed user_id check)
     # Update fields
     if 'name' in data:
         rule.name = data['name']

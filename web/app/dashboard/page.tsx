@@ -26,7 +26,8 @@ import {
   BookOpen,
   Loader,
   Lock,
-  Zap
+  Zap,
+  Edit
 } from 'lucide-react';
 import { apiClient } from '../../lib/api';
 import { Document, CustomRule, FirmDetails } from '../../lib/api';
@@ -92,6 +93,7 @@ export default function Dashboard() {
   const [adminRuleName, setAdminRuleName] = useState('');
   const [adminRuleInstruction, setAdminRuleInstruction] = useState('');
   const [adminRuleCategory, setAdminRuleCategory] = useState('other');
+  const [editingRuleId, setEditingRuleId] = useState<number | null>(null);
   const [newUserData, setNewUserData] = useState({
     username: '',
     email: '',
@@ -430,6 +432,61 @@ export default function Dashboard() {
     }
   };
 
+  const updateAdminRule = async () => {
+    if (!editingRuleId || !adminRuleName.trim() || !adminRuleInstruction.trim()) {
+      setError('Rule name and instruction are required');
+      return;
+    }
+
+    try {
+      const updates = {
+        name: adminRuleName,
+        category: adminRuleCategory,
+        instruction: adminRuleInstruction
+      };
+      
+      // Update rule in backend
+      const response = await apiClient.updateRule(editingRuleId, updates, user?.id?.toString() || '');
+      
+      // Update in local state
+      setCustomRules(prev => prev.map(rule => 
+        rule.id === editingRuleId ? response.rule : rule
+      ));
+      
+      // Reset form
+      setAdminRuleName('');
+      setAdminRuleInstruction('');
+      setAdminRuleCategory('other');
+      setEditingRuleId(null);
+      setShowAdminRuleModal(false);
+      
+      setError(null);
+      setSuccess('Rule updated successfully!');
+      
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update rule');
+    }
+  };
+
+  const handleEditRule = (rule: CustomRule) => {
+    if (!rule.id) return;
+    
+    setEditingRuleId(rule.id);
+    setAdminRuleName(rule.name || '');
+    setAdminRuleInstruction(rule.instruction);
+    setAdminRuleCategory(rule.category || 'other');
+    setShowAdminRuleModal(true);
+  };
+
+  const handleCloseRuleModal = () => {
+    setShowAdminRuleModal(false);
+    setEditingRuleId(null);
+    setAdminRuleName('');
+    setAdminRuleInstruction('');
+    setAdminRuleCategory('other');
+  };
+
   const addNewUser = async () => {
     if (!newUserData.username.trim() || !newUserData.email.trim() || !newUserData.password.trim()) {
       setError('Username, email, and password are required');
@@ -713,12 +770,22 @@ export default function Dashboard() {
                             <span className="text-sm text-[#E5E7EB]">{rule.instruction}</span>
                           </div>
                         </div>
-                        <button
-                          onClick={() => removeCustomRule(index)}
-                          className="text-red-400 hover:text-red-300 transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => handleEditRule(rule)}
+                            className="text-[#60A5FA] hover:text-[#60A5FA]/80 transition-colors"
+                            title="Edit rule"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => removeCustomRule(index)}
+                            className="text-red-400 hover:text-red-300 transition-colors"
+                            title="Delete rule"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1040,11 +1107,13 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* Create Rule Modal */}
+      {/* Create/Edit Rule Modal */}
       {showAdminRuleModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-[#1F2937] rounded-xl p-6 w-full max-w-md mx-4">
-            <h3 className="text-xl font-semibold text-white mb-4">Create Redlining Rule</h3>
+            <h3 className="text-xl font-semibold text-white mb-4">
+              {editingRuleId ? 'Edit Redlining Rule' : 'Create Redlining Rule'}
+            </h3>
             
             <div className="space-y-4">
               <div>
@@ -1087,16 +1156,16 @@ export default function Dashboard() {
             
             <div className="flex space-x-3 mt-6">
               <button
-                onClick={() => setShowAdminRuleModal(false)}
+                onClick={handleCloseRuleModal}
                 className="flex-1 px-4 py-2 bg-[#374151] hover:bg-[#4B5563] text-white rounded-lg transition-colors"
               >
                 Cancel
               </button>
               <button
-                onClick={createAdminRule}
+                onClick={editingRuleId ? updateAdminRule : createAdminRule}
                 className="flex-1 px-4 py-2 bg-[#60A5FA] hover:bg-[#60A5FA]/80 text-white rounded-lg transition-colors"
               >
-                Create Rule
+                {editingRuleId ? 'Update Rule' : 'Create Rule'}
               </button>
             </div>
           </div>
