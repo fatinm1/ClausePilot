@@ -387,35 +387,72 @@ class AIRedliningService:
                         break
             
             target_years_text = f"{target_years} ({target_years}) years"
+            target_years_simple = f"{target_years} years"
             
-            # Ensure "three years" is changed to target duration if it exists
-            if 'three years' in document_text.lower():
-                has_term_modification = any(
-                    'three years' in mod.get('current_text', '').lower() or 
-                    'three (3) years' in mod.get('current_text', '').lower()
-                    for mod in modifications
-                )
-                if not has_term_modification:
-                    logger.warning(f"AI didn't generate 'three years' modification - adding it manually with target: {target_years} years")
-                    # Try to find the exact text in the document
-                    if 'three years' in document_text:
-                        modifications.append({
-                            "type": "TEXT_REPLACE",
-                            "section": "term",
-                            "current_text": "three years",
-                            "new_text": target_years_text,
-                            "reason": term_rule_instruction or f"Change confidentiality term to {target_years} years",
-                            "location_hint": "Section 13 - Term"
-                        })
-                    elif 'three (3) years' in document_text:
-                        modifications.append({
-                            "type": "TEXT_REPLACE",
-                            "section": "term",
-                            "current_text": "three (3) years",
-                            "new_text": target_years_text,
-                            "reason": term_rule_instruction or f"Change confidentiality term to {target_years} years",
-                            "location_hint": "Section 13 - Term"
-                        })
+            # Check if document already has the target duration - if so, skip all modifications
+            target_patterns_in_doc = [
+                target_years_text.lower(),
+                target_years_simple.lower(),
+                f"{target_years} ({target_years}) year".lower(),  # singular
+                f"{target_years} year".lower()  # singular
+            ]
+            
+            # Also check word forms if target is 1-10
+            word_to_num = {
+                1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five',
+                6: 'six', 7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten'
+            }
+            if target_years in word_to_num:
+                word = word_to_num[target_years]
+                target_patterns_in_doc.extend([
+                    f"{word} ({target_years}) years".lower(),
+                    f"{word} years".lower()
+                ])
+            
+            # Check if any target pattern already exists in document
+            doc_already_has_target = any(
+                pattern in document_text.lower() 
+                for pattern in target_patterns_in_doc
+            )
+            
+            if doc_already_has_target:
+                logger.info(f"✅ Document already contains target duration '{target_years_text}' - skipping all term modifications")
+                # Remove any existing term modifications that would change to the target (already correct)
+                modifications = [
+                    mod for mod in modifications 
+                    if not (mod.get('section') == 'term' and 
+                           (target_years_text.lower() in mod.get('new_text', '').lower() or
+                            target_years_simple.lower() in mod.get('new_text', '').lower()))
+                ]
+            else:
+                # Ensure "three years" is changed to target duration if it exists
+                if 'three years' in document_text.lower():
+                    has_term_modification = any(
+                        'three years' in mod.get('current_text', '').lower() or 
+                        'three (3) years' in mod.get('current_text', '').lower()
+                        for mod in modifications
+                    )
+                    if not has_term_modification:
+                        logger.warning(f"AI didn't generate 'three years' modification - adding it manually with target: {target_years} years")
+                        # Try to find the exact text in the document
+                        if 'three years' in document_text:
+                            modifications.append({
+                                "type": "TEXT_REPLACE",
+                                "section": "term",
+                                "current_text": "three years",
+                                "new_text": target_years_text,
+                                "reason": term_rule_instruction or f"Change confidentiality term to {target_years} years",
+                                "location_hint": "Section 13 - Term"
+                            })
+                        elif 'three (3) years' in document_text:
+                            modifications.append({
+                                "type": "TEXT_REPLACE",
+                                "section": "term",
+                                "current_text": "three (3) years",
+                                "new_text": target_years_text,
+                                "reason": term_rule_instruction or f"Change confidentiality term to {target_years} years",
+                                "location_hint": "Section 13 - Term"
+                            })
             
             # Auto-fix date placeholders with today's date - be more specific to avoid over-redlining
             import re
@@ -645,6 +682,36 @@ class AIRedliningService:
                 target_years_text = f"{target_years} ({target_years}) years" if target_years > 0 else f"{target_years} years"
                 target_years_simple = f"{target_years} years"
                 
+                # Check if document already has the target duration - if so, skip modification
+                target_patterns_in_doc = [
+                    target_years_text.lower(),
+                    target_years_simple.lower(),
+                    f"{target_years} ({target_years}) year".lower(),  # singular
+                    f"{target_years} year".lower()  # singular
+                ]
+                
+                # Also check word forms if target is 1-10
+                word_to_num = {
+                    1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five',
+                    6: 'six', 7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten'
+                }
+                if target_years in word_to_num:
+                    word = word_to_num[target_years]
+                    target_patterns_in_doc.extend([
+                        f"{word} ({target_years}) years".lower(),
+                        f"{word} years".lower()
+                    ])
+                
+                # Check if any target pattern already exists in document
+                doc_already_has_target = any(
+                    pattern in document_text.lower() 
+                    for pattern in target_patterns_in_doc
+                )
+                
+                if doc_already_has_target:
+                    logger.info(f"✅ Document already contains target duration '{target_years_text}' - skipping modification")
+                    continue  # Skip this rule, document already has the target
+                
                 # Look for various year patterns in the document and replace with target
                 year_patterns = [
                     ('five (5) years', target_years_text),
@@ -666,6 +733,12 @@ class AIRedliningService:
                 found_pattern = False
                 for current_pattern, new_pattern in year_patterns:
                     if current_pattern in document_text.lower():
+                        # Double-check: don't replace if it's already the target
+                        if current_pattern.lower() == target_years_text.lower() or current_pattern.lower() == target_years_simple.lower():
+                            logger.info(f"⚠️ Pattern '{current_pattern}' already matches target '{target_years_text}' - skipping")
+                            found_pattern = True  # Mark as found but don't add modification
+                            break
+                        
                         mock_modifications.append({
                             "type": "TEXT_REPLACE",
                             "section": "term",
