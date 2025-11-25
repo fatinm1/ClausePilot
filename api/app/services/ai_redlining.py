@@ -43,7 +43,7 @@ class AIRedliningService:
                     # Initialize OpenAI with minimal parameters
                     logger.warning("Creating OpenAI client...")
                     self.client = OpenAI(api_key=api_key)
-                    self.model = "gpt-3.5-turbo"
+                    self.model = "gpt-4"  # Using GPT-4 for better instruction following and higher token limits
                     logger.warning("OpenAI client initialized successfully with real API")
                         
                 except Exception as init_error:
@@ -131,7 +131,7 @@ class AIRedliningService:
                         {"role": "user", "content": user_prompt}
                     ],
                     temperature=0.1,  # Low temperature for consistent legal work
-                    max_tokens=4096  # Maximum for gpt-3.5-turbo - increased to handle multiple rules and complex modifications
+                    max_tokens=8000  # GPT-4 supports up to 8192 tokens - increased to handle multiple rules and complex modifications
                 )
                 logger.warning("OpenAI API call successful")
             except Exception as api_error:
