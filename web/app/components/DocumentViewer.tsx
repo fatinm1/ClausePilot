@@ -544,24 +544,20 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
 
   const handleAcceptAll = () => {
     setChanges((prev) => {
-      const updated = prev.map((c) => ({ ...c, status: 'accepted' }));
-      // For "accept all", regenerate HTML (less frequent operation, acceptable)
-      if (originalHtml) {
-        const newHtml = injectChangesWithStatus(originalHtml, updated);
-        setDocumentHtml(newHtml);
-      }
+      // Only accept pending changes
+      const updated = prev.map((c) => 
+        c.status === 'pending' ? { ...c, status: 'accepted' as const } : c
+      );
       return updated;
     });
   };
 
   const handleRejectAll = () => {
     setChanges((prev) => {
-      const updated = prev.map((c) => ({ ...c, status: 'rejected' }));
-      // For "reject all", regenerate HTML (less frequent operation, acceptable)
-      if (originalHtml) {
-        const newHtml = injectChangesWithStatus(originalHtml, updated);
-        setDocumentHtml(newHtml);
-      }
+      // Only reject pending changes
+      const updated = prev.map((c) => 
+        c.status === 'pending' ? { ...c, status: 'rejected' as const } : c
+      );
       return updated;
     });
   };
@@ -708,15 +704,14 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
           border: 1px solid #E5E7EB;
           z-index: 1000;
           white-space: nowrap;
-          opacity: 0;
-          pointer-events: none;
-          transition: opacity 0.2s ease, transform 0.2s ease;
+          opacity: 1;
+          pointer-events: all;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
         .document-content .change-container:hover .change-actions,
         .document-content .change-container.active .change-actions {
-          opacity: 1;
-          pointer-events: all;
           transform: translateX(-50%) translateY(-4px);
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
         }
         .document-content .change-container .change-actions::after {
           content: '';
