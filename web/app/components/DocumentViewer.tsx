@@ -75,25 +75,9 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     }
   }, [signatureFile]);
   
-  // Regenerate document HTML when changes status updates (debounced for performance)
-  useEffect(() => {
-    if (originalHtml && changes.length > 0) {
-      // Use requestAnimationFrame to defer heavy HTML regeneration
-      const timeoutId = setTimeout(() => {
-        // Regenerate HTML with current changes status
-        let html = injectChangesWithStatus(originalHtml, changes);
-        
-        // Inject signature if available
-        if (signatureDataUrl) {
-          html = injectSignaturePreview(html, signatureDataUrl);
-        }
-        
-        setDocumentHtml(html);
-      }, 50); // Small delay to batch rapid updates
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [changes, originalHtml, signatureDataUrl]);
+  // Note: HTML is generated in loadDocumentAndGenerateChanges
+  // Individual accept/reject actions use DOM manipulation for instant feedback (no HTML regeneration needed)
+  // Only Accept All/Reject All will regenerate HTML
 
   // Capture references to each inline change container for DocuSign-style navigation
   useEffect(() => {
@@ -610,6 +594,19 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       const updated = prev.map((c) => 
         c.status === 'pending' ? { ...c, status: 'accepted' as const } : c
       );
+      
+      // Regenerate HTML for Accept All (batch operation - acceptable delay)
+      if (originalHtml) {
+        // Use setTimeout to avoid blocking UI
+        setTimeout(() => {
+          let html = injectChangesWithStatus(originalHtml, updated);
+          if (signatureDataUrl) {
+            html = injectSignaturePreview(html, signatureDataUrl);
+          }
+          setDocumentHtml(html);
+        }, 0);
+      }
+      
       return updated;
     });
   };
@@ -620,6 +617,19 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       const updated = prev.map((c) => 
         c.status === 'pending' ? { ...c, status: 'rejected' as const } : c
       );
+      
+      // Regenerate HTML for Reject All (batch operation - acceptable delay)
+      if (originalHtml) {
+        // Use setTimeout to avoid blocking UI
+        setTimeout(() => {
+          let html = injectChangesWithStatus(originalHtml, updated);
+          if (signatureDataUrl) {
+            html = injectSignaturePreview(html, signatureDataUrl);
+          }
+          setDocumentHtml(html);
+        }, 0);
+      }
+      
       return updated;
     });
   };
