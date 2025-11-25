@@ -1,0 +1,8 @@
+Subject: How to Use the Document Viewer - A Simple Guide
+
+Hi [Name],
+
+After you upload your NDA document and start the redlining process, our system analyzes your document and suggests changes based on your rules. The document viewer shows your document on the right side with all formatting preserved, and a sidebar on the left listing all suggested changes. When you see a change in the document, a small box appears above it showing the old text (crossed out) and the new suggested text (underlined), along with "Accept" and "Reject" buttons. Simply click "Accept" to keep the change or "Reject" to keep the original text - the buttons disappear once you've made your decision, and you'll see a green checkmark for accepted changes or a red X for rejected ones. You can click any change in the sidebar to jump directly to that location, use "Accept All" or "Reject All" to speed things up, and watch your progress in the top bar. If you've uploaded a signature, you'll see it previewed in the document where it will appear in the final version. When you're ready, click "Finish & Download" at the top right to get your final document with all your accepted changes applied - you don't need to review every single change if you don't want to, you can download anytime.
+
+Best regards,
+[Your Name]

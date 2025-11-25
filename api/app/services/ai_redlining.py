@@ -122,7 +122,7 @@ class AIRedliningService:
                         {"role": "user", "content": user_prompt}
                     ],
                     temperature=0.1,  # Low temperature for consistent legal work
-                    max_tokens=2000  # Increased for more detailed responses
+                    max_tokens=4000  # Increased to handle multiple rules and complex modifications
                 )
                 logger.warning("OpenAI API call successful")
             except Exception as api_error:
@@ -702,17 +702,9 @@ class AIRedliningService:
                         f"{word} years".lower()
                     ])
                 
-                # Check if any target pattern already exists in document
-                doc_already_has_target = any(
-                    pattern in document_text.lower() 
-                    for pattern in target_patterns_in_doc
-                )
-                
-                if doc_already_has_target:
-                    logger.info(f"✅ Document already contains target duration '{target_years_text}' - skipping modification")
-                    continue  # Skip this rule, document already has the target
-                
                 # Look for various year patterns in the document and replace with target
+                # Note: We check for target patterns AFTER looking for patterns to replace,
+                # so we can still replace other year patterns even if target already exists
                 year_patterns = [
                     ('five (5) years', target_years_text),
                     ('5 years', target_years_simple),
@@ -735,9 +727,9 @@ class AIRedliningService:
                     if current_pattern in document_text.lower():
                         # Double-check: don't replace if it's already the target
                         if current_pattern.lower() == target_years_text.lower() or current_pattern.lower() == target_years_simple.lower():
-                            logger.info(f"⚠️ Pattern '{current_pattern}' already matches target '{target_years_text}' - skipping")
+                            logger.info(f"⚠️ Pattern '{current_pattern}' already matches target '{target_years_text}' - skipping this pattern")
                             found_pattern = True  # Mark as found but don't add modification
-                            break
+                            continue  # Skip this pattern but continue checking others
                         
                         mock_modifications.append({
                             "type": "TEXT_REPLACE",
@@ -749,7 +741,7 @@ class AIRedliningService:
                         })
                         logger.info(f"Found year pattern: {current_pattern} -> {new_pattern}")
                         found_pattern = True
-                        break
+                        # Don't break - continue to find all patterns that need changing
                 
                 if not found_pattern:
                     # If no specific patterns found, add a generic year modification
@@ -773,7 +765,104 @@ class AIRedliningService:
                     "location_hint": "After Section 8, Remedies"
                 })
             
-            elif 'firm' in rule_name or 'party' in rule_name or 'parties' in rule_name or 'name' in rule_name:
+            elif 'representatives' in rule_name or ('add' in rule_name and 'parties' in rule_name):
+                # Handle "Add parties" rule - expand Representatives definition
+                # Look for Representatives definition in the document
+                import re
+                representatives_patterns = [
+                    r'("Representatives"|Representatives).*?\)',
+                    r'collectively, "Representatives"',
+                    r'collectively, \'Representatives\'',
+                ]
+                
+                for pattern in representatives_patterns:
+                    matches = list(re.finditer(pattern, document_text, re.IGNORECASE | re.DOTALL))
+                    if matches:
+                        for match in matches:
+                            current_text = match.group(0)
+                            # Check if investors/financing sources are already mentioned
+                            if 'investors' not in current_text.lower() and 'potential financing sources' not in current_text.lower():
+                                # Find where to insert - typically before the closing parenthesis
+                                if current_text.endswith(')'):
+                                    # Insert before the closing paren
+                                    new_text = current_text[:-1] + ', investors, and potential financing sources)'
+                                else:
+                                    # Append to the end
+                                    new_text = current_text + ', investors, and potential financing sources'
+                                
+                                mock_modifications.append({
+                                    "type": "TEXT_REPLACE",
+                                    "section": "definitions",
+                                    "current_text": current_text,
+                                    "new_text": new_text,
+                                    "reason": rule_instruction,
+                                    "location_hint": "Representatives definition section"
+                                })
+                                logger.info(f"Found Representatives definition: '{current_text[:50]}...' -> '{new_text[:50]}...'")
+                                break
+                        if mock_modifications:  # If we added one, break outer loop
+                            break
+            
+            elif 'retention' in rule_name or 'carve' in rule_name or 'retain' in rule_name:
+                # Handle "Retention carve-out" rule - add clause allowing electronic copy retention
+                # Look for return/destroy sections where we can add the carve-out
+                retention_clause = 'Notwithstanding the foregoing, Recipient may retain an electronic copy of Confidential Information and notes if required under Recipient\'s document retention policy, provided that such retained materials remain subject to the confidentiality obligations set forth herein.'
+                
+                # Look for common return/destroy section patterns
+                return_section_patterns = [
+                    'return.*promptly',
+                    'destroy.*return',
+                    'return.*all.*material',
+                    'return.*evaluation.*material',
+                ]
+                
+                found_return_section = False
+                for pattern in return_section_patterns:
+                    matches = list(re.finditer(pattern, document_text, re.IGNORECASE))
+                    if matches:
+                        # Find the paragraph containing this text
+                        for match in matches:
+                            # Get surrounding context (the paragraph)
+                            start = max(0, match.start() - 200)
+                            end = min(len(document_text), match.end() + 200)
+                            context = document_text[start:end]
+                            
+                            # Check if retention clause already exists
+                            if 'retention policy' not in context.lower() and 'electronic copy' not in context.lower():
+                                # Find the end of the sentence/paragraph to insert after
+                                paragraph_end = document_text.find('.', match.end())
+                                if paragraph_end == -1:
+                                    paragraph_end = match.end() + 100
+                                
+                                # Insert the retention clause
+                                insertion_point = paragraph_end + 1
+                                current_text = document_text[insertion_point:insertion_point+50].strip()
+                                
+                                mock_modifications.append({
+                                    "type": "TEXT_INSERT",
+                                    "section": "return_of_materials",
+                                    "new_text": retention_clause,
+                                    "reason": rule_instruction,
+                                    "location_hint": "After return/destroy section"
+                                })
+                                logger.info(f"Added retention carve-out clause after return section")
+                                found_return_section = True
+                                break
+                        if found_return_section:
+                            break
+                
+                if not found_return_section:
+                    # If no return section found, add as a new clause
+                    mock_modifications.append({
+                        "type": "TEXT_INSERT",
+                        "section": "miscellaneous",
+                        "new_text": retention_clause,
+                        "reason": rule_instruction,
+                        "location_hint": "Before final clauses"
+                    })
+                    logger.info(f"Added retention carve-out clause as new insertion")
+            
+            elif 'firm' in rule_name or ('party' in rule_name and 'add' not in rule_name) or ('name' in rule_name and 'parties' not in rule_name):
                 # Get firm details or use defaults
                 firm_name = firm_details.get('firm_name', 'Sample Company LLC') if firm_details else 'Sample Company LLC'
                 signer_name = firm_details.get('signatory_name', 'Sample Signer') if firm_details else 'Sample Signer'
@@ -996,6 +1085,9 @@ class AIRedliningService:
         17. **FLEXIBLE DATE PATTERN RECOGNITION**: For date insertion rules, use pattern recognition, NOT exact text matching
         18. Recognize ANY date placeholder pattern (blanks, underscores, brackets, "[DATE]", etc.) and replace with today's date
         19. Be flexible with date patterns - "Month __, Year", "Month ___, Year", "[DATE]", "Date: _______" all should be recognized and replaced
+        20. **ADD PARTIES RULE**: When a rule asks to expand "Representatives" definition to include "investors" and "potential financing sources", find the Representatives definition (usually in quotes or parentheses) and add these terms to the list. Use TEXT_REPLACE to modify the existing definition.
+        21. **RETENTION CARVE-OUT RULE**: When a rule asks to add a retention carve-out allowing electronic copy retention, find the "return" or "destroy" section and add a new sentence or clause allowing retention for document retention policy purposes. Use TEXT_INSERT to add this clause.
+        22. **TERM CHANGE RULE**: When a rule asks to reduce term from X years to Y years, find ALL instances of the term duration in the Term/Duration section (not in other sections) and replace them. Extract the target years from the rule instruction.
         
         REDLINING PRINCIPLES:
         - Replace specific text with exact matches
@@ -1029,8 +1121,14 @@ class AIRedliningService:
         IMPORTANT: For signature blocks, always use TEXT_REPLACE to fill in existing placeholders. Never use TEXT_INSERT to create new signature fields."""
         
         if custom_rules:
-            rules_text = "\n\nCUSTOM RULES TO APPLY (follow these exactly):\n"
-            for rule in custom_rules:
+            rules_text = "\n\n" + "="*80 + "\n"
+            rules_text += "🚨 CRITICAL - CUSTOM RULES TO APPLY 🚨\n"
+            rules_text += "="*80 + "\n"
+            rules_text += "YOU MUST APPLY ALL OF THESE RULES. DO NOT SKIP ANY RULE.\n"
+            rules_text += "EACH RULE MUST RESULT IN AT LEAST ONE MODIFICATION.\n\n"
+            
+            for idx, rule in enumerate(custom_rules, 1):
+                rule_name = rule.get('name', 'Unnamed Rule')
                 instruction = rule['instruction']
                 
                 # CRITICAL: Replace any placeholders or hardcoded values in rules with actual firm details
@@ -1070,7 +1168,17 @@ class AIRedliningService:
                         logger.warning(f"  BEFORE: {original_instruction}")
                         logger.warning(f"  AFTER:  {instruction}")
                 
-                rules_text += f"- {instruction}\n"
+                rules_text += f"RULE {idx}: {rule_name}\n"
+                rules_text += f"  Instruction: {instruction}\n"
+                rules_text += f"  ⚠️  YOU MUST GENERATE AT LEAST ONE MODIFICATION FOR THIS RULE\n\n"
+            
+            rules_text += "="*80 + "\n"
+            rules_text += "REMINDER: You must apply ALL rules above. If a rule asks to:\n"
+            rules_text += "- Expand 'Representatives' definition → Find it and add the new parties\n"
+            rules_text += "- Add retention carve-out → Find return/destroy section and add the clause\n"
+            rules_text += "- Change term duration → Find ALL term references and change them\n"
+            rules_text += "- Replace company/name/title → Find the placeholders and replace them\n"
+            rules_text += "="*80 + "\n"
             base_prompt += rules_text
         
         if firm_details:
