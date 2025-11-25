@@ -131,7 +131,7 @@ class AIRedliningService:
                         {"role": "user", "content": user_prompt}
                     ],
                     temperature=0.1,  # Low temperature for consistent legal work
-                    max_tokens=8000  # Increased significantly to handle multiple rules and complex modifications without truncation
+                    max_tokens=4096  # Maximum for gpt-3.5-turbo - increased to handle multiple rules and complex modifications
                 )
                 logger.warning("OpenAI API call successful")
             except Exception as api_error:
@@ -1068,7 +1068,9 @@ class AIRedliningService:
         
         logger.info(f"Mock analysis complete. Generated {len(mock_modifications)} modifications:")
         for i, mod in enumerate(mock_modifications):
-            logger.info(f"  {i+1}. {mod['type']}: '{mod['current_text']}' -> '{mod['new_text']}'")
+            current = mod.get('current_text', 'N/A')
+            new = mod.get('new_text', 'N/A')
+            logger.info(f"  {i+1}. {mod.get('type', 'UNKNOWN')}: '{current[:50] if current else 'N/A'}...' -> '{new[:50] if new else 'N/A'}...'")
         
         return {
             'success': True,
