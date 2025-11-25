@@ -1237,7 +1237,9 @@ class AIRedliningService:
             rules_text += "   - **CRITICAL**: You MUST find and change the term duration\n"
             rules_text += "   - Search the ENTIRE document for sections about 'Term', 'Duration', 'Confidentiality Term', or numbered sections\n"
             rules_text += "   - Look for patterns like: 'This Agreement shall remain in effect', 'period of X years', 'for X years', 'X years from the date'\n"
-            rules_text += "   - Find ALL instances of the old duration (e.g., 'three years', 'three (3) years', '3 years', 'three (3) year')\n"
+            rules_text += "   - **SPECIAL CASE**: If you see '() years' or '( ) years' (empty parentheses), this is a placeholder that MUST be replaced\n"
+            rules_text += "     Example: 'period of () years' → 'period of two (2) years'\n"
+            rules_text += "   - Find ALL instances of the old duration (e.g., 'three years', 'three (3) years', '3 years', 'three (3) year', '() years')\n"
             rules_text += "   - Replace with the target duration from the rule (e.g., 'two (2) years')\n"
             rules_text += "   - **IMPORTANT**: Even if the term section is not in the preview, search for year patterns throughout the document\n"
             rules_text += "   - Use TEXT_REPLACE for each instance found\n"
@@ -1366,11 +1368,13 @@ DOCUMENT CONTENT:
 9. **CRITICAL**: Only replace placeholders, not actual content
 10. **CRITICAL - TERM CHANGE**: If a rule asks to change the term duration, you MUST search for year patterns throughout the document. Look for:
     - "three years", "three (3) years", "3 years"
-    - "This Agreement shall remain in effect for [X] years"
-    - "period of [X] years"
-    - "[X] years from the date"
+    - "() years" or "( ) years" (empty parentheses - this is a placeholder that MUST be filled)
+    - "This Agreement shall remain in effect for [X] years" or "period of () years"
+    - "period of [X] years" or "period of () years"
+    - "[X] years from the date" or "() years from the date"
     - Any numbered section that mentions duration or term
     - **Even if the term section is at the end of the document (shown in "[end of document]" section), you MUST find and change it**
+    - **SPECIAL**: If you see "period of () years", replace the entire phrase including "()" with the target duration
 
         COMMON PATTERNS TO LOOK FOR:
         - "five (5) years" (most common in legal documents)
@@ -1792,6 +1796,31 @@ Please provide your analysis in the specified JSON format."""
         # Try exact match first
         if search_text in paragraph_text:
             return search_text
+        
+        # Special handling for empty parentheses patterns like "() years"
+        # The document might have "()" or "( )" or other variations
+        if '()' in search_text:
+            # Try variations with spaces inside parentheses
+            variations_with_parens = [
+                search_text.replace('()', '( )'),  # Space inside: "( )"
+                search_text.replace('()', '(  )'),  # Double space: "(  )"
+                search_text.replace('()', '()'),  # Keep original
+            ]
+            for variation in variations_with_parens:
+                if variation in paragraph_text:
+                    logger.warning(f"    Found with parentheses variation: '{variation}'")
+                    return variation
+            
+            # Try pattern matching for empty parentheses: match () or ( ) or (  ) etc.
+            paren_pattern = search_text.replace('()', r'\(\s*\)')  # Match () with optional spaces
+            pattern = re.escape(search_text)
+            pattern = pattern.replace(r'\(\)', r'\(\s*\)')  # Allow spaces in empty parentheses
+            pattern = pattern.replace(r'\ ', r'\s+')  # Allow any whitespace where there was a space
+            
+            match = re.search(pattern, paragraph_text)
+            if match:
+                logger.warning(f"    Found with empty parentheses pattern matching: '{match.group(0)}'")
+                return match.group(0)
         
         # Try common whitespace variations
         variations = [
