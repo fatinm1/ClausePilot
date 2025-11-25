@@ -75,18 +75,23 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     }
   }, [signatureFile]);
   
-  // Regenerate document HTML when changes status updates
+  // Regenerate document HTML when changes status updates (debounced for performance)
   useEffect(() => {
     if (originalHtml && changes.length > 0) {
-      // Regenerate HTML with current changes status
-      let html = injectChangesWithStatus(originalHtml, changes);
+      // Use requestAnimationFrame to defer heavy HTML regeneration
+      const timeoutId = setTimeout(() => {
+        // Regenerate HTML with current changes status
+        let html = injectChangesWithStatus(originalHtml, changes);
+        
+        // Inject signature if available
+        if (signatureDataUrl) {
+          html = injectSignaturePreview(html, signatureDataUrl);
+        }
+        
+        setDocumentHtml(html);
+      }, 50); // Small delay to batch rapid updates
       
-      // Inject signature if available
-      if (signatureDataUrl) {
-        html = injectSignaturePreview(html, signatureDataUrl);
-      }
-      
-      setDocumentHtml(html);
+      return () => clearTimeout(timeoutId);
     }
   }, [changes, originalHtml, signatureDataUrl]);
 
@@ -381,18 +386,75 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   const handleAccept = (changeId: string) => {
     // Update React state - this will trigger useEffect to regenerate HTML
     setChanges((prevChanges) => {
-      return prevChanges.map((c) => 
+      const updated = prevChanges.map((c) => 
         c.id === changeId ? { ...c, status: 'accepted' as const } : c
       );
+      
+      // Immediate DOM update for instant feedback (non-blocking)
+      requestAnimationFrame(() => {
+        const container = document.querySelector(`.change-container[data-change-id="${changeId}"]`) as HTMLElement;
+        if (container) {
+          const oldTextSpan = container.querySelector('.old-text') as HTMLElement;
+          const newTextSpan = container.querySelector('.new-text') as HTMLElement;
+          const actionsSpan = container.querySelector('.change-actions') as HTMLElement;
+          
+          if (oldTextSpan) oldTextSpan.style.display = 'none';
+          if (newTextSpan) {
+            newTextSpan.style.textDecoration = 'none';
+            newTextSpan.style.color = '#000000';
+            newTextSpan.style.fontWeight = 'normal';
+          }
+          if (actionsSpan) actionsSpan.style.display = 'none';
+          
+          // Add accepted status badge
+          if (!container.querySelector('.docu-status--accepted')) {
+            const statusSpan = document.createElement('span');
+            statusSpan.className = 'docu-status docu-status--accepted';
+            statusSpan.textContent = '✓ Accepted';
+            container.appendChild(statusSpan);
+            container.classList.add('docu-tag-complete');
+          }
+        }
+      });
+      
+      return updated;
     });
   };
 
   const handleReject = (changeId: string) => {
     // Update React state - this will trigger useEffect to regenerate HTML
     setChanges((prevChanges) => {
-      return prevChanges.map((c) => 
+      const updated = prevChanges.map((c) => 
         c.id === changeId ? { ...c, status: 'rejected' as const } : c
       );
+      
+      // Immediate DOM update for instant feedback (non-blocking)
+      requestAnimationFrame(() => {
+        const container = document.querySelector(`.change-container[data-change-id="${changeId}"]`) as HTMLElement;
+        if (container) {
+          const oldTextSpan = container.querySelector('.old-text') as HTMLElement;
+          const newTextSpan = container.querySelector('.new-text') as HTMLElement;
+          const actionsSpan = container.querySelector('.change-actions') as HTMLElement;
+          
+          if (newTextSpan) newTextSpan.style.display = 'none';
+          if (oldTextSpan) {
+            oldTextSpan.style.textDecoration = 'none';
+            oldTextSpan.style.color = '#000000';
+          }
+          if (actionsSpan) actionsSpan.style.display = 'none';
+          
+          // Add rejected status badge
+          if (!container.querySelector('.docu-status--rejected')) {
+            const statusSpan = document.createElement('span');
+            statusSpan.className = 'docu-status docu-status--rejected';
+            statusSpan.textContent = '✗ Rejected';
+            container.appendChild(statusSpan);
+            container.classList.add('docu-tag-rejected');
+          }
+        }
+      });
+      
+      return updated;
     });
   };
 
