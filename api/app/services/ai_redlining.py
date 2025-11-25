@@ -206,6 +206,13 @@ class AIRedliningService:
                         continue
                 
                 # Check if this modification is trying to replace "Company" in an invalid context
+                # SKIP validation for TEXT_INSERT - these are adding new clauses, not replacing Company
+                mod_type = mod.get('type', '')
+                if mod_type == 'TEXT_INSERT':
+                    # TEXT_INSERT modifications are adding new text, not replacing Company
+                    # Allow them (they might be retention carve-outs or other valid clauses)
+                    continue
+                
                 if 'Company' in current_text:
                     # These are INVALID contexts where Company should NEVER be replaced
                     invalid_contexts = [
@@ -1212,11 +1219,14 @@ class AIRedliningService:
             rules_text += "   - **DO NOT SKIP THIS** - if the rule asks for it, you MUST generate a modification\n"
             rules_text += "   - If you can't find 'Representatives', search for 'representatives' (lowercase) or 'REPRESENTATIVES' (uppercase)\n\n"
             rules_text += "2. RETENTION CARVE-OUT:\n"
-            rules_text += "   - Search for sections about 'return', 'destroy', 'destroy or return', or 'return of Evaluation Material'\n"
-            rules_text += "   - Find the paragraph that requires returning/destroying Confidential Information\n"
-            rules_text += "   - Add a new sentence AFTER that paragraph allowing electronic copy retention\n"
+            rules_text += "   - **CRITICAL**: Search for sections about 'return', 'destroy', 'destroy or return', 'return of Evaluation Material', or 'Return of Evaluation Material'\n"
+            rules_text += "   - Find the paragraph or section that requires returning/destroying Confidential Information\n"
+            rules_text += "   - Look for sentences like: 'you will destroy or return promptly', 'return all written material', 'destroy or return'\n"
+            rules_text += "   - Add a new sentence AFTER that paragraph/section allowing electronic copy retention\n"
+            rules_text += "   - **DO NOT** add it in sections about contacting Company employees or other unrelated topics\n"
             rules_text += "   - Example text: 'Notwithstanding the foregoing, Recipient may retain an electronic copy of Confidential Information and notes if required under Recipient's document retention policy, provided that such retained materials remain subject to the confidentiality obligations set forth herein.'\n"
-            rules_text += "   - Use TEXT_INSERT to add this clause\n\n"
+            rules_text += "   - Use TEXT_INSERT to add this clause\n"
+            rules_text += "   - **IMPORTANT**: The current_text for TEXT_INSERT can be empty or the sentence before where you want to insert\n\n"
             rules_text += "3. TERM CHANGE:\n"
             rules_text += "   - Search for numbered sections about 'Term' or 'Duration'\n"
             rules_text += "   - Find ALL instances of the old duration (e.g., 'three years', 'three (3) years', '3 years')\n"
