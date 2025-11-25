@@ -368,37 +368,39 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   };
 
   const handleAccept = (changeId: string) => {
-    // Update React state - this will trigger useEffect to regenerate HTML
+    // Update React state
     setChanges((prevChanges) => {
       const updated = prevChanges.map((c) => 
         c.id === changeId ? { ...c, status: 'accepted' as const } : c
       );
       
-      // Immediate DOM update for instant feedback (non-blocking)
-      requestAnimationFrame(() => {
-        const container = document.querySelector(`.change-container[data-change-id="${changeId}"]`) as HTMLElement;
-        if (container) {
-          const oldTextSpan = container.querySelector('.old-text') as HTMLElement;
-          const newTextSpan = container.querySelector('.new-text') as HTMLElement;
-          const actionsSpan = container.querySelector('.change-actions') as HTMLElement;
-          
-          if (oldTextSpan) oldTextSpan.style.display = 'none';
-          if (newTextSpan) {
-            newTextSpan.style.textDecoration = 'none';
-            newTextSpan.style.color = '#000000';
-            newTextSpan.style.fontWeight = 'normal';
-          }
-          if (actionsSpan) actionsSpan.style.display = 'none';
-          
-          // Add accepted status badge
-          if (!container.querySelector('.docu-status--accepted')) {
-            const statusSpan = document.createElement('span');
-            statusSpan.className = 'docu-status docu-status--accepted';
-            statusSpan.textContent = '✓ Accepted';
-            container.appendChild(statusSpan);
-            container.classList.add('docu-tag-complete');
+      // Update documentHtml state to reflect the change (prevents React from overwriting DOM)
+      setDocumentHtml((prevHtml) => {
+        // Find the change container in the HTML string
+        const containerRegex = new RegExp(
+          `(<span class="change-container"[^>]*data-change-id="${changeId}"[^>]*>)(.*?)(</span>)`,
+          'is'
+        );
+        
+        const match = prevHtml.match(containerRegex);
+        if (match) {
+          const change = updated.find(c => c.id === changeId);
+          if (change) {
+            const newTextEscaped = change.new_text
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
+            
+            const replacement = `<span class="change-container docu-tag-complete" data-change-id="${changeId}">` +
+              `<span class="new-text" style="color: #000000; font-weight: normal;">${newTextEscaped}</span>` +
+              `<span class="docu-status docu-status--accepted">✓ Accepted</span>` +
+              `</span>`;
+            
+            return prevHtml.replace(containerRegex, replacement);
           }
         }
+        return prevHtml;
       });
       
       return updated;
@@ -406,36 +408,39 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   };
 
   const handleReject = (changeId: string) => {
-    // Update React state - this will trigger useEffect to regenerate HTML
+    // Update React state
     setChanges((prevChanges) => {
       const updated = prevChanges.map((c) => 
         c.id === changeId ? { ...c, status: 'rejected' as const } : c
       );
       
-      // Immediate DOM update for instant feedback (non-blocking)
-      requestAnimationFrame(() => {
-        const container = document.querySelector(`.change-container[data-change-id="${changeId}"]`) as HTMLElement;
-        if (container) {
-          const oldTextSpan = container.querySelector('.old-text') as HTMLElement;
-          const newTextSpan = container.querySelector('.new-text') as HTMLElement;
-          const actionsSpan = container.querySelector('.change-actions') as HTMLElement;
-          
-          if (newTextSpan) newTextSpan.style.display = 'none';
-          if (oldTextSpan) {
-            oldTextSpan.style.textDecoration = 'none';
-            oldTextSpan.style.color = '#000000';
-          }
-          if (actionsSpan) actionsSpan.style.display = 'none';
-          
-          // Add rejected status badge
-          if (!container.querySelector('.docu-status--rejected')) {
-            const statusSpan = document.createElement('span');
-            statusSpan.className = 'docu-status docu-status--rejected';
-            statusSpan.textContent = '✗ Rejected';
-            container.appendChild(statusSpan);
-            container.classList.add('docu-tag-rejected');
+      // Update documentHtml state to reflect the change (prevents React from overwriting DOM)
+      setDocumentHtml((prevHtml) => {
+        // Find the change container in the HTML string
+        const containerRegex = new RegExp(
+          `(<span class="change-container"[^>]*data-change-id="${changeId}"[^>]*>)(.*?)(</span>)`,
+          'is'
+        );
+        
+        const match = prevHtml.match(containerRegex);
+        if (match) {
+          const change = updated.find(c => c.id === changeId);
+          if (change) {
+            const oldTextEscaped = change.current_text
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
+            
+            const replacement = `<span class="change-container docu-tag-rejected" data-change-id="${changeId}">` +
+              `<span class="old-text" style="color: #000000;">${oldTextEscaped}</span>` +
+              `<span class="docu-status docu-status--rejected">✗ Rejected</span>` +
+              `</span>`;
+            
+            return prevHtml.replace(containerRegex, replacement);
           }
         }
+        return prevHtml;
       });
       
       return updated;
