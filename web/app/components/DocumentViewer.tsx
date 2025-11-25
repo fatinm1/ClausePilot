@@ -376,29 +376,54 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       
       // Update documentHtml state to reflect the change (prevents React from overwriting DOM)
       setDocumentHtml((prevHtml) => {
-        // Find the change container in the HTML string
-        const containerRegex = new RegExp(
-          `(<span class="change-container"[^>]*data-change-id="${changeId}"[^>]*>)(.*?)(</span>)`,
-          'is'
-        );
+        // Find the change container - match from opening tag to matching closing tag
+        // This regex handles nested spans properly
+        const containerStart = prevHtml.indexOf(`data-change-id="${changeId}"`);
+        if (containerStart === -1) return prevHtml;
         
-        const match = prevHtml.match(containerRegex);
-        if (match) {
-          const change = updated.find(c => c.id === changeId);
-          if (change) {
-            const newTextEscaped = change.new_text
-              .replace(/&/g, '&amp;')
-              .replace(/</g, '&lt;')
-              .replace(/>/g, '&gt;')
-              .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
-            
-            const replacement = `<span class="change-container docu-tag-complete" data-change-id="${changeId}">` +
-              `<span class="new-text" style="color: #000000; font-weight: normal;">${newTextEscaped}</span>` +
-              `<span class="docu-status docu-status--accepted">✓ Accepted</span>` +
-              `</span>`;
-            
-            return prevHtml.replace(containerRegex, replacement);
+        // Find the opening <span> tag
+        let tagStart = prevHtml.lastIndexOf('<span', containerStart);
+        if (tagStart === -1) return prevHtml;
+        
+        // Find the matching closing </span> tag (accounting for nested spans)
+        let depth = 0;
+        let pos = tagStart;
+        let inTag = false;
+        let tagEnd = -1;
+        
+        while (pos < prevHtml.length) {
+          if (prevHtml.substr(pos, 4) === '<span') {
+            depth++;
+            inTag = true;
+            pos += 5;
+          } else if (prevHtml.substr(pos, 6) === '</span>') {
+            depth--;
+            if (depth === 0) {
+              tagEnd = pos + 7; // Include the closing tag
+              break;
+            }
+            pos += 7;
+          } else {
+            pos++;
           }
+        }
+        
+        if (tagEnd === -1) return prevHtml;
+        
+        const change = updated.find(c => c.id === changeId);
+        if (change) {
+          const newTextEscaped = change.new_text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
+          
+          const replacement = `<span class="change-container docu-tag-complete" data-change-id="${changeId}">` +
+            `<span class="new-text" style="color: #000000; font-weight: normal;">${newTextEscaped}</span>` +
+            `<span class="docu-status docu-status--accepted">✓ Accepted</span>` +
+            `</span>`;
+          
+          return prevHtml.substring(0, tagStart) + replacement + prevHtml.substring(tagEnd);
         }
         return prevHtml;
       });
@@ -416,29 +441,52 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       
       // Update documentHtml state to reflect the change (prevents React from overwriting DOM)
       setDocumentHtml((prevHtml) => {
-        // Find the change container in the HTML string
-        const containerRegex = new RegExp(
-          `(<span class="change-container"[^>]*data-change-id="${changeId}"[^>]*>)(.*?)(</span>)`,
-          'is'
-        );
+        // Find the change container - match from opening tag to matching closing tag
+        // This regex handles nested spans properly
+        const containerStart = prevHtml.indexOf(`data-change-id="${changeId}"`);
+        if (containerStart === -1) return prevHtml;
         
-        const match = prevHtml.match(containerRegex);
-        if (match) {
-          const change = updated.find(c => c.id === changeId);
-          if (change) {
-            const oldTextEscaped = change.current_text
-              .replace(/&/g, '&amp;')
-              .replace(/</g, '&lt;')
-              .replace(/>/g, '&gt;')
-              .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
-            
-            const replacement = `<span class="change-container docu-tag-rejected" data-change-id="${changeId}">` +
-              `<span class="old-text" style="color: #000000;">${oldTextEscaped}</span>` +
-              `<span class="docu-status docu-status--rejected">✗ Rejected</span>` +
-              `</span>`;
-            
-            return prevHtml.replace(containerRegex, replacement);
+        // Find the opening <span> tag
+        let tagStart = prevHtml.lastIndexOf('<span', containerStart);
+        if (tagStart === -1) return prevHtml;
+        
+        // Find the matching closing </span> tag (accounting for nested spans)
+        let depth = 0;
+        let pos = tagStart;
+        let tagEnd = -1;
+        
+        while (pos < prevHtml.length) {
+          if (prevHtml.substr(pos, 4) === '<span') {
+            depth++;
+            pos += 5;
+          } else if (prevHtml.substr(pos, 6) === '</span>') {
+            depth--;
+            if (depth === 0) {
+              tagEnd = pos + 7; // Include the closing tag
+              break;
+            }
+            pos += 7;
+          } else {
+            pos++;
           }
+        }
+        
+        if (tagEnd === -1) return prevHtml;
+        
+        const change = updated.find(c => c.id === changeId);
+        if (change) {
+          const oldTextEscaped = change.current_text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
+          
+          const replacement = `<span class="change-container docu-tag-rejected" data-change-id="${changeId}">` +
+            `<span class="old-text" style="color: #000000;">${oldTextEscaped}</span>` +
+            `<span class="docu-status docu-status--rejected">✗ Rejected</span>` +
+            `</span>`;
+          
+          return prevHtml.substring(0, tagStart) + replacement + prevHtml.substring(tagEnd);
         }
         return prevHtml;
       });
