@@ -110,6 +110,15 @@ class AIRedliningService:
             
             # Prepare the prompt for GPT-4
             logger.info("Using REAL OpenAI API for analysis")
+            
+            # Log all rules being sent to AI
+            logger.warning("="*80)
+            logger.warning("RULES BEING SENT TO AI:")
+            for idx, rule in enumerate(custom_rules, 1):
+                logger.warning(f"  Rule {idx}: {rule.get('name', 'Unnamed')}")
+                logger.warning(f"    Instruction: {rule.get('instruction', 'No instruction')}")
+            logger.warning("="*80)
+            
             system_prompt = self._build_system_prompt(custom_rules, firm_details)
             user_prompt = self._build_user_prompt(document_text, custom_rules, firm_details)
             
@@ -140,6 +149,19 @@ class AIRedliningService:
             logger.info(f"AI Response length: {len(ai_response)} characters")
             modifications = self._parse_ai_response(ai_response)
             logger.info(f"Parsed modifications: {len(modifications)}")
+            
+            # Validate that all rules resulted in modifications
+            if custom_rules and len(custom_rules) > len(modifications):
+                logger.warning("="*80)
+                logger.warning(f"⚠️  WARNING: Only {len(modifications)} modifications for {len(custom_rules)} rules!")
+                logger.warning("Expected at least one modification per rule.")
+                logger.warning("Rules sent:")
+                for idx, rule in enumerate(custom_rules, 1):
+                    logger.warning(f"  {idx}. {rule.get('name', 'Unnamed')}: {rule.get('instruction', '')[:100]}")
+                logger.warning("Modifications received:")
+                for idx, mod in enumerate(modifications, 1):
+                    logger.warning(f"  {idx}. {mod.get('type')} - {mod.get('reason', 'No reason')[:100]}")
+                logger.warning("="*80)
             
             # Post-process: Ensure firm details are used correctly
             logger.warning(f"POST-PROCESSING: Checking {len(modifications)} modifications for hardcoded values")
@@ -1173,11 +1195,36 @@ class AIRedliningService:
                 rules_text += f"  ⚠️  YOU MUST GENERATE AT LEAST ONE MODIFICATION FOR THIS RULE\n\n"
             
             rules_text += "="*80 + "\n"
-            rules_text += "REMINDER: You must apply ALL rules above. If a rule asks to:\n"
-            rules_text += "- Expand 'Representatives' definition → Find it and add the new parties\n"
-            rules_text += "- Add retention carve-out → Find return/destroy section and add the clause\n"
-            rules_text += "- Change term duration → Find ALL term references and change them\n"
-            rules_text += "- Replace company/name/title → Find the placeholders and replace them\n"
+            rules_text += "CRITICAL REMINDER: You must apply ALL rules above. Each rule type requires:\n\n"
+            rules_text += "1. EXPAND REPRESENTATIVES / ADD PARTIES:\n"
+            rules_text += "   - Search for the word 'Representatives' in the document\n"
+            rules_text += "   - Find the definition (usually in quotes like 'Representatives' or in parentheses)\n"
+            rules_text += "   - Look for patterns like: 'collectively, \"Representatives\"' or '(collectively, \"Representatives\")'\n"
+            rules_text += "   - Add ', investors, and potential financing sources' (or similar wording from the rule) to the definition\n"
+            rules_text += "   - Example: 'collectively, \"Representatives\"' → 'collectively, \"Representatives\", investors, and potential financing sources'\n"
+            rules_text += "   - Use TEXT_REPLACE to modify the existing definition\n\n"
+            rules_text += "2. RETENTION CARVE-OUT:\n"
+            rules_text += "   - Search for sections about 'return', 'destroy', 'destroy or return', or 'return of Evaluation Material'\n"
+            rules_text += "   - Find the paragraph that requires returning/destroying Confidential Information\n"
+            rules_text += "   - Add a new sentence AFTER that paragraph allowing electronic copy retention\n"
+            rules_text += "   - Example text: 'Notwithstanding the foregoing, Recipient may retain an electronic copy of Confidential Information and notes if required under Recipient's document retention policy, provided that such retained materials remain subject to the confidentiality obligations set forth herein.'\n"
+            rules_text += "   - Use TEXT_INSERT to add this clause\n\n"
+            rules_text += "3. TERM CHANGE:\n"
+            rules_text += "   - Search for numbered sections about 'Term' or 'Duration'\n"
+            rules_text += "   - Find ALL instances of the old duration (e.g., 'three years', 'three (3) years', '3 years')\n"
+            rules_text += "   - Replace with the target duration from the rule (e.g., 'two (2) years')\n"
+            rules_text += "   - ONLY change durations in the Term section, NOT in other sections\n"
+            rules_text += "   - Use TEXT_REPLACE for each instance found\n\n"
+            rules_text += "4. REPLACE COMPANY/NAME/TITLE:\n"
+            rules_text += "   - Find placeholders like 'For: Company', 'By:', 'Title:', 'Dear NAME:'\n"
+            rules_text += "   - Replace with actual values from firm details\n"
+            rules_text += "   - Use TEXT_REPLACE\n\n"
+            rules_text += "="*80 + "\n"
+            rules_text += "⚠️  FINAL CHECK: Before returning your response, verify that:\n"
+            rules_text += "   - You have generated AT LEAST ONE modification for EACH rule listed above\n"
+            rules_text += "   - If a rule asks to expand Representatives, you MUST have a TEXT_REPLACE modification\n"
+            rules_text += "   - If a rule asks for retention carve-out, you MUST have a TEXT_INSERT modification\n"
+            rules_text += "   - If a rule asks to change term, you MUST have at least one TEXT_REPLACE modification\n"
             rules_text += "="*80 + "\n"
             base_prompt += rules_text
         
