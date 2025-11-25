@@ -131,7 +131,7 @@ class AIRedliningService:
                         {"role": "user", "content": user_prompt}
                     ],
                     temperature=0.1,  # Low temperature for consistent legal work
-                    max_tokens=4000  # Increased to handle multiple rules and complex modifications
+                    max_tokens=8000  # Increased significantly to handle multiple rules and complex modifications without truncation
                 )
                 logger.warning("OpenAI API call successful")
             except Exception as api_error:
@@ -1457,7 +1457,30 @@ Please provide your analysis in the specified JSON format."""
                 
         except json.JSONDecodeError as e:
             logger.error(f"JSON parsing error: {str(e)}")
-            logger.error(f"JSON string that failed to parse: {json_str[:500] if 'json_str' in locals() else 'N/A'}")
+            json_str_local = json_str if 'json_str' in locals() else ''
+            logger.error(f"JSON string that failed to parse: {json_str_local[:1000]}")
+            # Check if response was truncated
+            if json_str_local and not json_str_local.strip().endswith('}') and not json_str_local.strip().endswith(']'):
+                logger.error("⚠️  Response appears to be truncated! The AI response was cut off.")
+                logger.error(f"Response length: {len(json_str_local)} characters")
+                logger.error(f"Last 200 chars: {json_str_local[-200:]}")
+                # Try to extract what we can from the partial JSON
+                try:
+                    # Try to find the last complete modification
+                    import re
+                    # Find all complete modification objects (more flexible pattern)
+                    mod_pattern = r'\{\s*"type":\s*"[^"]+",\s*"section":\s*"[^"]+",\s*"current_text":\s*"(?:[^"\\]|\\.)*",\s*"new_text":\s*"(?:[^"\\]|\\.)*",\s*"reason":\s*"(?:[^"\\]|\\.)*",\s*"location_hint":\s*"(?:[^"\\]|\\.)*"\s*\}'
+                    matches = re.findall(mod_pattern, json_str_local, re.DOTALL)
+                    if matches:
+                        logger.warning(f"Found {len(matches)} complete modifications in truncated response")
+                        # Reconstruct a valid JSON
+                        fixed_json = '{"modifications": [' + ','.join(matches) + ']}'
+                        parsed = json.loads(fixed_json)
+                        modifications = parsed.get('modifications', [])
+                        logger.warning(f"Successfully extracted {len(modifications)} modifications from truncated response")
+                        return modifications
+                except Exception as fix_error:
+                    logger.error(f"Failed to fix truncated JSON: {fix_error}")
             return []
         except Exception as e:
             logger.error(f"Error parsing AI response: {str(e)}")
