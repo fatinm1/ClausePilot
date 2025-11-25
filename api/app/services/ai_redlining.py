@@ -131,7 +131,7 @@ class AIRedliningService:
                         {"role": "user", "content": user_prompt}
                     ],
                     temperature=0.1,  # Low temperature for consistent legal work
-                    max_tokens=8000  # GPT-4 supports up to 8192 tokens - increased to handle multiple rules and complex modifications
+                    max_tokens=3000  # Reduced to fit within GPT-4's 8192 token limit (prompt ~5000 tokens + response 3000 = 8000 total)
                 )
                 logger.warning("OpenAI API call successful")
             except Exception as api_error:
@@ -1291,8 +1291,9 @@ class AIRedliningService:
     
     def _build_user_prompt(self, document_text: str, custom_rules: List[Dict[str, Any]], firm_details: Dict[str, Any] = None) -> str:
         """Build the user prompt with document content"""
-        # Use more of the document text for better analysis
-        text_limit = 4000  # Increased from 2000
+        # Limit document text to fit within token budget (GPT-4 has 8192 total, we need room for prompt + response)
+        # Using ~2500 chars (~625 tokens) for document preview to leave room for system prompt and response
+        text_limit = 2500
         document_preview = document_text[:text_limit]
         
         # Check if document contains "Representatives" and log it
