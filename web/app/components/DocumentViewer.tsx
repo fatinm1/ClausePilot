@@ -402,8 +402,10 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     
     setActiveChangeId(changeId);
     node.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    node.classList.add('docu-highlight');
+    node.classList.add('active', 'docu-highlight');
     setTimeout(() => node.classList.remove('docu-highlight'), 1500);
+    // Remove active class after a delay
+    setTimeout(() => node.classList.remove('active'), 3000);
   };
   
   const injectChangesWithStatus = (html: string, changesList: Change[]): string => {
@@ -456,7 +458,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
             .replace(/>/g, '&gt;')
             .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
           replacement = `<span class="change-container docu-tag-complete" data-change-id="${change.id}">` +
-            `<span style="color: #000000; font-weight: normal;">${newTextEscaped}</span>` +
+            `<span class="new-text" style="color: #000000; font-weight: normal;">${newTextEscaped}</span>` +
             `<span class="docu-status docu-status--accepted">✓ Accepted</span>` +
             `</span>`;
         } else {
@@ -467,7 +469,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
             .replace(/>/g, '&gt;')
             .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
           replacement = `<span class="change-container docu-tag-rejected" data-change-id="${change.id}">` +
-            `<span style="color: #000000;">${oldTextEscaped}</span>` +
+            `<span class="old-text" style="color: #000000;">${oldTextEscaped}</span>` +
             `<span class="docu-status docu-status--rejected">✗ Rejected</span>` +
             `</span>`;
         }
@@ -529,7 +531,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         const replacement = `<span class="change-container" data-change-id="${change.id}">` +
           `<span class="old-text" style="text-decoration: line-through; color: #000000;">${matchedText}</span>` +
           `<span class="new-text" style="text-decoration: underline; color: #DC2626; font-weight: 600;">${newTextEscaped}</span>` +
-          acceptBtn + rejectBtn +
+          `<span class="change-actions">${acceptBtn}${rejectBtn}</span>` +
           `</span>`;
         
         modifiedHtml = modifiedHtml.replace(matchedText, replacement);
@@ -672,75 +674,101 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         }
         .document-content .change-container {
           position: relative;
-          display: inline-flex;
-          flex-direction: column;
-          gap: 6px;
-          background: #EEF2FF;
-          padding: 10px 12px;
-          border-radius: 12px;
-          border: 2px solid #4338CA;
-          box-shadow: 0 8px 20px rgba(67, 56, 202, 0.15);
-          margin: 4px 0;
-          min-width: 180px;
-        }
-        .document-content .change-container::after {
-          content: '';
-          position: absolute;
-          left: 24px;
-          bottom: -10px;
-          width: 14px;
-          height: 14px;
-          background: #EEF2FF;
-          border-left: 2px solid #4338CA;
-          border-bottom: 2px solid #4338CA;
-          transform: rotate(45deg);
+          display: inline;
+          background: transparent;
+          padding: 0;
+          margin: 0;
         }
         .document-content .change-container .old-text {
           color: #1F2937 !important;
           text-decoration: line-through;
-          font-size: 12px;
+          background: rgba(239, 68, 68, 0.1);
+          padding: 2px 4px;
+          border-radius: 3px;
         }
         .document-content .change-container .new-text {
           color: #111827 !important;
           text-decoration: underline;
           font-weight: 600;
+          background: rgba(22, 163, 74, 0.1);
+          padding: 2px 4px;
+          border-radius: 3px;
         }
-        .document-content .change-container.docu-tag-complete {
-          background: #ECFDF5;
-          border-color: #16A34A;
+        .document-content .change-container .change-actions {
+          position: absolute;
+          top: -50px;
+          left: 50%;
+          transform: translateX(-50%);
+          display: flex;
+          gap: 6px;
+          background: white;
+          padding: 6px;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+          border: 1px solid #E5E7EB;
+          z-index: 1000;
+          white-space: nowrap;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.2s ease, transform 0.2s ease;
         }
-        .document-content .change-container.docu-tag-complete::after {
-          background: #ECFDF5;
-          border-color: #16A34A;
+        .document-content .change-container:hover .change-actions,
+        .document-content .change-container.active .change-actions {
+          opacity: 1;
+          pointer-events: all;
+          transform: translateX(-50%) translateY(-4px);
         }
-        .document-content .change-container.docu-tag-rejected {
-          background: #FEF2F2;
-          border-color: #EF4444;
-        }
-        .document-content .change-container.docu-tag-rejected::after {
-          background: #FEF2F2;
-          border-color: #EF4444;
+        .document-content .change-container .change-actions::after {
+          content: '';
+          position: absolute;
+          bottom: -6px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 0;
+          height: 0;
+          border-left: 6px solid transparent;
+          border-right: 6px solid transparent;
+          border-top: 6px solid white;
         }
         .document-content button[data-action] {
-          display: block !important;
-          width: 100% !important;
-          padding: 6px 0 !important;
+          padding: 6px 12px !important;
           font-size: 12px !important;
           font-weight: 600 !important;
-          border-radius: 8px !important;
+          border-radius: 6px !important;
           border: none !important;
           cursor: pointer !important;
-          transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+          transition: all 0.2s ease !important;
+          white-space: nowrap;
         }
         .document-content button[data-action="accept"] {
           background: #16A34A !important;
           color: #fff !important;
-          box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25) !important;
+        }
+        .document-content button[data-action="accept"]:hover {
+          background: #15803D !important;
+          transform: scale(1.05);
         }
         .document-content button[data-action="reject"] {
           background: #EF4444 !important;
           color: #fff !important;
-          box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25) !important;
+        }
+        .document-content button[data-action="reject"]:hover {
+          background: #DC2626 !important;
+          transform: scale(1.05);
+        }
+        .document-content .change-container.docu-tag-complete .old-text {
+          display: none;
+        }
+        .document-content .change-container.docu-tag-complete .new-text {
+          background: rgba(22, 163, 74, 0.15);
+          text-decoration: none;
+        }
+        .document-content .change-container.docu-tag-rejected .new-text {
+          display: none;
+        }
+        .document-content .change-container.docu-tag-rejected .old-text {
+          background: rgba(239, 68, 68, 0.15);
+          text-decoration: none;
         }
         .document-content .docu-highlight {
           outline: 3px solid #F59E0B;
