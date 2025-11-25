@@ -1197,12 +1197,20 @@ class AIRedliningService:
             rules_text += "="*80 + "\n"
             rules_text += "CRITICAL REMINDER: You must apply ALL rules above. Each rule type requires:\n\n"
             rules_text += "1. EXPAND REPRESENTATIVES / ADD PARTIES:\n"
-            rules_text += "   - Search for the word 'Representatives' in the document\n"
-            rules_text += "   - Find the definition (usually in quotes like 'Representatives' or in parentheses)\n"
-            rules_text += "   - Look for patterns like: 'collectively, \"Representatives\"' or '(collectively, \"Representatives\")'\n"
-            rules_text += "   - Add ', investors, and potential financing sources' (or similar wording from the rule) to the definition\n"
+            rules_text += "   - **CRITICAL**: If a rule asks to expand 'Representatives' definition, you MUST find it and modify it\n"
+            rules_text += "   - Search for the word 'Representatives' (case-insensitive) in the document\n"
+            rules_text += "   - The definition might appear as:\n"
+            rules_text += "     * 'collectively, \"Representatives\"'\n"
+            rules_text += "     * '(collectively, \"Representatives\")'\n"
+            rules_text += "     * 'collectively, \'Representatives\''\n"
+            rules_text += "     * 'Representatives' (in quotes or parentheses)\n"
+            rules_text += "   - Find the COMPLETE definition text that includes 'Representatives'\n"
+            rules_text += "   - Add the new parties to the end of the list (before the closing quote/parenthesis)\n"
             rules_text += "   - Example: 'collectively, \"Representatives\"' → 'collectively, \"Representatives\", investors, and potential financing sources'\n"
-            rules_text += "   - Use TEXT_REPLACE to modify the existing definition\n\n"
+            rules_text += "   - Example: '(collectively, \"Representatives\")' → '(collectively, \"Representatives\", investors, and potential financing sources)'\n"
+            rules_text += "   - **YOU MUST USE TEXT_REPLACE** to modify the existing definition\n"
+            rules_text += "   - **DO NOT SKIP THIS** - if the rule asks for it, you MUST generate a modification\n"
+            rules_text += "   - If you can't find 'Representatives', search for 'representatives' (lowercase) or 'REPRESENTATIVES' (uppercase)\n\n"
             rules_text += "2. RETENTION CARVE-OUT:\n"
             rules_text += "   - Search for sections about 'return', 'destroy', 'destroy or return', or 'return of Evaluation Material'\n"
             rules_text += "   - Find the paragraph that requires returning/destroying Confidential Information\n"
@@ -1222,9 +1230,14 @@ class AIRedliningService:
             rules_text += "="*80 + "\n"
             rules_text += "⚠️  FINAL CHECK: Before returning your response, verify that:\n"
             rules_text += "   - You have generated AT LEAST ONE modification for EACH rule listed above\n"
-            rules_text += "   - If a rule asks to expand Representatives, you MUST have a TEXT_REPLACE modification\n"
-            rules_text += "   - If a rule asks for retention carve-out, you MUST have a TEXT_INSERT modification\n"
-            rules_text += "   - If a rule asks to change term, you MUST have at least one TEXT_REPLACE modification\n"
+            rules_text += "   - **RULE 1 (Add parties)**: If a rule asks to expand Representatives, you MUST:\n"
+            rules_text += "     * Search the ENTIRE document for 'Representatives' (try all case variations)\n"
+            rules_text += "     * Find the definition text (it might be long, spanning multiple words)\n"
+            rules_text += "     * Generate a TEXT_REPLACE modification that adds the new parties\n"
+            rules_text += "     * If you don't find it, still generate a modification based on common patterns\n"
+            rules_text += "   - **RULE 2 (Retention carve-out)**: You MUST have a TEXT_INSERT modification\n"
+            rules_text += "   - **RULE 3 (Term change)**: You MUST have at least one TEXT_REPLACE modification\n"
+            rules_text += "   - **COUNT YOUR MODIFICATIONS**: If you have 3 rules, you should have AT LEAST 3 modifications (one per rule minimum)\n"
             rules_text += "="*80 + "\n"
             base_prompt += rules_text
         
@@ -1270,8 +1283,36 @@ class AIRedliningService:
         text_limit = 4000  # Increased from 2000
         document_preview = document_text[:text_limit]
         
+        # Check if document contains "Representatives" and log it
+        has_representatives = 'Representatives' in document_text or 'representatives' in document_text.lower()
+        logger.warning(f"Document contains 'Representatives': {has_representatives}")
+        if has_representatives:
+            # Find and log the context around "Representatives"
+            import re
+            reps_matches = list(re.finditer(r'[Rr]epresentatives', document_text))
+            if reps_matches:
+                for match in reps_matches[:3]:  # Log first 3 occurrences
+                    start = max(0, match.start() - 100)
+                    end = min(len(document_text), match.end() + 100)
+                    context = document_text[start:end]
+                    logger.warning(f"Found 'Representatives' at position {match.start()}: ...{context}...")
+        
+        # Add a special note if Representatives is found and there's an "Add parties" rule
+        add_parties_rule = None
+        for rule in custom_rules:
+            rule_name = rule.get('name', '').lower()
+            if 'parties' in rule_name or 'representatives' in rule.get('instruction', '').lower():
+                add_parties_rule = rule
+                break
+        
+        representatives_note = ""
+        if add_parties_rule and has_representatives:
+            representatives_note = "\n\n🚨 CRITICAL: This document contains the word 'Representatives'. "
+            representatives_note += "You MUST find the definition of 'Representatives' and expand it according to the rule. "
+            representatives_note += "Search carefully - it might be in quotes, parentheses, or part of a longer definition.\n"
+        
         prompt = f"""Please analyze the following NDA document and provide PRECISE redlining instructions based on the custom rules.
-
+{representatives_note}
 DOCUMENT CONTENT:
 {document_preview}
 
