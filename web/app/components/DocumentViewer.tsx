@@ -374,7 +374,14 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   };
 
   const handleAccept = (changeId: string) => {
-    // Instantly update DOM (no React re-render!)
+    // Update React state immediately to trigger re-render
+    setChanges((prevChanges) => {
+      return prevChanges.map((c) => 
+        c.id === changeId ? { ...c, status: 'accepted' as const } : c
+      );
+    });
+    
+    // Update DOM for instant visual feedback
     const container = document.querySelector(`.change-container[data-change-id="${changeId}"]`) as HTMLElement;
     if (!container) return;
     
@@ -400,16 +407,17 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     statusSpan.className = 'docu-status docu-status--accepted';
     statusSpan.textContent = '✓ Accepted';
     container.appendChild(statusSpan);
-    
-    // Update state WITHOUT triggering re-render (update in-place for later use)
-    const changeIndex = changes.findIndex(c => c.id === changeId);
-    if (changeIndex !== -1) {
-      changes[changeIndex].status = 'accepted';
-    }
   };
 
   const handleReject = (changeId: string) => {
-    // Instantly update DOM (no React re-render!)
+    // Update React state immediately to trigger re-render
+    setChanges((prevChanges) => {
+      return prevChanges.map((c) => 
+        c.id === changeId ? { ...c, status: 'rejected' as const } : c
+      );
+    });
+    
+    // Update DOM for instant visual feedback
     const container = document.querySelector(`.change-container[data-change-id="${changeId}"]`) as HTMLElement;
     if (!container) return;
     
@@ -434,12 +442,6 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     statusSpan.className = 'docu-status docu-status--rejected';
     statusSpan.textContent = '✗ Rejected';
     container.appendChild(statusSpan);
-    
-    // Update state WITHOUT triggering re-render (update in-place for later use)
-    const changeIndex = changes.findIndex(c => c.id === changeId);
-    if (changeIndex !== -1) {
-      changes[changeIndex].status = 'rejected';
-    }
   };
 
   const scrollToChange = (changeId: string) => {
