@@ -1095,7 +1095,11 @@ class AIRedliningService:
         5. Be EXTREMELY conservative - only change what is explicitly requested
         6. REPLACE existing placeholders - do NOT create new fields or sections
         7. For signature blocks, ONLY use TEXT_REPLACE - NEVER use TEXT_INSERT
-        8. Replace "By:" with "By: [Firm Details Signer Name]", "Title:" with "Title: [Firm Details Title]", "For:" with "For: [Firm Details Company Name]"
+        8. **FLEXIBLE SIGNATURE FIELD RECOGNITION**: Different NDAs use different formats. Look for and replace:
+            - Company name fields: "For: Company", "Name of company (Recipient):", "Company (name to be provided)", "Recipient:", "Company:"
+            - Signer name fields: "By:", "Name:", "Signed:", "Signer:", "Signature:"
+            - Title fields: "Title:", "Position:", "Role:"
+            - **ONLY replace fields that actually exist in the document** - don't look for fields that aren't there
         9. Do NOT add new signature lines or duplicate existing ones
         10. If a rule says "JMC Investment LLC" but firm details provide "MyCompany", USE "MyCompany"
         11. **CRITICAL - NEVER TOUCH THESE**: Do NOT replace "Company" when it appears in legal text:
@@ -1262,24 +1266,36 @@ class AIRedliningService:
             if firm_details.get('firm_name'):
                 firm_text += f"COMPANY NAME TO USE: '{firm_details['firm_name']}'\n"
                 firm_text += f"⚠️  **LOCATION**: ONLY at the END of the document in the signature block\n"
-                firm_text += f"✅ CORRECT: Find 'For: Company' (in signature block at end) → Replace with 'For: {firm_details['firm_name']}'\n"
-                firm_text += f"✅ CORRECT: Find 'For:\tCompany' (in signature block at end) → Replace with 'For:\t{firm_details['firm_name']}'\n"
+                firm_text += f"✅ CORRECT PATTERNS TO FIND AND REPLACE:\n"
+                firm_text += f"   - 'For: Company' → 'For: {firm_details['firm_name']}'\n"
+                firm_text += f"   - 'Name of company (Recipient):' → 'Name of company (Recipient): {firm_details['firm_name']}'\n"
+                firm_text += f"   - 'Company (name to be provided)' → '{firm_details['firm_name']}'\n"
+                firm_text += f"   - 'Recipient:' → 'Recipient: {firm_details['firm_name']}'\n"
+                firm_text += f"   - Any company placeholder in signature block\n"
                 firm_text += f"❌ WRONG: Do NOT replace (the \"Company\") in the opening paragraphs\n"
                 firm_text += f"❌ WRONG: Do NOT replace \"the Company\" anywhere in the legal text body\n"
                 firm_text += f"❌ WRONG: Do NOT replace \"Company\" if it's in quotes or parentheses\n"
-                firm_text += f"  - In JSON: current_text should be 'For: Company' (the exact text from signature block only)\n\n"
+                firm_text += f"  - In JSON: current_text should match the EXACT format in the document\n\n"
             
             if firm_details.get('signatory_name'):
                 firm_text += f"SIGNER NAME TO USE: '{firm_details['signatory_name']}'\n"
-                firm_text += f"  - Find 'Dear NAME:' in document → Replace entire text with 'Dear {firm_details['signatory_name']}:'\n"
-                firm_text += f"  - Find 'By:' (with blank or underscore) → Replace with 'By: {firm_details['signatory_name']}'\n"
-                firm_text += f"  - In JSON: current_text should be the PLACEHOLDER ('Dear NAME:' or 'By:'), not the firm detail value\n"
+                firm_text += f"✅ CORRECT PATTERNS TO FIND AND REPLACE:\n"
+                firm_text += f"   - 'Dear NAME:' → 'Dear {firm_details['signatory_name']}:'\n"
+                firm_text += f"   - 'By:' (with blank/underscore) → 'By: {firm_details['signatory_name']}'\n"
+                firm_text += f"   - 'Name:' (with blank/underscore) → 'Name: {firm_details['signatory_name']}'\n"
+                firm_text += f"   - 'Signed:' (with blank/underscore) → 'Signed: {firm_details['signatory_name']}'\n"
+                firm_text += f"   - Any name placeholder in signature block\n"
+                firm_text += f"  - In JSON: current_text should be the PLACEHOLDER (e.g., 'By:' or 'Name:'), not the firm detail value\n"
                 firm_text += f"  - DO NOT search for '{firm_details['signatory_name']}' in the document!\n\n"
             
             if firm_details.get('title'):
                 firm_text += f"TITLE TO USE: '{firm_details['title']}'\n"
-                firm_text += f"  - Find 'Title:' with blank/underscore → Replace with 'Title: {firm_details['title']}'\n"
-                firm_text += f"  - In JSON: current_text should be 'Title: \\t_______________________________' (the PLACEHOLDER)\n"
+                firm_text += f"✅ CORRECT PATTERNS TO FIND AND REPLACE:\n"
+                firm_text += f"   - 'Title:' (with blank/underscore) → 'Title: {firm_details['title']}'\n"
+                firm_text += f"   - 'Title: \\t_______________________________' → 'Title: {firm_details['title']}'\n"
+                firm_text += f"   - 'Position:' (with blank) → 'Position: {firm_details['title']}'\n"
+                firm_text += f"   - Any title placeholder in signature block\n"
+                firm_text += f"  - In JSON: current_text should be the PLACEHOLDER (e.g., 'Title:' or 'Title: \\t_______________________________')\n"
                 firm_text += f"  - DO NOT search for '{firm_details['title']}' in the document!\n\n"
             
             firm_text += "="*80 + "\n"
@@ -1347,12 +1363,14 @@ CRITICAL REQUIREMENTS:
         - "five (5) year"
         - "five year"
         - "three years" or "three (3) years"
-        - "Company (name to be provided upon execution)" or just "Company"
-        - "For: Company" or "For: Company (name to be provided upon execution)"
+        - **SIGNATURE BLOCK PATTERNS** (various formats):
+          * Company name: "For: Company", "Name of company (Recipient):", "Company (name to be provided)", "Recipient:", "Company:"
+          * Signer name: "By:", "Name:", "Signed:", "Signer:", "Signature:"
+          * Title: "Title:", "Title: \t_______________________________", "Position:", "Role:"
+          * Date: "Date:", "Dated:"
         - "Dear NAME:" or "Dear [Name]:" (for recipient names)
         - "State of Delaware" or "Delaware"
-        - Signature blocks: "By:", "Title: \t_______________________________", "For: Company"
-        - "Title: \t_______________________________" (most common title pattern)
+        - **IMPORTANT**: Only replace fields that actually exist in the document. Don't create new fields.
         
         FLEXIBLE DATE PATTERN RECOGNITION:
         The AI should intelligently recognize ANY date placeholder pattern and replace it with today's date.
