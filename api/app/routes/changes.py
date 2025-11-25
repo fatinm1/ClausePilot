@@ -140,11 +140,8 @@ def apply_accepted_changes(user, document_id):
         # Check if request is FormData (with signature) or JSON (without signature)
         if request.content_type and 'multipart/form-data' in request.content_type:
             # FormData: Extract changes and signature
-            accepted_changes_str = request.form.get('accepted_changes')
-            if not accepted_changes_str:
-                return jsonify({'error': 'No accepted changes provided'}), 400
-            
-            accepted_changes = json.loads(accepted_changes_str)
+            accepted_changes_str = request.form.get('accepted_changes', '[]')
+            accepted_changes = json.loads(accepted_changes_str) if accepted_changes_str else []
             signature_file = request.files.get('signature')
             
             # Save signature file temporarily if provided
@@ -163,8 +160,9 @@ def apply_accepted_changes(user, document_id):
             accepted_changes = data.get('accepted_changes', [])
             signature_path = None
         
-        if not accepted_changes:
-            return jsonify({'error': 'No accepted changes provided'}), 400
+        # Allow empty accepted_changes - user may have rejected all changes
+        # In that case, we'll just insert signature if provided and return the document
+        logger.info(f"Processing {len(accepted_changes)} accepted changes (empty array is allowed)")
         
         # Get document from database
         Document = current_app.Document

@@ -2612,44 +2612,48 @@ class DocumentProcessor:
             doc = DocxDocument(document_path)
             logger.info(f"📄 Applying {len(accepted_changes)} accepted changes")
             
-            # Build flat list of all paragraphs (including inside tables)
-            all_paragraphs = list(doc.paragraphs)
-            for table in doc.tables:
-                for row in table.rows:
-                    for cell in row.cells:
-                        all_paragraphs.extend(cell.paragraphs)
-            
-            # Apply each accepted change
-            for change in accepted_changes:
-                try:
-                    current_text = change.get('current_text', '')
-                    new_text = change.get('new_text', '')
-                    
-                    if not current_text or not new_text:
-                        continue
-                    applied = False
-                    
-                    # Replace text in paragraphs (with whitespace-aware matching)
-                    for paragraph in all_paragraphs:
-                        target_text = None
+            # Only process changes if there are any
+            if accepted_changes:
+                # Build flat list of all paragraphs (including inside tables)
+                all_paragraphs = list(doc.paragraphs)
+                for table in doc.tables:
+                    for row in table.rows:
+                        for cell in row.cells:
+                            all_paragraphs.extend(cell.paragraphs)
+                
+                # Apply each accepted change
+                for change in accepted_changes:
+                    try:
+                        current_text = change.get('current_text', '')
+                        new_text = change.get('new_text', '')
                         
-                        if current_text in paragraph.text:
-                            target_text = current_text
-                        else:
-                            target_text = self._find_text_with_whitespace(paragraph.text, current_text)
+                        if not current_text or not new_text:
+                            continue
+                        applied = False
                         
-                        if target_text:
-                            if self._replace_text_in_paragraph(paragraph, target_text, new_text):
-                                logger.info(f"✅ Applied change: '{current_text[:30]}...' → '{new_text[:30]}...'")
-                                applied = True
-                                break
-                    
-                    if not applied:
-                        logger.warning(f"⚠️ Could not apply change (text not found): '{current_text[:50]}'")
+                        # Replace text in paragraphs (with whitespace-aware matching)
+                        for paragraph in all_paragraphs:
+                            target_text = None
                             
-                except Exception as e:
-                    logger.error(f"Error applying change: {e}")
-                    continue
+                            if current_text in paragraph.text:
+                                target_text = current_text
+                            else:
+                                target_text = self._find_text_with_whitespace(paragraph.text, current_text)
+                            
+                            if target_text:
+                                if self._replace_text_in_paragraph(paragraph, target_text, new_text):
+                                    logger.info(f"✅ Applied change: '{current_text[:30]}...' → '{new_text[:30]}...'")
+                                    applied = True
+                                    break
+                        
+                        if not applied:
+                            logger.warning(f"⚠️ Could not apply change (text not found): '{current_text[:50]}'")
+                                
+                    except Exception as e:
+                        logger.error(f"Error applying change: {e}")
+                        continue
+            else:
+                logger.info("📄 No accepted changes to apply - returning document as-is (with signature if provided)")
             
             # Insert signature if provided
             if signature_path and os.path.exists(signature_path):
