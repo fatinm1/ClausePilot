@@ -376,30 +376,34 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       
       // Update documentHtml state to reflect the change (prevents React from overwriting DOM)
       setDocumentHtml((prevHtml) => {
-        // Find the change container - match from opening tag to matching closing tag
-        // This regex handles nested spans properly
-        const containerStart = prevHtml.indexOf(`data-change-id="${changeId}"`);
-        if (containerStart === -1) return prevHtml;
+        // Find the container by data-change-id attribute
+        const idPattern = `data-change-id="${changeId}"`;
+        const idIndex = prevHtml.indexOf(idPattern);
+        if (idIndex === -1) return prevHtml;
         
-        // Find the opening <span> tag
-        let tagStart = prevHtml.lastIndexOf('<span', containerStart);
+        // Find the opening <span> tag before the data-change-id
+        let tagStart = prevHtml.lastIndexOf('<span', idIndex);
         if (tagStart === -1) return prevHtml;
         
-        // Find the matching closing </span> tag (accounting for nested spans)
-        let depth = 0;
-        let pos = tagStart;
-        let inTag = false;
+        // Find where the opening tag ends
+        let tagOpenEnd = prevHtml.indexOf('>', tagStart);
+        if (tagOpenEnd === -1) return prevHtml;
+        tagOpenEnd++; // Include the '>'
+        
+        // Now find the matching closing </span> tag by tracking depth
+        let depth = 1; // We're already inside one span
+        let pos = tagOpenEnd;
         let tagEnd = -1;
         
         while (pos < prevHtml.length) {
-          if (prevHtml.substr(pos, 4) === '<span') {
+          const substr = prevHtml.substring(pos);
+          if (substr.startsWith('<span')) {
             depth++;
-            inTag = true;
             pos += 5;
-          } else if (prevHtml.substr(pos, 6) === '</span>') {
+          } else if (substr.startsWith('</span>')) {
             depth--;
             if (depth === 0) {
-              tagEnd = pos + 7; // Include the closing tag
+              tagEnd = pos + 7; // Include '</span>'
               break;
             }
             pos += 7;
@@ -441,28 +445,34 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       
       // Update documentHtml state to reflect the change (prevents React from overwriting DOM)
       setDocumentHtml((prevHtml) => {
-        // Find the change container - match from opening tag to matching closing tag
-        // This regex handles nested spans properly
-        const containerStart = prevHtml.indexOf(`data-change-id="${changeId}"`);
-        if (containerStart === -1) return prevHtml;
+        // Find the container by data-change-id attribute
+        const idPattern = `data-change-id="${changeId}"`;
+        const idIndex = prevHtml.indexOf(idPattern);
+        if (idIndex === -1) return prevHtml;
         
-        // Find the opening <span> tag
-        let tagStart = prevHtml.lastIndexOf('<span', containerStart);
+        // Find the opening <span> tag before the data-change-id
+        let tagStart = prevHtml.lastIndexOf('<span', idIndex);
         if (tagStart === -1) return prevHtml;
         
-        // Find the matching closing </span> tag (accounting for nested spans)
-        let depth = 0;
-        let pos = tagStart;
+        // Find where the opening tag ends
+        let tagOpenEnd = prevHtml.indexOf('>', tagStart);
+        if (tagOpenEnd === -1) return prevHtml;
+        tagOpenEnd++; // Include the '>'
+        
+        // Now find the matching closing </span> tag by tracking depth
+        let depth = 1; // We're already inside one span
+        let pos = tagOpenEnd;
         let tagEnd = -1;
         
         while (pos < prevHtml.length) {
-          if (prevHtml.substr(pos, 4) === '<span') {
+          const substr = prevHtml.substring(pos);
+          if (substr.startsWith('<span')) {
             depth++;
             pos += 5;
-          } else if (prevHtml.substr(pos, 6) === '</span>') {
+          } else if (substr.startsWith('</span>')) {
             depth--;
             if (depth === 0) {
-              tagEnd = pos + 7; // Include the closing tag
+              tagEnd = pos + 7; // Include '</span>'
               break;
             }
             pos += 7;
