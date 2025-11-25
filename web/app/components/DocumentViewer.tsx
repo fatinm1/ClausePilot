@@ -75,15 +75,20 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     }
   }, [signatureFile]);
   
-  // Update document HTML when signature changes
+  // Regenerate document HTML when changes status updates
   useEffect(() => {
-    if (originalHtml && signatureDataUrl) {
-      // Regenerate HTML with current changes and signature
-      let html = injectChangesIntoHtml(originalHtml, changes);
-      html = injectSignaturePreview(html, signatureDataUrl);
+    if (originalHtml && changes.length > 0) {
+      // Regenerate HTML with current changes status
+      let html = injectChangesWithStatus(originalHtml, changes);
+      
+      // Inject signature if available
+      if (signatureDataUrl) {
+        html = injectSignaturePreview(html, signatureDataUrl);
+      }
+      
       setDocumentHtml(html);
     }
-  }, [signatureDataUrl]);
+  }, [changes, originalHtml, signatureDataUrl]);
 
   // Capture references to each inline change container for DocuSign-style navigation
   useEffect(() => {
@@ -374,74 +379,21 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   };
 
   const handleAccept = (changeId: string) => {
-    // Update React state immediately to trigger re-render
+    // Update React state - this will trigger useEffect to regenerate HTML
     setChanges((prevChanges) => {
       return prevChanges.map((c) => 
         c.id === changeId ? { ...c, status: 'accepted' as const } : c
       );
     });
-    
-    // Update DOM for instant visual feedback
-    const container = document.querySelector(`.change-container[data-change-id="${changeId}"]`) as HTMLElement;
-    if (!container) return;
-    
-    const oldTextSpan = container.querySelector('.old-text') as HTMLElement;
-    const newTextSpan = container.querySelector('.new-text') as HTMLElement;
-    const acceptBtn = container.querySelector('button[data-action="accept"]') as HTMLElement;
-    const rejectBtn = container.querySelector('button[data-action="reject"]') as HTMLElement;
-    
-    // Remove highlight and hide old text
-    container.classList.add('docu-tag-complete');
-    container.classList.remove('docu-tag-rejected');
-    if (oldTextSpan) oldTextSpan.style.display = 'none';
-    if (newTextSpan) {
-      newTextSpan.style.textDecoration = 'none';
-      newTextSpan.style.color = '#000000';
-      newTextSpan.style.fontWeight = 'normal';
-    }
-    
-    // Remove buttons and add checkmark
-    if (acceptBtn) acceptBtn.remove();
-    if (rejectBtn) rejectBtn.remove();
-    const statusSpan = document.createElement('span');
-    statusSpan.className = 'docu-status docu-status--accepted';
-    statusSpan.textContent = '✓ Accepted';
-    container.appendChild(statusSpan);
   };
 
   const handleReject = (changeId: string) => {
-    // Update React state immediately to trigger re-render
+    // Update React state - this will trigger useEffect to regenerate HTML
     setChanges((prevChanges) => {
       return prevChanges.map((c) => 
         c.id === changeId ? { ...c, status: 'rejected' as const } : c
       );
     });
-    
-    // Update DOM for instant visual feedback
-    const container = document.querySelector(`.change-container[data-change-id="${changeId}"]`) as HTMLElement;
-    if (!container) return;
-    
-    const oldTextSpan = container.querySelector('.old-text') as HTMLElement;
-    const newTextSpan = container.querySelector('.new-text') as HTMLElement;
-    const acceptBtn = container.querySelector('button[data-action="accept"]') as HTMLElement;
-    const rejectBtn = container.querySelector('button[data-action="reject"]') as HTMLElement;
-    
-    // Remove highlight and hide new text
-    container.classList.add('docu-tag-rejected');
-    container.classList.remove('docu-tag-complete');
-    if (newTextSpan) newTextSpan.style.display = 'none';
-    if (oldTextSpan) {
-      oldTextSpan.style.textDecoration = 'none';
-      oldTextSpan.style.color = '#000000';
-    }
-    
-    // Remove buttons and add X
-    if (acceptBtn) acceptBtn.remove();
-    if (rejectBtn) rejectBtn.remove();
-    const statusSpan = document.createElement('span');
-    statusSpan.className = 'docu-status docu-status--rejected';
-    statusSpan.textContent = '✗ Rejected';
-    container.appendChild(statusSpan);
   };
 
   const scrollToChange = (changeId: string) => {
@@ -457,12 +409,74 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   const injectChangesWithStatus = (html: string, changesList: Change[]): string => {
     let modifiedHtml = html;
     
-    // Only inject pending changes (not accepted/rejected)
-    const pendingChanges = changesList.filter(c => c.status === 'pending');
-    const acceptedChanges = changesList.filter(c => c.status === 'accepted');
-    const rejectedChanges = changesList.filter(c => c.status === 'rejected');
+    // IMPORTANT: Process accepted/rejected changes FIRST (they replace original text)
+    // Then process pending changes (they create containers)
+    // This ensures accepted/rejected changes work correctly when regenerating from originalHtml
     
-    pendingChanges.forEach((change, idx) => {
+    // First, handle accepted/rejected changes - replace original text directly
+    changesList.filter(c => c.status !== 'pending').forEach(change => {
+      const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      
+      // Search for current_text (old text) in the original HTML
+      const textChars = change.current_text.split('');
+      const pattern = textChars.map((char) => {
+        if (char === ' ' || char === '\t') {
+          return '(?:&nbsp;|\\s| )(?:(?:</span>|<span[^>]*>|&nbsp;|\\s| )*)';
+        } else if (char === '_') {
+          const escaped = escapeRegex(char);
+          return `(?:</span>)?(?:<span[^>]*>)*${escaped}+(?:</span>)?(?:<span[^>]*>)*`;
+        } else {
+          const escaped = escapeRegex(char).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return `(?:</span>)?(?:<span[^>]*>)*${escaped}(?:</span>)?(?:<span[^>]*>)*`;
+        }
+      }).join('');
+      
+      const regex = new RegExp(pattern, 'i');
+      let match = modifiedHtml.match(regex);
+      
+      // FALLBACK for signature fields
+      if (!match && (change.current_text.startsWith('By:') || change.current_text.startsWith('Title:') || change.current_text.startsWith('For:') || change.current_text.startsWith('Date:'))) {
+        const label = change.current_text.split(':')[0] + ':';
+        const labelIndex = modifiedHtml.indexOf(label);
+        if (labelIndex !== -1) {
+          let endIndex = modifiedHtml.indexOf('</p>', labelIndex);
+          if (endIndex === -1) endIndex = labelIndex + 400;
+          match = [modifiedHtml.substring(labelIndex, endIndex)];
+        }
+      }
+      
+      if (match) {
+        const matchedText = match[0];
+        let replacement;
+        if (change.status === 'accepted') {
+          // Show new text only (accepted) with DocuSign-style styling
+          const newTextEscaped = change.new_text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
+          replacement = `<span class="change-container docu-tag-complete" data-change-id="${change.id}">` +
+            `<span style="color: #000000; font-weight: normal;">${newTextEscaped}</span>` +
+            `<span class="docu-status docu-status--accepted">✓ Accepted</span>` +
+            `</span>`;
+        } else {
+          // Show old text only (rejected) with DocuSign-style styling
+          const oldTextEscaped = change.current_text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
+          replacement = `<span class="change-container docu-tag-rejected" data-change-id="${change.id}">` +
+            `<span style="color: #000000;">${oldTextEscaped}</span>` +
+            `<span class="docu-status docu-status--rejected">✗ Rejected</span>` +
+            `</span>`;
+        }
+        modifiedHtml = modifiedHtml.replace(matchedText, replacement);
+      }
+    });
+    
+    // Then, inject pending changes with buttons (skip text that was already replaced)
+    changesList.filter(c => c.status === 'pending').forEach((change, idx) => {
       // Same regex pattern as before
       const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       
@@ -521,70 +535,6 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         modifiedHtml = modifiedHtml.replace(matchedText, replacement);
       }
       // Skip logging for failed matches (performance optimization)
-    });
-    
-    // Now handle accepted/rejected changes
-    changesList.filter(c => c.status !== 'pending').forEach(change => {
-      const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      
-      // ALWAYS search for current_text (old text) in the original HTML
-      const textChars = change.current_text.split('');
-      const pattern = textChars.map((char, charIdx) => {
-        if (char === ' ' || char === '\t') {
-          // For whitespace: match space/nbsp, then any combo of spans/nbsp/spaces
-          return '(?:&nbsp;|\\s| )(?:(?:</span>|<span[^>]*>|&nbsp;|\\s| )*)';
-        } else if (char === '_') {
-          // Underscores might be repeated (e.g., "_______")
-          const escaped = escapeRegex(char);
-          return `(?:</span>)?(?:<span[^>]*>)*${escaped}+(?:</span>)?(?:<span[^>]*>)*`;
-        } else {
-          // Regular character: allow span tags before and after
-          const escaped = escapeRegex(char).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          return `(?:</span>)?(?:<span[^>]*>)*${escaped}(?:</span>)?(?:<span[^>]*>)*`;
-        }
-      }).join('');
-      
-      const regex = new RegExp(pattern, 'i');
-      let match = modifiedHtml.match(regex);
-      
-      // FALLBACK for signature fields in accepted/rejected
-      if (!match && (change.current_text.startsWith('By:') || change.current_text.startsWith('Title:') || change.current_text.startsWith('For:') || change.current_text.startsWith('Date:'))) {
-        const label = change.current_text.split(':')[0] + ':';
-        const labelIndex = modifiedHtml.indexOf(label);
-        if (labelIndex !== -1) {
-          let endIndex = modifiedHtml.indexOf('</p>', labelIndex);
-          if (endIndex === -1) endIndex = labelIndex + 400;
-          match = [modifiedHtml.substring(labelIndex, endIndex)];
-        }
-      }
-      
-      if (match) {
-        const matchedText = match[0];
-        
-        // Replace with appropriate text based on status
-        let replacement;
-        if (change.status === 'accepted') {
-          // Show new text with green checkmark
-          const newTextEscaped = change.new_text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
-          const statusBadge = '<span style="color: #22C55E; margin-left: 8px; font-size: 14px; font-weight: bold;">✓ Accepted</span>';
-          replacement = `<span style="color: #000000;">${newTextEscaped}</span>${statusBadge}`;
-        } else {
-          // Show old text with red X
-          const oldTextEscaped = change.current_text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
-          const statusBadge = '<span style="color: #EF4444; margin-left: 8px; font-size: 14px; font-weight: bold;">✗ Rejected</span>';
-          replacement = `<span style="color: #000000;">${oldTextEscaped}</span>${statusBadge}`;
-        }
-        
-        modifiedHtml = modifiedHtml.replace(matchedText, replacement);
-      }
     });
     
     return modifiedHtml;
