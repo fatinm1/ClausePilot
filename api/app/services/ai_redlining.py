@@ -1234,11 +1234,14 @@ class AIRedliningService:
             rules_text += "   - Use TEXT_INSERT to add this clause\n"
             rules_text += "   - **IMPORTANT**: The current_text for TEXT_INSERT can be empty or the sentence before where you want to insert\n\n"
             rules_text += "3. TERM CHANGE:\n"
-            rules_text += "   - Search for numbered sections about 'Term' or 'Duration'\n"
-            rules_text += "   - Find ALL instances of the old duration (e.g., 'three years', 'three (3) years', '3 years')\n"
+            rules_text += "   - **CRITICAL**: You MUST find and change the term duration\n"
+            rules_text += "   - Search the ENTIRE document for sections about 'Term', 'Duration', 'Confidentiality Term', or numbered sections\n"
+            rules_text += "   - Look for patterns like: 'This Agreement shall remain in effect', 'period of X years', 'for X years', 'X years from the date'\n"
+            rules_text += "   - Find ALL instances of the old duration (e.g., 'three years', 'three (3) years', '3 years', 'three (3) year')\n"
             rules_text += "   - Replace with the target duration from the rule (e.g., 'two (2) years')\n"
-            rules_text += "   - ONLY change durations in the Term section, NOT in other sections\n"
-            rules_text += "   - Use TEXT_REPLACE for each instance found\n\n"
+            rules_text += "   - **IMPORTANT**: Even if the term section is not in the preview, search for year patterns throughout the document\n"
+            rules_text += "   - Use TEXT_REPLACE for each instance found\n"
+            rules_text += "   - **DO NOT SKIP THIS** - if a term change rule exists, you MUST generate at least one modification\n\n"
             rules_text += "4. REPLACE COMPANY/NAME/TITLE:\n"
             rules_text += "   - Find placeholders like 'For: Company', 'By:', 'Title:', 'Dear NAME:'\n"
             rules_text += "   - Replace with actual values from firm details\n"
@@ -1308,9 +1311,15 @@ class AIRedliningService:
     def _build_user_prompt(self, document_text: str, custom_rules: List[Dict[str, Any]], firm_details: Dict[str, Any] = None) -> str:
         """Build the user prompt with document content"""
         # Limit document text to fit within token budget (GPT-4 has 8192 total, we need room for prompt + response)
-        # Using ~2500 chars (~625 tokens) for document preview to leave room for system prompt and response
-        text_limit = 2500
+        # Using ~3000 chars (~750 tokens) for document preview - increased to include term sections that are often later in the document
+        text_limit = 3000
         document_preview = document_text[:text_limit]
+        
+        # Also include a snippet from the end of the document (where term sections often are)
+        # This helps catch term sections that might be near the end
+        if len(document_text) > text_limit:
+            end_snippet = document_text[-500:]  # Last 500 chars
+            document_preview += f"\n\n[... document continues ...]\n\n[end of document]:\n{end_snippet}"
         
         # Check if document contains "Representatives" and log it
         has_representatives = 'Representatives' in document_text or 'representatives' in document_text.lower()
@@ -1345,7 +1354,7 @@ class AIRedliningService:
 DOCUMENT CONTENT:
 {document_preview}
 
-CRITICAL REQUIREMENTS:
+        CRITICAL REQUIREMENTS:
 1. When providing current_text, copy the EXACT text as it appears in the document above
 2. For example, if the document says "five (5) years", your current_text must be "five (5) years", not "5 years" or "five years"
 3. Look carefully at the exact wording, punctuation, and formatting
@@ -1355,6 +1364,13 @@ CRITICAL REQUIREMENTS:
 7. **CRITICAL**: Do NOT replace "Company" when it refers to the disclosing party in legal text
 8. **CRITICAL**: For date placeholders (e.g., "Month __, Year"), replace with today's current date in "Month Day, Year" format
 9. **CRITICAL**: Only replace placeholders, not actual content
+10. **CRITICAL - TERM CHANGE**: If a rule asks to change the term duration, you MUST search for year patterns throughout the document. Look for:
+    - "three years", "three (3) years", "3 years"
+    - "This Agreement shall remain in effect for [X] years"
+    - "period of [X] years"
+    - "[X] years from the date"
+    - Any numbered section that mentions duration or term
+    - **Even if the term section is at the end of the document (shown in "[end of document]" section), you MUST find and change it**
 
         COMMON PATTERNS TO LOOK FOR:
         - "five (5) years" (most common in legal documents)
