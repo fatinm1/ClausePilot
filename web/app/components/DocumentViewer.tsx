@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Download, Loader } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { CheckCircle, XCircle, Download, Loader, FileSignature, ArrowLeft, ShieldCheck, ChevronRight } from 'lucide-react';
 
 interface Change {
   id: string;
@@ -52,6 +52,10 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   const [documentHtml, setDocumentHtml] = useState<string>('');
   const [originalHtml, setOriginalHtml] = useState<string>(''); // Cache original HTML
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+  const [documentSegments, setDocumentSegments] = useState<any[]>([]);
+  const [activeChangeId, setActiveChangeId] = useState<string | null>(null);
+  const documentRef = useRef<HTMLDivElement | null>(null);
+  const changeRefs = useRef<Record<string, HTMLElement>>({});
 
   // Generate changes when component mounts
   useEffect(() => {
@@ -80,6 +84,20 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       setDocumentHtml(html);
     }
   }, [signatureDataUrl]);
+
+  // Capture references to each inline change container for DocuSign-style navigation
+  useEffect(() => {
+    if (!documentRef.current) return;
+    const containers = documentRef.current.querySelectorAll<HTMLElement>('.change-container');
+    const map: Record<string, HTMLElement> = {};
+    containers.forEach((node) => {
+      const id = node.getAttribute('data-change-id');
+      if (id) {
+        map[id] = node;
+      }
+    });
+    changeRefs.current = map;
+  }, [documentHtml, changes]);
 
   const loadDocumentAndGenerateChanges = async () => {
     try {
@@ -133,6 +151,9 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       }));
       
       setChanges(generatedChanges);
+      if (!html) {
+        buildDocumentSegments(text, generatedChanges);
+      }
       let injectedHtml = injectChangesIntoHtml(html, generatedChanges);
       
       // Inject signature preview if available (check both state and prop)
@@ -274,10 +295,10 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
           .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
         
         // Create LARGE, VISIBLE inline buttons
-        const acceptBtn = `<button data-action="accept" data-change-id="${change.id}" style="display: inline-block; padding: 6px 12px; background: linear-gradient(135deg, rgba(34, 197, 94, 0.4), rgba(34, 197, 94, 0.3)); color: rgb(22, 163, 74); border: 2px solid rgb(34, 197, 94); border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; margin-left: 12px; vertical-align: middle; box-shadow: 0 2px 4px rgba(34, 197, 94, 0.3); transition: all 0.2s;">✓ Accept</button>`;
-        const rejectBtn = `<button data-action="reject" data-change-id="${change.id}" style="display: inline-block; padding: 6px 12px; background: linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(239, 68, 68, 0.3)); color: rgb(220, 38, 38); border: 2px solid rgb(239, 68, 68); border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; margin-left: 8px; vertical-align: middle; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3); transition: all 0.2s;">✗ Reject</button>`;
+        const acceptBtn = `<button data-action="accept" data-change-id="${change.id}">✓ Accept</button>`;
+        const rejectBtn = `<button data-action="reject" data-change-id="${change.id}">✗ Reject</button>`;
         
-        const replacement = `<span class="change-container" data-change-id="${change.id}" style="background: rgba(255, 255, 0, 0.2); padding: 4px 6px; border-radius: 4px; display: inline; border: 1px dashed rgba(255, 193, 7, 0.5);">` +
+        const replacement = `<span class="change-container" data-change-id="${change.id}">` +
           `<span class="old-text" style="text-decoration: line-through; color: #000000;">${matchedText}</span>` +
           `<span class="new-text" style="text-decoration: underline; color: #DC2626; font-weight: 600;">${newTextEscaped}</span>` +
           acceptBtn + rejectBtn +
@@ -363,8 +384,8 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     const rejectBtn = container.querySelector('button[data-action="reject"]') as HTMLElement;
     
     // Remove highlight and hide old text
-    container.style.background = 'transparent';
-    container.style.border = 'none';
+    container.classList.add('docu-tag-complete');
+    container.classList.remove('docu-tag-rejected');
     if (oldTextSpan) oldTextSpan.style.display = 'none';
     if (newTextSpan) {
       newTextSpan.style.textDecoration = 'none';
@@ -376,7 +397,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     if (acceptBtn) acceptBtn.remove();
     if (rejectBtn) rejectBtn.remove();
     const statusSpan = document.createElement('span');
-    statusSpan.style.cssText = 'color: #22C55E; margin-left: 8px; font-size: 14px; font-weight: bold;';
+    statusSpan.className = 'docu-status docu-status--accepted';
     statusSpan.textContent = '✓ Accepted';
     container.appendChild(statusSpan);
     
@@ -398,8 +419,8 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     const rejectBtn = container.querySelector('button[data-action="reject"]') as HTMLElement;
     
     // Remove highlight and hide new text
-    container.style.background = 'transparent';
-    container.style.border = 'none';
+    container.classList.add('docu-tag-rejected');
+    container.classList.remove('docu-tag-complete');
     if (newTextSpan) newTextSpan.style.display = 'none';
     if (oldTextSpan) {
       oldTextSpan.style.textDecoration = 'none';
@@ -410,7 +431,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     if (acceptBtn) acceptBtn.remove();
     if (rejectBtn) rejectBtn.remove();
     const statusSpan = document.createElement('span');
-    statusSpan.style.cssText = 'color: #EF4444; margin-left: 8px; font-size: 14px; font-weight: bold;';
+    statusSpan.className = 'docu-status docu-status--rejected';
     statusSpan.textContent = '✗ Rejected';
     container.appendChild(statusSpan);
     
@@ -419,6 +440,16 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     if (changeIndex !== -1) {
       changes[changeIndex].status = 'rejected';
     }
+  };
+
+  const scrollToChange = (changeId: string) => {
+    const node = changeRefs.current[changeId];
+    if (!node) return;
+    
+    setActiveChangeId(changeId);
+    node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    node.classList.add('docu-highlight');
+    setTimeout(() => node.classList.remove('docu-highlight'), 1500);
   };
   
   const injectChangesWithStatus = (html: string, changesList: Change[]): string => {
@@ -476,10 +507,10 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
           .replace(/>/g, '&gt;')
           .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
         
-        const acceptBtn = `<button data-action="accept" data-change-id="${change.id}" style="display: inline-block; padding: 6px 12px; background: linear-gradient(135deg, rgba(34, 197, 94, 0.4), rgba(34, 197, 94, 0.3)); color: rgb(22, 163, 74); border: 2px solid rgb(34, 197, 94); border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; margin-left: 12px; vertical-align: middle; box-shadow: 0 2px 4px rgba(34, 197, 94, 0.3); transition: all 0.2s;">✓ Accept</button>`;
-        const rejectBtn = `<button data-action="reject" data-change-id="${change.id}" style="display: inline-block; padding: 6px 12px; background: linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(239, 68, 68, 0.3)); color: rgb(220, 38, 38); border: 2px solid rgb(239, 68, 68); border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; margin-left: 8px; vertical-align: middle; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3); transition: all 0.2s;">✗ Reject</button>`;
+        const acceptBtn = `<button data-action="accept" data-change-id="${change.id}">✓ Accept</button>`;
+        const rejectBtn = `<button data-action="reject" data-change-id="${change.id}">✗ Reject</button>`;
         
-        const replacement = `<span class="change-container" data-change-id="${change.id}" style="background: rgba(255, 255, 0, 0.2); padding: 4px 6px; border-radius: 4px; display: inline; border: 1px dashed rgba(255, 193, 7, 0.5);">` +
+        const replacement = `<span class="change-container" data-change-id="${change.id}">` +
           `<span class="old-text" style="text-decoration: line-through; color: #000000;">${matchedText}</span>` +
           `<span class="new-text" style="text-decoration: underline; color: #DC2626; font-weight: 600;">${newTextEscaped}</span>` +
           acceptBtn + rejectBtn +
@@ -671,9 +702,12 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   const acceptedCount = changes.filter((c) => c.status === 'accepted').length;
   const rejectedCount = changes.filter((c) => c.status === 'rejected').length;
   const pendingCount = changes.filter((c) => c.status === 'pending').length;
+  const totalChanges = changes.length;
+  const completedCount = acceptedCount + rejectedCount;
+  const completionPercent = totalChanges ? Math.round((completedCount / totalChanges) * 100) : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       {/* Inline CSS for document styling */}
       <style dangerouslySetInnerHTML={{ __html: `
         .document-content * {
@@ -685,274 +719,337 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
           text-align: justify;
         }
         .document-content .change-container {
-          background: rgba(255, 255, 0, 0.2);
-          padding: 4px 6px;
-          border-radius: 4px;
-          display: inline;
-          border: 1px dashed rgba(255, 193, 7, 0.6);
+          position: relative;
+          display: inline-flex;
+          flex-direction: column;
+          gap: 6px;
+          background: #EEF2FF;
+          padding: 10px 12px;
+          border-radius: 12px;
+          border: 2px solid #4338CA;
+          box-shadow: 0 8px 20px rgba(67, 56, 202, 0.15);
+          margin: 4px 0;
+          min-width: 180px;
+        }
+        .document-content .change-container::after {
+          content: '';
+          position: absolute;
+          left: 24px;
+          bottom: -10px;
+          width: 14px;
+          height: 14px;
+          background: #EEF2FF;
+          border-left: 2px solid #4338CA;
+          border-bottom: 2px solid #4338CA;
+          transform: rotate(45deg);
         }
         .document-content .change-container .old-text {
-          color: #000000 !important;
+          color: #1F2937 !important;
           text-decoration: line-through;
+          font-size: 12px;
         }
         .document-content .change-container .new-text {
-          color: #DC2626 !important;
+          color: #111827 !important;
           text-decoration: underline;
           font-weight: 600;
         }
+        .document-content .change-container.docu-tag-complete {
+          background: #ECFDF5;
+          border-color: #16A34A;
+        }
+        .document-content .change-container.docu-tag-complete::after {
+          background: #ECFDF5;
+          border-color: #16A34A;
+        }
+        .document-content .change-container.docu-tag-rejected {
+          background: #FEF2F2;
+          border-color: #EF4444;
+        }
+        .document-content .change-container.docu-tag-rejected::after {
+          background: #FEF2F2;
+          border-color: #EF4444;
+        }
         .document-content button[data-action] {
-          display: inline-block !important;
-          padding: 6px 12px !important;
-          margin-left: 8px !important;
-          font-size: 13px !important;
-          font-weight: bold !important;
+          display: block !important;
+          width: 100% !important;
+          padding: 6px 0 !important;
+          font-size: 12px !important;
+          font-weight: 600 !important;
+          border-radius: 8px !important;
+          border: none !important;
           cursor: pointer !important;
-          transition: all 0.2s ease !important;
-          vertical-align: middle !important;
-          border-radius: 6px !important;
+          transition: transform 0.2s ease, box-shadow 0.2s ease !important;
         }
         .document-content button[data-action="accept"] {
-          background: linear-gradient(135deg, rgba(34, 197, 94, 0.4), rgba(34, 197, 94, 0.3)) !important;
-          color: rgb(22, 163, 74) !important;
-          border: 2px solid rgb(34, 197, 94) !important;
-          box-shadow: 0 2px 4px rgba(34, 197, 94, 0.3) !important;
-        }
-        .document-content button[data-action="accept"]:hover {
-          background: linear-gradient(135deg, rgba(34, 197, 94, 0.6), rgba(34, 197, 94, 0.5)) !important;
-          transform: scale(1.05) !important;
-          box-shadow: 0 4px 8px rgba(34, 197, 94, 0.4) !important;
+          background: #16A34A !important;
+          color: #fff !important;
+          box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25) !important;
         }
         .document-content button[data-action="reject"] {
-          background: linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(239, 68, 68, 0.3)) !important;
-          color: rgb(220, 38, 38) !important;
-          border: 2px solid rgb(239, 68, 68) !important;
-          box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3) !important;
+          background: #EF4444 !important;
+          color: #fff !important;
+          box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25) !important;
         }
-        .document-content button[data-action="reject"]:hover {
-          background: linear-gradient(135deg, rgba(239, 68, 68, 0.6), rgba(239, 68, 68, 0.5)) !important;
-          transform: scale(1.05) !important;
-          box-shadow: 0 4px 8px rgba(239, 68, 68, 0.4) !important;
+        .document-content .docu-highlight {
+          outline: 3px solid #F59E0B;
+          transition: outline 0.3s ease;
+        }
+        .document-content .docu-status {
+          font-size: 12px;
+          font-weight: 600;
+        }
+        .document-content .docu-status--accepted {
+          color: #15803D;
+        }
+        .document-content .docu-status--rejected {
+          color: #B91C1C;
         }
       ` }} />
       
-      {/* Header with actions */}
-      <div className="bg-white/5 border border-white/10 rounded-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-2xl font-bold text-white mb-2">Review Changes</h2>
-            <p className="text-[#E5E7EB]/80">
-              Review changes in the document below. Click accept or reject for each change.
-            </p>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="text-sm text-[#E5E7EB]/60">
-              <span className="text-green-400 font-semibold">{acceptedCount}</span> Accepted •{' '}
-              <span className="text-red-400 font-semibold">{rejectedCount}</span> Rejected •{' '}
-              <span className="text-yellow-400 font-semibold">{pendingCount}</span> Pending
+      {/* DocuSign-style header */}
+      <div className="bg-[#0F172A] text-white rounded-2xl shadow-2xl px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => onComplete({ success: false })}
+            className="flex items-center gap-2 text-sm text-blue-200 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Exit Review
+          </button>
+          <div className="flex items-center gap-3">
+            <div className="bg-white/10 p-3 rounded-xl">
+              <FileSignature className="w-6 h-6 text-blue-300" />
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wider text-blue-300">DocuSign-Style Review</p>
+              <h2 className="text-2xl font-semibold">Confidentiality Agreement</h2>
+              <p className="text-sm text-blue-200">{pendingCount} actions remaining</p>
             </div>
           </div>
         </div>
-
-        {/* Bulk actions */}
-        <div className="flex space-x-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 text-sm text-blue-100 bg-white/10 px-3 py-2 rounded-xl">
+            <ShieldCheck className="w-4 h-4 text-green-300" />
+            <span>{completionPercent}% Complete</span>
+          </div>
           <button
             onClick={handleAcceptAll}
-            className="px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg hover:bg-green-500/30 transition-colors"
+            className="px-3 py-2 bg-white/10 text-white rounded-xl text-sm hover:bg-white/20 transition"
           >
-            Accept All Changes
+            Accept All
           </button>
           <button
             onClick={handleRejectAll}
-            className="px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/30 transition-colors"
+            className="px-3 py-2 bg-white/10 text-white rounded-xl text-sm hover:bg-white/20 transition"
           >
-            Reject All Changes
+            Reject All
           </button>
           <button
             onClick={applyChanges}
             disabled={applying}
-            className="ml-auto px-6 py-2 bg-[#60A5FA] text-white rounded-lg hover:bg-[#60A5FA]/90 disabled:bg-[#60A5FA]/40 disabled:cursor-not-allowed flex items-center space-x-2"
+            className="px-5 py-2 bg-blue-500 text-white rounded-xl text-sm font-semibold hover:bg-blue-400 transition flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {applying ? (
               <>
-                <Loader className="w-5 h-5 animate-spin" />
-                <span>Generating...</span>
+                <Loader className="w-4 h-4 animate-spin" />
+                Saving...
               </>
             ) : (
               <>
-                <Download className="w-5 h-5" />
-                <span>Download Redlined Document</span>
+                <Download className="w-4 h-4" />
+                Finish & Download
               </>
             )}
           </button>
         </div>
       </div>
-
-      {/* Document viewer with inline changes */}
-      <div className="bg-white rounded-lg shadow-2xl p-12 max-w-5xl mx-auto" style={{ 
-        fontFamily: 'Times New Roman, serif', 
-        fontSize: '12pt', 
-        lineHeight: '1.6',
-        color: '#000000',  // Force black text
-      }}>
-        <div 
-          dangerouslySetInnerHTML={{ __html: documentHtml }}
-          onClick={handleDocumentClick}
-          style={{ color: '#000000' }}  // Force black text in content
-          className="document-content"
-        />
-        
-        {/* Fallback paragraph rendering if HTML not available */}
-        {!documentHtml && (
+      
+      {/* DocuSign layout */}
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Sidebar */}
+        <aside className="lg:w-80 bg-white rounded-2xl shadow-xl p-5 space-y-4 h-[calc(100vh-260px)] overflow-y-auto">
           <div>
-            {documentSegments.map((para, paraIdx) => {
-            if (para.type === 'paragraph') {
-              // Render empty paragraphs as line breaks
-              if (para.isEmpty) {
-                return <div key={paraIdx} style={{ height: '1em' }} />;
-              }
+            <p className="text-xs uppercase tracking-widest text-slate-400 mb-1">Guided Review</p>
+            <h3 className="text-xl font-semibold text-slate-800">Required Actions</h3>
+            <p className="text-sm text-slate-500 mb-3">Click any card to jump to its location in the document.</p>
+            <button
+              onClick={() => {
+                const nextPending = changes.find(c => c.status === 'pending');
+                if (nextPending) {
+                  scrollToChange(nextPending.id);
+                }
+              }}
+              className="w-full flex items-center justify-between bg-blue-50 border border-blue-200 text-blue-600 rounded-xl px-4 py-2 text-sm font-medium hover:bg-blue-100 transition"
+            >
+              Next pending change
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+          
+          <div className="space-y-3">
+            {changes.map((change, idx) => {
+              const isActive = activeChangeId === change.id;
+              const statusColor =
+                change.status === 'accepted'
+                  ? 'bg-green-100 text-green-700 border-green-200'
+                  : change.status === 'rejected'
+                  ? 'bg-red-100 text-red-700 border-red-200'
+                  : 'bg-amber-100 text-amber-700 border-amber-200';
+              
+              const statusLabel =
+                change.status === 'accepted' ? 'Accepted' :
+                change.status === 'rejected' ? 'Rejected' : 'Pending';
               
               return (
-                <p key={paraIdx} className="text-black" style={{ 
-                  marginBottom: '0.75em',
-                  textIndent: para.segments[0]?.content?.startsWith('\t') ? '2em' : '0',
-                  whiteSpace: 'pre-wrap',  // Preserve tabs and spaces
-                }}>
-                  {para.segments.map((segment: any, segIdx: number) => {
-                    if (segment.type === 'text') {
-                      return (
-                        <span key={segIdx}>
-                          {segment.content}
-                        </span>
-                      );
-                    } else if (segment.type === 'change') {
-                      const change = segment.change;
-                      const isAccepted = change.status === 'accepted';
-                      const isRejected = change.status === 'rejected';
-                      
-                      return (
-                        <span key={segIdx} className="inline-block">
-                          {/* Old text with strikethrough */}
-                          <span
-                            className="text-black"
-                            style={{
-                              textDecoration: 'line-through',
-                              display: isAccepted ? 'none' : 'inline',
-                            }}
-                          >
-                            {change.current_text}
-                          </span>
-                          
-                          {/* New text with underline */}
-                          <span
-                            className="text-red-600"
-                            style={{
-                              textDecoration: 'underline',
-                              fontWeight: 500,
-                              display: isRejected ? 'none' : 'inline',
-                            }}
-                          >
-                            {change.new_text}
-                          </span>
-                          
-                          {/* Inline accept/reject buttons */}
-                          {change.status === 'pending' && (
-                            <span className="inline-flex items-center ml-2 space-x-1 align-middle">
-                              <button
-                                onClick={() => handleAccept(change.id)}
-                                className="p-0.5 bg-green-500/20 text-green-600 rounded hover:bg-green-500/30 transition-colors"
-                                title="Accept change"
-                              >
-                                <CheckCircle className="w-3 h-3" />
-                              </button>
-                              <button
-                                onClick={() => handleReject(change.id)}
-                                className="p-0.5 bg-red-500/20 text-red-600 rounded hover:bg-red-500/30 transition-colors"
-                                title="Reject change"
-                              >
-                                <XCircle className="w-3 h-3" />
-                              </button>
-                            </span>
-                          )}
-                          
-                          {/* Status indicator */}
-                          {change.status === 'accepted' && (
-                            <span className="inline-flex items-center ml-1">
-                              <CheckCircle className="w-3 h-3 text-green-500" />
-                            </span>
-                          )}
-                          {change.status === 'rejected' && (
-                            <span className="inline-flex items-center ml-1">
-                              <XCircle className="w-3 h-3 text-red-500" />
-                            </span>
-                          )}
-                        </span>
-                      );
-                    }
-                    return null;
-                  })}
-                </p>
+                <button
+                  key={change.id}
+                  onClick={() => scrollToChange(change.id)}
+                  className={`w-full text-left border rounded-2xl p-4 shadow-sm hover:shadow-md transition ${
+                    isActive ? 'border-blue-400 shadow-lg' : 'border-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs uppercase tracking-widest text-slate-400 mb-2">
+                    <span>Change {idx + 1}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusColor}`}>
+                      {statusLabel}
+                    </span>
+                  </div>
+                  <h4 className="text-sm font-semibold text-slate-800 mb-1">
+                    {change.section || 'General'}
+                  </h4>
+                  <p className="text-xs text-slate-500 line-clamp-2">
+                    {change.reason || change.current_text}
+                  </p>
+                </button>
               );
-            }
-            return null;
-          })}
-        </div>
-        )}
-      </div>
-
-      {/* Change summary sidebar */}
-      <div className="bg-white/5 border border-white/10 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">Changes Summary</h3>
-        <div className="text-xs text-yellow-400 mb-3 p-2 bg-yellow-500/10 rounded border border-yellow-500/20">
-          ⚠️ Inline buttons should appear in the document above. If you don't see them, check the browser console (F12) for debugging info.
-        </div>
-        <div className="space-y-2">
-          {changes.map((change, idx) => (
-            <div
-              key={change.id}
-              className={`p-3 rounded-lg border ${
-                change.status === 'accepted'
-                  ? 'bg-green-500/10 border-green-500/30'
-                  : change.status === 'rejected'
-                  ? 'bg-red-500/10 border-red-500/30'
-                  : 'bg-white/5 border-white/10'
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-white mb-1">
-                    Change {idx + 1}: {change.section}
-                  </div>
-                  <div className="text-xs text-[#E5E7EB]/60">
-                    {change.reason}
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  {change.status === 'pending' && (
-                    <>
-                      <button
-                        onClick={() => handleAccept(change.id)}
-                        className="p-1 bg-green-500/20 text-green-400 rounded hover:bg-green-500/30"
-                      >
-                        <CheckCircle className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleReject(change.id)}
-                        className="p-1 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30"
-                      >
-                        <XCircle className="w-5 h-5" />
-                      </button>
-                    </>
-                  )}
-                  {change.status === 'accepted' && (
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                  )}
-                  {change.status === 'rejected' && (
-                    <XCircle className="w-5 h-5 text-red-500" />
-                  )}
-                </div>
+            })}
+          </div>
+        </aside>
+        
+        {/* Document Viewer */}
+        <div className="flex-1">
+          <div className="bg-[#F3F4F6] rounded-3xl shadow-inner p-6">
+            <div className="flex items-center justify-between mb-4 text-sm text-slate-500">
+              <div>
+                Page <span className="font-semibold text-slate-700">1</span> of{' '}
+                <span className="font-semibold text-slate-700">1</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button className="px-3 py-1 rounded-full bg-white shadow text-slate-600 text-xs">-</button>
+                <span className="text-xs font-semibold text-slate-700">100%</span>
+                <button className="px-3 py-1 rounded-full bg-white shadow text-slate-600 text-xs">+</button>
               </div>
             </div>
-          ))}
+            
+            <div className="flex justify-center">
+              <div
+                className="bg-white shadow-2xl rounded-xl px-10 py-12 w-full max-w-4xl"
+                style={{
+                  fontFamily: 'Times New Roman, serif',
+                  fontSize: '12pt',
+                  lineHeight: '1.6',
+                  color: '#000000',
+                  minHeight: '70vh'
+                }}
+              >
+                <div
+                  ref={documentRef}
+                  dangerouslySetInnerHTML={{ __html: documentHtml }}
+                  onClick={handleDocumentClick}
+                  style={{ color: '#000000' }}
+                  className="document-content"
+                />
+                
+                {!documentHtml && (
+                  <div>
+                    {documentSegments.map((para, paraIdx) => {
+                      if (para.type === 'paragraph') {
+                        if (para.isEmpty) {
+                          return <div key={paraIdx} style={{ height: '1em' }} />;
+                        }
+                        
+                        return (
+                          <p
+                            key={paraIdx}
+                            className="text-black"
+                            style={{
+                              marginBottom: '0.75em',
+                              textIndent: para.segments[0]?.content?.startsWith('\\t') ? '2em' : '0',
+                              whiteSpace: 'pre-wrap',
+                            }}
+                          >
+                            {para.segments.map((segment: any, segIdx: number) => {
+                              if (segment.type === 'text') {
+                                return <span key={segIdx}>{segment.content}</span>;
+                              } else if (segment.type === 'change') {
+                                const change = segment.change;
+                                const isAccepted = change.status === 'accepted';
+                                const isRejected = change.status === 'rejected';
+                                
+                                return (
+                                  <span key={segIdx} className="inline-block">
+                                    <span
+                                      className="text-black"
+                                      style={{
+                                        textDecoration: 'line-through',
+                                        display: isAccepted ? 'none' : 'inline',
+                                      }}
+                                    >
+                                      {change.current_text}
+                                    </span>
+                                    <span
+                                      className="text-red-600"
+                                      style={{
+                                        textDecoration: 'underline',
+                                        fontWeight: 500,
+                                        display: isRejected ? 'none' : 'inline',
+                                      }}
+                                    >
+                                      {change.new_text}
+                                    </span>
+                                    {change.status === 'pending' && (
+                                      <span className="inline-flex items-center ml-2 space-x-1 align-middle">
+                                        <button
+                                          onClick={() => handleAccept(change.id)}
+                                          className="p-0.5 bg-green-500/20 text-green-600 rounded hover:bg-green-500/30 transition-colors"
+                                          title="Accept change"
+                                        >
+                                          <CheckCircle className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                          onClick={() => handleReject(change.id)}
+                                          className="p-0.5 bg-red-500/20 text-red-600 rounded hover:bg-red-500/30 transition-colors"
+                                          title="Reject change"
+                                        >
+                                          <XCircle className="w-3 h-3" />
+                                        </button>
+                                      </span>
+                                    )}
+                                    {change.status === 'accepted' && (
+                                      <span className="inline-flex items-center ml-1">
+                                        <CheckCircle className="w-3 h-3 text-green-500" />
+                                      </span>
+                                    )}
+                                    {change.status === 'rejected' && (
+                                      <span className="inline-flex items-center ml-1">
+                                        <XCircle className="w-3 h-3 text-red-500" />
+                                      </span>
+                                    )}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })}
+                          </p>
+                        );
+                      }
+                      return null;
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
