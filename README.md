@@ -1,6 +1,6 @@
 # NDA Redline - AI-Powered NDA Redlining
 
-Minimal, trustworthy NDA redlining web app with AI assistance.
+Minimal, trustworthy NDA redlining web app with AI assistance
 
 ## Quickstart
 
