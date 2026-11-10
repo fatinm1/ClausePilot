@@ -44,11 +44,11 @@ export default function ChangesReview({
       setLoading(true);
       setError(null);
       
-      const response = await api.request('/v1/changes/generate', {
+      const response = await api.request<{ success: boolean; changes: Change[] }>('/v1/changes/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': '1' // Mock user ID for demo
+
         },
         body: JSON.stringify({
           document_text: documentText,
@@ -95,11 +95,11 @@ export default function ChangesReview({
         return;
       }
 
-      const response = await api.request(`/v1/changes/apply-accepted/${documentId}`, {
+      const response = await api.request<{ success: boolean; final_document_path: string }>(`/v1/changes/apply-accepted/${documentId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': '1' // Mock user ID for demo
+
         },
         body: JSON.stringify({
           accepted_changes: acceptedChanges

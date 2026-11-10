@@ -100,10 +100,10 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
 
       // First, get the document with HTML formatting
       const docResponse = await fetch(`/v1/documents/${documentId}/text`, {
+      credentials: 'include',
         headers: {
-          'X-User-ID': '1',
+
         },
-        credentials: 'include',
       });
 
       if (!docResponse.ok) {
@@ -121,12 +121,12 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       
       // Generate changes
       const changesResponse = await fetch(`/v1/changes/generate`, {
+      credentials: 'include',
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': '1',
+
         },
-        credentials: 'include',
         body: JSON.stringify({
           document_text: text,
           custom_rules: customRules,
@@ -735,12 +735,12 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       }
       
       const response = await fetch(`/v1/changes/apply-accepted/${documentId}`, {
+      credentials: 'include',
         method: 'POST',
         headers: {
-          'X-User-ID': '1',
+
           // Don't set Content-Type - let browser set it with boundary for FormData
         },
-        credentials: 'include',
         body: formData,
       });
 

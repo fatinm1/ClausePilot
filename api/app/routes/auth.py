@@ -1,3 +1,4 @@
+from app.security import require_auth
 from flask import Blueprint, request, jsonify, make_response, current_app
 from app import db
 import jwt
@@ -9,12 +10,12 @@ auth_bp = Blueprint('auth', __name__)
 def create_tokens(user_id):
     secret_key = current_app.config.get('JWT_SECRET_KEY', 'fallback-secret-key')
     access_token = jwt.encode(
-        {'user_id': user_id, 'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)},
+        {'user_id': user_id, 'type': 'access', 'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)},
         secret_key,
         algorithm='HS256'
     )
     refresh_token = jwt.encode(
-        {'user_id': user_id, 'exp': datetime.datetime.utcnow() + datetime.timedelta(days=30)},
+        {'user_id': user_id, 'type': 'refresh', 'exp': datetime.datetime.utcnow() + datetime.timedelta(days=30)},
         secret_key,
         algorithm='HS256'
     )
@@ -48,8 +49,8 @@ def register():
         'message': 'User registered successfully',
         'user': user.to_dict()
     }))
-    response.set_cookie('access_token', access_token, httponly=True, secure=False, samesite='Lax')
-    response.set_cookie('refresh_token', refresh_token, httponly=True, secure=False, samesite='Lax')
+    response.set_cookie('access_token', access_token, httponly=True, secure=current_app.config.get('SESSION_COOKIE_SECURE', False), samesite='Lax')
+    response.set_cookie('refresh_token', refresh_token, httponly=True, secure=current_app.config.get('SESSION_COOKIE_SECURE', False), samesite='Lax')
     
     return response, 201
 
@@ -75,8 +76,8 @@ def login():
         'message': 'Login successful', 
         'user': user.to_dict()
     }))
-    response.set_cookie('access_token', access_token, httponly=True, secure=False, samesite='Lax')
-    response.set_cookie('refresh_token', refresh_token, httponly=True, secure=False, samesite='Lax')
+    response.set_cookie('access_token', access_token, httponly=True, secure=current_app.config.get('SESSION_COOKIE_SECURE', False), samesite='Lax')
+    response.set_cookie('refresh_token', refresh_token, httponly=True, secure=current_app.config.get('SESSION_COOKIE_SECURE', False), samesite='Lax')
     
     return response
 
@@ -96,14 +97,19 @@ def refresh():
     
     try:
         secret_key = current_app.config.get('JWT_SECRET_KEY', 'fallback-secret-key')
-        payload = jwt.decode(refresh_token, secret_key, algorithms=['HS256'])
+        payload = jwt.decode(refresh_token, secret_key, algorithms=['HS256'], options={'require': ['exp', 'user_id', 'type']})
+        if payload['type'] != 'refresh':
+            raise jwt.InvalidTokenError('Wrong token type')
+        user = db.session.get(current_app.User, payload['user_id'])
+        if not user or not user.is_active:
+            raise jwt.InvalidTokenError('Inactive account')
         user_id = payload['user_id']
         
         access_token, new_refresh_token = create_tokens(user_id)
         
         response = make_response(jsonify({'message': 'Token refreshed'}))
-        response.set_cookie('access_token', access_token, httponly=True, secure=False, samesite='Lax')
-        response.set_cookie('refresh_token', new_refresh_token, httponly=True, secure=False, samesite='Lax')
+        response.set_cookie('access_token', access_token, httponly=True, secure=current_app.config.get('SESSION_COOKIE_SECURE', False), samesite='Lax')
+        response.set_cookie('refresh_token', new_refresh_token, httponly=True, secure=current_app.config.get('SESSION_COOKIE_SECURE', False), samesite='Lax')
         
         return response
     except jwt.ExpiredSignatureError:
@@ -112,23 +118,6 @@ def refresh():
         return jsonify({'error': 'Invalid refresh token'}), 401
 
 @auth_bp.route('/me', methods=['GET'])
-def me():
-    access_token = request.cookies.get('access_token')
-    
-    if not access_token:
-        return jsonify({'error': 'Access token required'}), 401
-    
-    try:
-        secret_key = current_app.config.get('JWT_SECRET_KEY', 'fallback-secret-key')
-        payload = jwt.decode(access_token, secret_key, algorithms=['HS256'])
-        User = current_app.User
-        user = User.query.get(payload['user_id'])
-        
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-        
-        return jsonify({'user': user.to_dict()})
-    except jwt.ExpiredSignatureError:
-        return jsonify({'error': 'Access token expired'}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({'error': 'Invalid access token'}), 401
+@require_auth
+def me(user):
+    return jsonify({'user': user.to_dict()})

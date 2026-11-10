@@ -41,7 +41,7 @@ class ApiClient {
     this.baseUrl = baseUrl;
   }
 
-  private async request<T>(
+  async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
@@ -79,7 +79,7 @@ class ApiClient {
     return this.request<{ message: string; document: Document }>('/v1/documents/upload', {
       method: 'POST',
       headers: {
-        'X-User-ID': userId,
+
       },
       body: formData,
     });
@@ -114,7 +114,7 @@ class ApiClient {
       {
         method: 'POST',
         headers: {
-          'X-User-ID': userId,
+
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
@@ -129,7 +129,7 @@ class ApiClient {
     return this.request<{ message: string; signature_path: string }>('/v1/signatures/upload', {
       method: 'POST',
       headers: {
-        'X-User-ID': userId,
+
       },
       body: formData,
     });
@@ -140,7 +140,7 @@ class ApiClient {
       `/v1/documents/${documentId}`,
       {
         headers: {
-          'X-User-ID': userId,
+
         },
       }
     );
@@ -157,7 +157,7 @@ class ApiClient {
       `/v1/documents?page=${page}&per_page=${perPage}`,
       {
         headers: {
-          'X-User-ID': userId,
+
         },
       }
     );
@@ -169,7 +169,7 @@ class ApiClient {
       {
         method: 'DELETE',
         headers: {
-          'X-User-ID': userId,
+
         },
       }
     );
@@ -178,9 +178,10 @@ class ApiClient {
   async downloadDocument(documentId: number, userId: string): Promise<void> {
     try {
       const response = await fetch(`${this.baseUrl}/v1/documents/${documentId}/download`, {
+      credentials: 'include',
         method: 'GET',
         headers: {
-          'X-User-ID': userId,
+
         },
       });
 
@@ -220,7 +221,7 @@ class ApiClient {
       {
         method: 'GET',
         headers: {
-          'X-User-ID': '1', // Mock user ID for demo
+
         },
       }
     );
@@ -231,17 +232,18 @@ class ApiClient {
   async listRules(userId: string): Promise<{ rules: any[] }> {
     return this.request<{ rules: any[] }>('/v1/rules/', {
       headers: {
-        'X-User-ID': userId,
+
       },
     });
   }
 
   async createRule(rule: any, userId: string): Promise<any> { // ProcessingRule interface removed, so using 'any' for now
     const response = await fetch(`${this.baseUrl}/v1/rules/`, {
+      credentials: 'include',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-User-ID': userId
+
       },
       body: JSON.stringify(rule)
     })
@@ -263,7 +265,7 @@ class ApiClient {
       {
         method: 'PUT',
         headers: {
-          'X-User-ID': userId,
+
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(updates),
@@ -277,7 +279,7 @@ class ApiClient {
       {
         method: 'DELETE',
         headers: {
-          'X-User-ID': userId,
+
         },
       }
     );
@@ -288,7 +290,7 @@ class ApiClient {
       '/v1/rules/categories',
       {
         headers: {
-          'X-User-ID': userId,
+
         },
       }
     );
@@ -299,7 +301,7 @@ class ApiClient {
       '/v1/rules/templates',
       {
         headers: {
-          'X-User-ID': userId,
+
         },
       }
     );
@@ -311,7 +313,7 @@ class ApiClient {
       '/v1/admin/users',
       {
         headers: {
-          'X-User-ID': userId,
+
         },
       }
     );
@@ -323,7 +325,7 @@ class ApiClient {
       {
         method: 'POST',
         headers: {
-          'X-User-ID': userId,
+
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(userData),
@@ -337,7 +339,7 @@ class ApiClient {
       {
         method: 'PUT',
         headers: {
-          'X-User-ID': userId,
+
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(updates),
@@ -351,7 +353,7 @@ class ApiClient {
       {
         method: 'DELETE',
         headers: {
-          'X-User-ID': userId,
+
         },
       }
     );
@@ -368,7 +370,7 @@ class ApiClient {
       '/v1/admin/dashboard',
       {
         headers: {
-          'X-User-ID': userId,
+
         },
       }
     );
@@ -379,7 +381,7 @@ class ApiClient {
       '/v1/admin/system/health',
       {
         headers: {
-          'X-User-ID': userId,
+
         },
       }
     );

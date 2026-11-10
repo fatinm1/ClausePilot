@@ -27,11 +27,11 @@ export interface RegisterData {
 export async function login(credentials: LoginCredentials): Promise<AuthResponse> {
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5001');
   const response = await fetch(`${API_BASE_URL}/v1/auth/login`, {
+      credentials: 'include',
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    credentials: 'include',
     body: JSON.stringify(credentials),
   })
 
@@ -46,11 +46,11 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
 export async function register(data: RegisterData): Promise<AuthResponse> {
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5001');
   const response = await fetch(`${API_BASE_URL}/v1/auth/register`, {
+      credentials: 'include',
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
 
@@ -92,8 +92,8 @@ export async function logout(): Promise<void> {
   try {
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5001');
     await fetch(`${API_BASE_URL}/v1/auth/logout`, {
-      method: 'POST',
       credentials: 'include',
+      method: 'POST',
     })
   } catch (error) {
     // Ignore logout errors

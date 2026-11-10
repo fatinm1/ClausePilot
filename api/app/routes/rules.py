@@ -1,3 +1,4 @@
+from app.security import require_auth, require_admin
 import logging
 from flask import Blueprint, request, jsonify, current_app
 from app import db
@@ -5,47 +6,6 @@ from functools import wraps
 
 logger = logging.getLogger(__name__)
 rules_bp = Blueprint('rules', __name__)
-
-def require_auth(f):
-    """Decorator to require authentication"""
-    def decorated_function(*args, **kwargs):
-        # Get user ID from header
-        user_id = request.headers.get('X-User-ID')
-        if not user_id:
-            return jsonify({'error': 'User ID required'}), 401
-        
-        # Get user from database
-        User = current_app.User
-        user = User.query.get(int(user_id))
-        
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-        
-        return f(user, *args, **kwargs)
-    decorated_function.__name__ = f.__name__
-    return decorated_function
-
-def require_admin(f):
-    """Decorator to require admin role"""
-    def decorated_function(*args, **kwargs):
-        # Get user ID from header
-        user_id = request.headers.get('X-User-ID')
-        if not user_id:
-            return jsonify({'error': 'User ID required'}), 401
-        
-        # Get user from database
-        User = current_app.User
-        user = User.query.get(int(user_id))
-        
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-        
-        if user.role != 'ADMIN':
-            return jsonify({'error': 'Admin access required'}), 403
-        
-        return f(user, *args, **kwargs)
-    decorated_function.__name__ = f.__name__
-    return decorated_function
 
 @rules_bp.route('/', methods=['GET'])
 @require_auth
@@ -90,7 +50,7 @@ def create_rule(user):
     }), 201
 
 @rules_bp.route('/add-name-term-rules', methods=['POST'])
-@require_auth
+@require_admin
 def add_name_term_rules(user):
     """Add Name and Term rules to the database (accessible to any authenticated user)"""
     ProcessingRule = current_app.ProcessingRule
@@ -253,7 +213,8 @@ def disable_problematic_rules():
         return jsonify({'message': 'Rule #8 not found'}), 404
 
 @rules_bp.route('/fix-hardcoded-values', methods=['POST'])
-def fix_hardcoded_values():
+@require_admin
+def fix_hardcoded_values(user):
     """Remove hardcoded company/person names from rules"""
     ProcessingRule = current_app.ProcessingRule
     

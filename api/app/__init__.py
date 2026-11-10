@@ -11,6 +11,9 @@ migrate = Migrate()
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+    if os.environ.get("FLASK_ENV") == "production" and not app.config.get("TESTING"):
+        if len(app.config.get("JWT_SECRET_KEY", "")) < 32 or app.config["JWT_SECRET_KEY"].startswith("dev-"):
+            raise RuntimeError("Set a unique JWT_SECRET_KEY of at least 32 characters in production")
     
     # Configure file upload limits
     app.config['MAX_CONTENT_LENGTH'] = config_class.MAX_CONTENT_LENGTH
