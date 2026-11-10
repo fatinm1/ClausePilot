@@ -1,3 +1,4 @@
+from app.security import require_auth, require_admin
 import os
 import sys
 import json
@@ -20,53 +21,6 @@ OUTPUT_FOLDER = 'outputs'
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def require_auth(f):
-    """Decorator to require authentication"""
-    def decorated_function(*args, **kwargs):
-        # For demo purposes, create a mock user based on X-User-ID header
-        user_id = request.headers.get('X-User-ID', '1')
-        if user_id == '1':
-            # Mock admin user
-            class MockUser:
-                id = 1
-                role = 'ADMIN'
-            user = MockUser()
-        elif user_id == '2':
-            # Mock regular user
-            class MockUser:
-                id = 2
-                role = 'USER'
-            user = MockUser()
-        else:
-            return jsonify({'error': 'Unauthorized'}), 401
-        
-        return f(user, *args, **kwargs)
-    decorated_function.__name__ = f.__name__
-    return decorated_function
-
-def require_admin(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        user_id = request.headers.get('X-User-ID')
-        if not user_id:
-            return jsonify({'error': 'Authentication required'}), 401
-        
-        # For demo purposes, check if user is admin
-        if user_id == '1':
-            user = type('MockUser', (), {'id': 1, 'role': 'admin'})()
-        else:
-            # For non-demo users, check against database
-            User = current_app.User
-            user = User.query.get(user_id)
-            if not user:
-                return jsonify({'error': 'User not found'}), 404
-            
-            if not user.is_admin():
-                return jsonify({'error': 'Admin access required'}), 403
-        
-        return f(user, *args, **kwargs)
-    return decorated_function
 
 @documents_bp.route('/upload', methods=['POST'])
 @require_auth

@@ -36,3 +36,7 @@ Thumbs.db
 
 # Railway
 .railway/
+
+web/out/
+web/.next/
+*.tsbuildinfo
