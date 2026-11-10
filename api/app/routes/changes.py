@@ -1,3 +1,4 @@
+from app.security import require_auth, require_admin
 import logging
 from flask import Blueprint, request, jsonify, current_app
 from app import db
@@ -7,25 +8,6 @@ import os
 
 logger = logging.getLogger(__name__)
 changes_bp = Blueprint('changes', __name__)
-
-def require_auth(f):
-    """Decorator to require authentication"""
-    def decorated_function(*args, **kwargs):
-        # Get user ID from header
-        user_id = request.headers.get('X-User-ID')
-        if not user_id:
-            return jsonify({'error': 'User ID required'}), 401
-        
-        # Get user from database
-        User = current_app.User
-        user = User.query.get(int(user_id))
-        
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-        
-        return f(user, *args, **kwargs)
-    decorated_function.__name__ = f.__name__
-    return decorated_function
 
 @changes_bp.route('/generate', methods=['POST'])
 @require_auth

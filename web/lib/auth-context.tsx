@@ -13,7 +13,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-export function AuthProvider({ children }: { ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -58,8 +58,8 @@ export function AuthProvider({ children }: { ReactNode }) {
     try {
       // Call backend logout to clear httpOnly cookies
       await fetch('/v1/auth/logout', {
+      credentials: 'include',
         method: 'POST',
-        credentials: 'include',
       })
     } catch (error) {
       // Ignore logout errors

@@ -7,13 +7,10 @@ load_dotenv('.env')
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key'
+    SESSION_COOKIE_SECURE = os.environ.get('FLASK_ENV') == 'production'
     
     # Use local PostgreSQL connection for development
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'postgresql://fatinmojumder@localhost:5432/nda_redline'
-    
-    # Debug: Print the actual database URL being used
-    print(f"DEBUG: DATABASE_URL from env: {os.environ.get('DATABASE_URL')}")
-    print(f"DEBUG: Final SQLALCHEMY_DATABASE_URI: {SQLALCHEMY_DATABASE_URI}")
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or os.environ.get('JWT_SECRET') or 'dev-secret-key-change-in-production'

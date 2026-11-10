@@ -178,3 +178,9 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:5001
 - Add CDN for document delivery
 - Consider microservices architecture for high-scale deployments
 # Deployment test
+
+## Authentication and demo safety
+
+All protected endpoints verify a signed access token and the active account's server-side role. Browser clients use HttpOnly cookies; X-User-ID is never authentication. Existing sessions must sign in again after this update because access and refresh tokens now have separate types. Configure a unique JWT_SECRET_KEY of at least 32 characters and FLASK_ENV=production on deployments. Create the initial administrator using the local administrative script, not a public bootstrap endpoint.
+
+Run API permission tests with `cd api && python -m pytest tests -q`. These exercise forged headers, token expiry/type, roles, ownership, and public health output without calling an AI provider. Public demos must use synthetic documents only. This repository demonstrates a document workflow; it does not establish legal correctness or production security certification.
