@@ -20,19 +20,20 @@ PROVIDERS = {
         "GROQ_API_KEY",
         "https://api.groq.com/openai/v1",
         "GROQ_MODEL",
-        "llama-3.3-70b-versatile",
+        # tried in order; models a provider has retired are skipped automatically
+        "openai/gpt-oss-120b,llama-3.3-70b-versatile,openai/gpt-oss-20b,llama-3.1-8b-instant",
     ),
     "gemini": (
         "GEMINI_API_KEY",
         "https://generativelanguage.googleapis.com/v1beta/openai/",
         "GEMINI_MODEL",
-        "gemini-flash-latest",
+        "gemini-flash-latest,gemini-2.5-flash",
     ),
     "openrouter": (
         "OPENROUTER_API_KEY",
         "https://openrouter.ai/api/v1",
         "OPENROUTER_MODEL",
-        "meta-llama/llama-3.3-70b-instruct:free",
+        "openai/gpt-oss-120b:free,meta-llama/llama-3.3-70b-instruct:free",
     ),
     "openai": ("OPENAI_API_KEY", None, "OPENAI_MODEL", "gpt-4o-mini"),
 }
@@ -59,18 +60,23 @@ class AIRedliningService:
             api_key = (os.getenv(key_env) or "").strip()
             if api_key in PLACEHOLDER_KEYS:
                 continue
-            model = os.getenv(model_env) or default_model
+            models = [
+                m.strip()
+                for m in (os.getenv(model_env) or default_model).split(",")
+                if m.strip()
+            ]
             try:
                 kwargs = {"api_key": api_key, "max_retries": 1, "timeout": 90}
                 if base_url:
                     kwargs["base_url"] = base_url
-                self.providers.append((name, OpenAI(**kwargs), model))
-                logger.info(f"LLM provider enabled: {name} ({model})")
+                self.providers.append((name, OpenAI(**kwargs), models))
+                logger.info(f"LLM provider enabled: {name} ({', '.join(models)})")
             except Exception as init_error:
                 logger.error(f"Could not initialise {name}: {init_error}")
 
         if self.providers:
-            _, self.client, self.model = self.providers[0]
+            _, self.client, models = self.providers[0]
+            self.model = models[0]
         else:
             self.client = None
             self.model = "rule-based"
@@ -79,29 +85,52 @@ class AIRedliningService:
     def _complete(self, messages: list[dict[str, str]], json_mode: bool = False):
         """Call each configured provider in order; return (provider, response)."""
         last_error = None
-        for name, client, model in self.providers:
-            for use_json in ([True, False] if json_mode else [False]):
-                try:
-                    logger.warning(f"Calling LLM provider {name} ({model})")
-                    kwargs = {
-                        "model": model,
-                        "messages": messages,
-                        "temperature": 0,
-                        "max_tokens": 1500,
-                    }
-                    if use_json:
-                        kwargs["response_format"] = {"type": "json_object"}
-                    response = client.chat.completions.create(**kwargs)
-                    if response.choices and response.choices[0].message.content:
-                        return name, response
-                    last_error = RuntimeError("empty response")
-                    break
-                except Exception as api_error:
-                    last_error = api_error
-                    logger.error(f"LLM provider {name} failed: {api_error}")
-                    # retry without JSON mode only if the provider rejected that option
-                    if not (use_json and "response_format" in str(api_error).lower()):
+        for name, client, models in self.providers:
+            while models:
+                model = models[0]
+                retired = False
+                for use_json in [True, False] if json_mode else [False]:
+                    try:
+                        logger.warning(f"Calling LLM provider {name} ({model})")
+                        kwargs = {
+                            "model": model,
+                            "messages": messages,
+                            "temperature": 0,
+                            "max_tokens": 4000,
+                        }
+                        if use_json:
+                            kwargs["response_format"] = {"type": "json_object"}
+                        response = client.chat.completions.create(**kwargs)
+                        if response.choices and response.choices[0].message.content:
+                            self.model = model
+                            return name, response
+                        last_error = RuntimeError("empty response")
                         break
+                    except Exception as api_error:
+                        last_error = api_error
+                        msg = str(api_error).lower()
+                        logger.error(
+                            f"LLM provider {name} ({model}) failed: {api_error}"
+                        )
+                        if (
+                            "model_not_found" in msg
+                            or "does not exist" in msg
+                            or "decommissioned" in msg
+                        ):
+                            retired = True
+                            break
+                        # retry without JSON mode only if the provider rejected that option
+                        if not (
+                            use_json and ("response_format" in msg or "json" in msg)
+                        ):
+                            break
+                if retired:
+                    logger.warning(
+                        f"{name}: model {model} unavailable, trying the next one"
+                    )
+                    models.pop(0)
+                    continue
+                break
         raise RuntimeError(f"All LLM providers failed: {last_error}")
 
     def _llm_text(self, messages: list[dict[str, str]]) -> str:
