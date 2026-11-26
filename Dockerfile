@@ -86,6 +86,16 @@ RUN echo '#!/bin/bash' > /app/start.sh && \
     echo 'export FLASK_ENV=production' >> /app/start.sh && \
     echo 'export PORT=${PORT:-5001}' >> /app/start.sh && \
     echo '' >> /app/start.sh && \
+    echo '# Keep uploads and redlines on the Railway volume so deploys do not wipe them' >> /app/start.sh && \
+    echo 'DATA_DIR="${DATA_DIR:-$RAILWAY_VOLUME_MOUNT_PATH}"' >> /app/start.sh && \
+    echo 'if [ -n "$DATA_DIR" ]; then' >> /app/start.sh && \
+    echo '  for d in uploads outputs; do' >> /app/start.sh && \
+    echo '    mkdir -p "$DATA_DIR/$d"' >> /app/start.sh && \
+    echo '    if [ ! -L "/app/$d" ]; then rm -rf "/app/$d"; ln -s "$DATA_DIR/$d" "/app/$d"; fi' >> /app/start.sh && \
+    echo '  done' >> /app/start.sh && \
+    echo '  echo "Storing uploads and outputs in $DATA_DIR"' >> /app/start.sh && \
+    echo 'fi' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
     echo '# Start Flask application' >> /app/start.sh && \
     echo 'echo "Starting Flask application on port $PORT..."' >> /app/start.sh && \
     echo 'cd /app && python run.py' >> /app/start.sh && \
