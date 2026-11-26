@@ -1,135 +1,150 @@
+import base64
+import logging
 import os
 import sys
-import json
-import logging
-import base64
-from datetime import datetime
-from flask import Blueprint, request, jsonify, current_app, send_file
-from werkzeug.utils import secure_filename
-from functools import wraps
 import uuid
+from datetime import datetime
+from functools import wraps
+
+from flask import Blueprint, current_app, jsonify, request, send_file
+from werkzeug.utils import secure_filename
+
 from app import db
 
 logger = logging.getLogger(__name__)
-documents_bp = Blueprint('documents', __name__)
+documents_bp = Blueprint("documents", __name__)
 
 # File upload configuration
-ALLOWED_EXTENSIONS = {'docx'}
-UPLOAD_FOLDER = 'uploads'
-OUTPUT_FOLDER = 'outputs'
+ALLOWED_EXTENSIONS = {"docx"}
+UPLOAD_FOLDER = "uploads"
+OUTPUT_FOLDER = "outputs"
+
 
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
 
 def require_auth(f):
     """Decorator to require authentication"""
+
     def decorated_function(*args, **kwargs):
         # For demo purposes, create a mock user based on X-User-ID header
-        user_id = request.headers.get('X-User-ID', '1')
-        if user_id == '1':
+        user_id = request.headers.get("X-User-ID", "1")
+        if user_id == "1":
             # Mock admin user
             class MockUser:
                 id = 1
-                role = 'ADMIN'
+                role = "ADMIN"
+
             user = MockUser()
-        elif user_id == '2':
+        elif user_id == "2":
             # Mock regular user
             class MockUser:
                 id = 2
-                role = 'USER'
+                role = "USER"
+
             user = MockUser()
         else:
-            return jsonify({'error': 'Unauthorized'}), 401
-        
+            return jsonify({"error": "Unauthorized"}), 401
+
         return f(user, *args, **kwargs)
+
     decorated_function.__name__ = f.__name__
     return decorated_function
+
 
 def require_admin(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        user_id = request.headers.get('X-User-ID')
+        user_id = request.headers.get("X-User-ID")
         if not user_id:
-            return jsonify({'error': 'Authentication required'}), 401
-        
+            return jsonify({"error": "Authentication required"}), 401
+
         # For demo purposes, check if user is admin
-        if user_id == '1':
-            user = type('MockUser', (), {'id': 1, 'role': 'admin'})()
+        if user_id == "1":
+            user = type("MockUser", (), {"id": 1, "role": "admin"})()
         else:
             # For non-demo users, check against database
             User = current_app.User
             user = User.query.get(user_id)
             if not user:
-                return jsonify({'error': 'User not found'}), 404
-            
+                return jsonify({"error": "User not found"}), 404
+
             if not user.is_admin():
-                return jsonify({'error': 'Admin access required'}), 403
-        
+                return jsonify({"error": "Admin access required"}), 403
+
         return f(user, *args, **kwargs)
+
     return decorated_function
 
-@documents_bp.route('/upload', methods=['POST'])
+
+@documents_bp.route("/upload", methods=["POST"])
 @require_auth
 def upload_document(user):
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-    
+    if "file" not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"error": "No file selected"}), 400
+
     if not file:
-        return jsonify({'error': 'Invalid file'}), 400
-    
+        return jsonify({"error": "Invalid file"}), 400
+
     # Check file size before processing
     file.seek(0, 2)  # Seek to end
     file_size = file.tell()
     file.seek(0)  # Reset to beginning
-    
+
     # Check if file is too large (50MB limit)
     max_size = 50 * 1024 * 1024  # 50MB
     if file_size > max_size:
-        return jsonify({
-            'error': 'File too large',
-            'message': f'File size ({file_size} bytes) exceeds the maximum allowed limit of 50MB',
-            'max_size': '50MB',
-            'current_size': f'{file_size} bytes'
-        }), 413
-    
+        return (
+            jsonify(
+                {
+                    "error": "File too large",
+                    "message": f"File size ({file_size} bytes) exceeds the maximum allowed limit of 50MB",
+                    "max_size": "50MB",
+                    "current_size": f"{file_size} bytes",
+                }
+            ),
+            413,
+        )
+
     # Generate unique filename
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     unique_id = str(uuid.uuid4())[:8]
     filename = f"{timestamp}_{unique_id}_{secure_filename(file.filename)}"
-    
+
     # Ensure uploads directory exists
-    upload_dir = 'uploads'
+    upload_dir = "uploads"
     os.makedirs(upload_dir, exist_ok=True)
-    
+
     # Use absolute path to avoid issues in Railway
     file_path = os.path.abspath(os.path.join(upload_dir, filename))
-    
+
     # Save file with proper error handling
     try:
         file.save(file_path)
-        
+
         # Verify file was saved correctly
         if not os.path.exists(file_path):
             raise Exception("File was not saved successfully")
-        
+
         # Get file size
         file_size = os.path.getsize(file_path)
-        
+
         # Validate file size matches what we expect
         if file_size == 0:
             raise Exception("Uploaded file is empty")
-        
+
         # Log file details for debugging
         logger.info(f"File uploaded successfully: {filename}, size: {file_size} bytes")
-        
+
     except Exception as e:
         logger.error(f"Error saving file: {str(e)}")
-        return jsonify({'error': f'Failed to save file: {str(e)}'}), 500
-    
+        return jsonify({"error": f"Failed to save file: {str(e)}"}), 500
+
     # Create document record
     Document = current_app.Document
     document = Document(
@@ -138,219 +153,241 @@ def upload_document(user):
         original_filename=secure_filename(file.filename),
         file_path=file_path,
         file_size=file_size,
-        status='uploaded'
+        status="uploaded",
     )
-    
+
     db.session.add(document)
     db.session.commit()
-    
-    return jsonify({
-        'message': 'Document uploaded successfully',
-        'document': document.to_dict()
-    }), 201
 
-@documents_bp.route('/<int:document_id>/process', methods=['POST'])
+    return (
+        jsonify(
+            {
+                "message": "Document uploaded successfully",
+                "document": document.to_dict(),
+            }
+        ),
+        201,
+    )
+
+
+@documents_bp.route("/<int:document_id>/process", methods=["POST"])
 @require_auth
 def process_document(user, document_id):
     Document = current_app.Document
     document = Document.query.get(document_id)
-    
+
     if not document:
-        return jsonify({'error': 'Document not found'}), 404
-    
+        return jsonify({"error": "Document not found"}), 404
+
     if document.user_id != user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
+        return jsonify({"error": "Unauthorized"}), 403
+
     # Get request data for custom rules, firm details, and signature
     data = request.get_json() or {}
-    custom_rules = data.get('custom_rules', [])
-    firm_details = data.get('firm_details', {})
-    signature_path = data.get('signature_path')
-    
+    custom_rules = data.get("custom_rules", [])
+    firm_details = data.get("firm_details", {})
+    signature_path = data.get("signature_path")
+
     # Debug: Log the firm details received from frontend
     logger.warning(f"Received firm_details from frontend: {firm_details}")
-    logger.warning(f"Firm details keys: {list(firm_details.keys()) if firm_details else 'None'}")
+    logger.warning(
+        f"Firm details keys: {list(firm_details.keys()) if firm_details else 'None'}"
+    )
     if firm_details:
         for key, value in firm_details.items():
             logger.warning(f"  {key}: '{value}'")
-    
+
     # Update status to processing
-    document.status = 'processing'
+    document.status = "processing"
     db.session.commit()
-    
+
     try:
         # Validate file exists and is readable
         if not os.path.exists(document.file_path):
             raise Exception(f"Document file not found: {document.file_path}")
-        
+
         # Check file size
         file_size = os.path.getsize(document.file_path)
         if file_size == 0:
             raise Exception("Document file is empty")
-        
+
         # Log file size for monitoring
         logger.info(f"Processing document: {file_size} bytes ({file_size/1024:.1f} KB)")
-        
+
         # Validate file is a valid .docx file
         try:
             from docx import Document as DocxDocument
+
             # Try to open the document to validate it's a proper .docx file
-            test_doc = DocxDocument(document.file_path)
+            DocxDocument(document.file_path)
             # If we get here, the file is valid
-            test_doc = None  # Close the test document
             logger.info(f"Document validation successful: {document.file_path}")
         except Exception as e:
             logger.error(f"Document validation failed: {str(e)}")
             logger.error(f"File path: {document.file_path}")
             logger.error(f"File exists: {os.path.exists(document.file_path)}")
-            logger.error(f"File size: {os.path.getsize(document.file_path) if os.path.exists(document.file_path) else 'N/A'}")
-            raise Exception(f"Invalid .docx file: {str(e)}")
-        
+            logger.error(
+                f"File size: {os.path.getsize(document.file_path) if os.path.exists(document.file_path) else 'N/A'}"
+            )
+            raise Exception(f"Invalid .docx file: {str(e)}") from e
+
         # Import AI service
         from app.services.ai_redlining import AIRedliningService, DocumentProcessor
-        
+
         # Initialize AI service
         logger.warning("Initializing AI service for document processing...")
         logger.warning(f"Current working directory: {os.getcwd()}")
         logger.warning(f"Python path: {sys.path[:3]}...")
-        
+
         try:
             # Check environment variables before creating AI service
-            api_key = os.getenv('OPENAI_API_KEY')
+            api_key = os.getenv("OPENAI_API_KEY")
             logger.warning(f"OPENAI_API_KEY available: {bool(api_key)}")
             logger.warning(f"OPENAI_API_KEY length: {len(api_key) if api_key else 0}")
-            logger.warning(f"OPENAI_API_KEY starts with: {api_key[:10] if api_key and len(api_key) > 10 else 'N/A'}")
-            
+            logger.warning(
+                f"OPENAI_API_KEY starts with: {api_key[:10] if api_key and len(api_key) > 10 else 'N/A'}"
+            )
+
             ai_service = AIRedliningService()
-            logger.warning(f"AI service initialized - Client available: {ai_service.client is not None}")
+            logger.warning(
+                f"AI service initialized - Client available: {ai_service.client is not None}"
+            )
             logger.warning(f"AI service model: {ai_service.model}")
             if ai_service.client is None:
                 logger.warning("AI service client is None - will use mock mode")
             else:
-                logger.warning("AI service client is available - will use real OpenAI API")
+                logger.warning(
+                    "AI service client is available - will use real OpenAI API"
+                )
         except Exception as e:
             logger.error(f"Error creating AI service: {str(e)}")
             logger.error(f"Error type: {type(e).__name__}")
             import traceback
+
             logger.error(f"Traceback: {traceback.format_exc()}")
             return jsonify({"error": f"Error initializing AI service: {str(e)}"}), 500
-        
+
         # Process document with AI and apply modifications
         # The DocumentProcessor now handles large files automatically
         logger.warning("Creating DocumentProcessor with AI service")
         logger.warning(f"AI service client available: {ai_service.client is not None}")
         logger.warning(f"AI service model: {ai_service.model}")
-        
+
         processor = DocumentProcessor(ai_service)
         logger.warning("DocumentProcessor created successfully")
-        
+
         logger.warning("Starting document processing...")
-        result = processor.process_document(document.file_path, custom_rules, firm_details, signature_path)
+        result = processor.process_document(
+            document.file_path, custom_rules, firm_details, signature_path
+        )
         logger.warning(f"Document processing completed. Result: {result}")
-        
-        if not result.get('success'):
-            raise Exception(result.get('error', 'Document processing failed'))
-        
+
+        if not result.get("success"):
+            raise Exception(result.get("error", "Document processing failed"))
+
         # Get the output path from the processor
-        output_path = result.get('output_path')
-        
+        output_path = result.get("output_path")
+
         # Update document status
-        document.status = 'completed'
+        document.status = "completed"
         document.processed_at = datetime.utcnow()
         document.output_path = output_path
         db.session.commit()
-        
-        return jsonify({
-            'message': 'Document processed successfully',
-            'result': result,
-            'document': document.to_dict()
-        })
-        
+
+        return jsonify(
+            {
+                "message": "Document processed successfully",
+                "result": result,
+                "document": document.to_dict(),
+            }
+        )
+
     except Exception as e:
         logger.error(f"Error processing document {document_id}: {str(e)}")
-        document.status = 'error'
+        document.status = "error"
         document.error_message = str(e)
         db.session.commit()
-        
-        return jsonify({
-            'error': f'Error processing document: {str(e)}'
-        }), 500
 
-@documents_bp.route('/<int:document_id>/download')
+        return jsonify({"error": f"Error processing document: {str(e)}"}), 500
+
+
+@documents_bp.route("/<int:document_id>/download")
 @require_auth
 def download_document(user, document_id):
     Document = current_app.Document
-    
+
     # Force fresh query and expire any cached data
     db.session.expire_all()
     document = Document.query.get(document_id)
-    
+
     if not document:
-        return jsonify({'error': 'Document not found'}), 404
-    
+        return jsonify({"error": "Document not found"}), 404
+
     logger.warning(f"Download request for document {document_id}")
     logger.warning(f"Document final_file_path: {document.final_file_path}")
     logger.warning(f"Document output_path: {document.output_path}")
-    
+
     # Temporarily disable ownership check for debugging
     # if document.user_id != user.id:
     #     return jsonify({'error': 'Unauthorized'}), 403
-    
+
     # Check for final_file_path first (from apply-accepted), then output_path (from regular processing)
     file_path = document.final_file_path or document.output_path
-    
+
     if not file_path or not os.path.exists(file_path):
-        logger.warning(f"Download failed - file_path: {file_path}, exists: {os.path.exists(file_path) if file_path else False}")
-        return jsonify({'error': 'No processed document available for download'}), 404
-    
+        logger.warning(
+            f"Download failed - file_path: {file_path}, exists: {os.path.exists(file_path) if file_path else False}"
+        )
+        return jsonify({"error": "No processed document available for download"}), 404
+
     logger.warning(f"Sending file: {file_path}")
-    from flask import send_file
     return send_file(
         file_path,
         as_attachment=True,
-        download_name=f"processed_{document.original_filename}"
+        download_name=f"processed_{document.original_filename}",
     )
 
-@documents_bp.route('/<int:document_id>/text')
+
+@documents_bp.route("/<int:document_id>/text")
 @require_auth
 def get_document_text(user, document_id):
     """Extract text from document for changes review"""
     Document = current_app.Document
     document = Document.query.get(document_id)
-    
+
     if not document:
-        return jsonify({'error': 'Document not found'}), 404
-    
+        return jsonify({"error": "Document not found"}), 404
+
     # Debug logging
     logger.warning(f"Document user_id: {document.user_id}, Request user_id: {user.id}")
-    
+
     # For demo purposes, allow access to any document
     # if document.user_id != user.id:
     #     return jsonify({'error': 'Unauthorized'}), 403
-    
+
     try:
         # Import docx library to extract text
         from docx import Document as DocxDocument
-        
+
         # Load the document
         doc = DocxDocument(document.file_path)
-        
+
         # Extract all text from paragraphs, preserving exact structure
         text_parts = []
         for paragraph in doc.paragraphs:
             # Keep ALL paragraphs including empty ones to preserve spacing
             text_parts.append(paragraph.text)
-        
+
         # Join with single newline to preserve exact document structure
-        full_text = '\n'.join(text_parts)
-        
+        full_text = "\n".join(text_parts)
+
         # DEBUG: Count images in document
         total_images = 0
         for rel in doc.part.rels.values():
             if "image" in rel.target_ref:
                 total_images += 1
         logger.info(f"📸 Document contains {total_images} image(s) in relationships")
-        
+
         # Convert document to HTML with formatting preserved
         html_parts = []
         for paragraph in doc.paragraphs:
@@ -359,18 +396,22 @@ def get_document_text(user, document_id):
                 # Check if there are any drawings (images) in the paragraph
                 has_image = False
                 try:
-                    if hasattr(paragraph, '_element'):
-                        drawings = paragraph._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}drawing')
+                    if hasattr(paragraph, "_element"):
+                        drawings = paragraph._element.findall(
+                            ".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}drawing"
+                        )
                         if drawings:
                             has_image = True
-                except:
+                except Exception:
                     pass
-                
+
                 if not has_image:
-                    html_parts.append('<p style="margin: 0; line-height: 1.5em;">&nbsp;</p>')
+                    html_parts.append(
+                        '<p style="margin: 0; line-height: 1.5em;">&nbsp;</p>'
+                    )
                     continue
                 # If has image, continue to process runs below
-            
+
             # Build HTML for runs with formatting - OPTIMIZED to reduce DOM size
             runs_html = []
             for run in paragraph.runs:
@@ -378,103 +419,143 @@ def get_document_text(user, document_id):
                 image_found = False
                 try:
                     # Method 1: Check for drawing elements (inline images)
-                    if hasattr(run, '_element'):
-                        drawings = run._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}drawing')
+                    if hasattr(run, "_element"):
+                        drawings = run._element.findall(
+                            ".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}drawing"
+                        )
                         if drawings:
-                            logger.info(f"Found {len(drawings)} drawing elements in run")
+                            logger.info(
+                                f"Found {len(drawings)} drawing elements in run"
+                            )
                             for drawing in drawings:
-                                blips = drawing.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/main}blip')
+                                blips = drawing.findall(
+                                    ".//{http://schemas.openxmlformats.org/drawingml/2006/main}blip"
+                                )
                                 logger.info(f"Found {len(blips)} blips in drawing")
                                 for blip in blips:
-                                    embed = blip.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed')
+                                    embed = blip.get(
+                                        "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed"
+                                    )
                                     logger.info(f"Blip embed ID: {embed}")
                                     if embed:
                                         try:
                                             image_part = doc.part.related_parts[embed]
                                             image_bytes = image_part.blob
                                             # Convert to base64
-                                            image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                                            image_base64 = base64.b64encode(
+                                                image_bytes
+                                            ).decode("utf-8")
                                             # Determine content type
                                             content_type = image_part.content_type
-                                            logger.info(f"Successfully extracted image: {content_type}, size: {len(image_bytes)} bytes")
+                                            logger.info(
+                                                f"Successfully extracted image: {content_type}, size: {len(image_bytes)} bytes"
+                                            )
                                             # Add image as HTML
-                                            runs_html.append(f'<img src="data:{content_type};base64,{image_base64}" style="max-width: 300px; max-height: 150px; vertical-align: middle; display: inline-block;" alt="Signature" />')
+                                            runs_html.append(
+                                                f'<img src="data:{content_type};base64,{image_base64}" style="max-width: 300px; max-height: 150px; vertical-align: middle; display: inline-block;" alt="Signature" />'
+                                            )
                                             image_found = True
                                         except Exception as e:
-                                            logger.error(f"Error extracting image data: {e}")
-                        
+                                            logger.error(
+                                                f"Error extracting image data: {e}"
+                                            )
+
                         # Method 2: Check for pict elements (older Word format images)
                         if not image_found:
-                            picts = run._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pict')
+                            picts = run._element.findall(
+                                ".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pict"
+                            )
                             if picts:
-                                logger.info(f"Found {len(picts)} pict elements (old format images)")
+                                logger.info(
+                                    f"Found {len(picts)} pict elements (old format images)"
+                                )
                                 for pict in picts:
                                     # Try to find imagedata in VML
-                                    imagedatas = pict.findall('.//{urn:schemas-microsoft-com:vml}imagedata')
+                                    imagedatas = pict.findall(
+                                        ".//{urn:schemas-microsoft-com:vml}imagedata"
+                                    )
                                     for imagedata in imagedatas:
-                                        rel_id = imagedata.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id')
+                                        rel_id = imagedata.get(
+                                            "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+                                        )
                                         if rel_id:
                                             try:
-                                                image_part = doc.part.related_parts[rel_id]
+                                                image_part = doc.part.related_parts[
+                                                    rel_id
+                                                ]
                                                 image_bytes = image_part.blob
-                                                image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                                                image_base64 = base64.b64encode(
+                                                    image_bytes
+                                                ).decode("utf-8")
                                                 content_type = image_part.content_type
-                                                logger.info(f"Successfully extracted pict image: {content_type}")
-                                                runs_html.append(f'<img src="data:{content_type};base64,{image_base64}" style="max-width: 300px; max-height: 150px; vertical-align: middle; display: inline-block;" alt="Signature" />')
+                                                logger.info(
+                                                    f"Successfully extracted pict image: {content_type}"
+                                                )
+                                                runs_html.append(
+                                                    f'<img src="data:{content_type};base64,{image_base64}" style="max-width: 300px; max-height: 150px; vertical-align: middle; display: inline-block;" alt="Signature" />'
+                                                )
                                                 image_found = True
                                             except Exception as e:
-                                                logger.error(f"Error extracting pict image: {e}")
-                        
+                                                logger.error(
+                                                    f"Error extracting pict image: {e}"
+                                                )
+
                         if image_found:
                             continue
-                            
+
                 except Exception as e:
                     logger.error(f"Error extracting image from run: {e}", exc_info=True)
-                
+
                 # Regular text processing
-                text = run.text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                text = text.replace('\t', '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;')  # 8 spaces per tab for Word-like indentation
-                
+                text = (
+                    run.text.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                )
+                text = text.replace(
+                    "\t", "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
+                )  # 8 spaces per tab for Word-like indentation
+
                 # Only add <span> if there's actual formatting
                 has_formatting = run.bold or run.italic or run.underline
-                
+
                 if has_formatting:
                     style_parts = []
                     if run.bold:
-                        style_parts.append('font-weight: bold')
+                        style_parts.append("font-weight: bold")
                     if run.italic:
-                        style_parts.append('font-style: italic')
+                        style_parts.append("font-style: italic")
                     if run.underline:
-                        style_parts.append('text-decoration: underline')
-                    
+                        style_parts.append("text-decoration: underline")
+
                     style_attr = f' style="{"; ".join(style_parts)}"'
-                    runs_html.append(f'<span{style_attr}>{text}</span>')
+                    runs_html.append(f"<span{style_attr}>{text}</span>")
                 else:
                     # No formatting - just use plain text (MUCH faster!)
                     runs_html.append(text)
-            
+
             # Build paragraph HTML with Word-like styling
             para_style = [
-                'margin: 0',
-                'margin-bottom: 10pt',
-                'line-height: 1.15',
-                'text-align: justify',
-                'color: #000000'
+                "margin: 0",
+                "margin-bottom: 10pt",
+                "line-height: 1.15",
+                "text-align: justify",
+                "color: #000000",
             ]
             style_attr = f' style="{"; ".join(para_style)}"'
             html_parts.append(f'<p{style_attr}>{"".join(runs_html)}</p>')
-        
+
         # Process tables (signature blocks are often in tables!)
         logger.info(f"📋 Document contains {len(doc.tables)} table(s)")
         for table_idx, table in enumerate(doc.tables):
             logger.info(f"Processing table {table_idx + 1}")
             table_html = '<table style="width: 100%; border-collapse: collapse; margin: 10pt 0;">'
-            
+
             for row in table.rows:
-                table_html += '<tr>'
+                table_html += "<tr>"
                 for cell in row.cells:
                     table_html += '<td style="padding: 8px; vertical-align: top;">'
-                    
+
                     # Process each paragraph in the cell
                     for para in cell.paragraphs:
                         cell_runs_html = []
@@ -482,154 +563,205 @@ def get_document_text(user, document_id):
                             # Check for images in table cells
                             image_found = False
                             try:
-                                if hasattr(run, '_element'):
-                                    drawings = run._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}drawing')
+                                if hasattr(run, "_element"):
+                                    drawings = run._element.findall(
+                                        ".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}drawing"
+                                    )
                                     if drawings:
-                                        logger.info(f"Found image in table cell!")
+                                        logger.info("Found image in table cell!")
                                         for drawing in drawings:
-                                            blips = drawing.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/main}blip')
+                                            blips = drawing.findall(
+                                                ".//{http://schemas.openxmlformats.org/drawingml/2006/main}blip"
+                                            )
                                             for blip in blips:
-                                                embed = blip.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed')
+                                                embed = blip.get(
+                                                    "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed"
+                                                )
                                                 if embed:
                                                     try:
-                                                        image_part = doc.part.related_parts[embed]
+                                                        image_part = (
+                                                            doc.part.related_parts[
+                                                                embed
+                                                            ]
+                                                        )
                                                         image_bytes = image_part.blob
-                                                        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
-                                                        content_type = image_part.content_type
-                                                        logger.info(f"✅ Successfully extracted table image: {content_type}")
-                                                        cell_runs_html.append(f'<img src="data:{content_type};base64,{image_base64}" style="max-width: 300px; max-height: 150px; display: block; margin: 5px 0;" alt="Signature" />')
+                                                        image_base64 = base64.b64encode(
+                                                            image_bytes
+                                                        ).decode("utf-8")
+                                                        content_type = (
+                                                            image_part.content_type
+                                                        )
+                                                        logger.info(
+                                                            f"✅ Successfully extracted table image: {content_type}"
+                                                        )
+                                                        cell_runs_html.append(
+                                                            f'<img src="data:{content_type};base64,{image_base64}" style="max-width: 300px; max-height: 150px; display: block; margin: 5px 0;" alt="Signature" />'
+                                                        )
                                                         image_found = True
                                                     except Exception as e:
-                                                        logger.error(f"Error extracting table image: {e}")
-                                    
+                                                        logger.error(
+                                                            f"Error extracting table image: {e}"
+                                                        )
+
                                     if not image_found:
-                                        picts = run._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pict')
+                                        picts = run._element.findall(
+                                            ".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pict"
+                                        )
                                         if picts:
                                             for pict in picts:
-                                                imagedatas = pict.findall('.//{urn:schemas-microsoft-com:vml}imagedata')
+                                                imagedatas = pict.findall(
+                                                    ".//{urn:schemas-microsoft-com:vml}imagedata"
+                                                )
                                                 for imagedata in imagedatas:
-                                                    rel_id = imagedata.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id')
+                                                    rel_id = imagedata.get(
+                                                        "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+                                                    )
                                                     if rel_id:
                                                         try:
-                                                            image_part = doc.part.related_parts[rel_id]
-                                                            image_bytes = image_part.blob
-                                                            image_base64 = base64.b64encode(image_bytes).decode('utf-8')
-                                                            content_type = image_part.content_type
-                                                            cell_runs_html.append(f'<img src="data:{content_type};base64,{image_base64}" style="max-width: 300px; max-height: 150px; display: block; margin: 5px 0;" alt="Signature" />')
+                                                            image_part = (
+                                                                doc.part.related_parts[
+                                                                    rel_id
+                                                                ]
+                                                            )
+                                                            image_bytes = (
+                                                                image_part.blob
+                                                            )
+                                                            image_base64 = (
+                                                                base64.b64encode(
+                                                                    image_bytes
+                                                                ).decode("utf-8")
+                                                            )
+                                                            content_type = (
+                                                                image_part.content_type
+                                                            )
+                                                            cell_runs_html.append(
+                                                                f'<img src="data:{content_type};base64,{image_base64}" style="max-width: 300px; max-height: 150px; display: block; margin: 5px 0;" alt="Signature" />'
+                                                            )
                                                             image_found = True
                                                         except Exception as e:
-                                                            logger.error(f"Error extracting pict in table: {e}")
-                                    
+                                                            logger.error(
+                                                                f"Error extracting pict in table: {e}"
+                                                            )
+
                                     if image_found:
                                         continue
                             except Exception as e:
                                 logger.error(f"Error processing table image: {e}")
-                            
+
                             # Regular text in table cell
-                            text = run.text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                            text = text.replace('\t', '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;')
-                            
+                            text = (
+                                run.text.replace("&", "&amp;")
+                                .replace("<", "&lt;")
+                                .replace(">", "&gt;")
+                            )
+                            text = text.replace(
+                                "\t", "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
+                            )
+
                             if run.bold or run.italic or run.underline:
                                 style_parts = []
                                 if run.bold:
-                                    style_parts.append('font-weight: bold')
+                                    style_parts.append("font-weight: bold")
                                 if run.italic:
-                                    style_parts.append('font-style: italic')
+                                    style_parts.append("font-style: italic")
                                 if run.underline:
-                                    style_parts.append('text-decoration: underline')
+                                    style_parts.append("text-decoration: underline")
                                 style_attr = f' style="{"; ".join(style_parts)}"'
-                                cell_runs_html.append(f'<span{style_attr}>{text}</span>')
+                                cell_runs_html.append(
+                                    f"<span{style_attr}>{text}</span>"
+                                )
                             else:
                                 cell_runs_html.append(text)
-                        
-                        table_html += ''.join(cell_runs_html)
-                        if para != cell.paragraphs[-1]:  # Add line break between paragraphs
-                            table_html += '<br/>'
-                    
-                    table_html += '</td>'
-                table_html += '</tr>'
-            
-            table_html += '</table>'
+
+                        table_html += "".join(cell_runs_html)
+                        if (
+                            para != cell.paragraphs[-1]
+                        ):  # Add line break between paragraphs
+                            table_html += "<br/>"
+
+                    table_html += "</td>"
+                table_html += "</tr>"
+
+            table_html += "</table>"
             html_parts.append(table_html)
-        
-        html = '\n'.join(html_parts)
-        
-        return jsonify({
-            'text': full_text,
-            'html': html,
-            'document_id': document_id
-        })
-        
+
+        html = "\n".join(html_parts)
+
+        return jsonify({"text": full_text, "html": html, "document_id": document_id})
+
     except Exception as e:
         logger.error(f"Error extracting text from document {document_id}: {str(e)}")
-        return jsonify({'error': f'Failed to extract text: {str(e)}'}), 500
+        return jsonify({"error": f"Failed to extract text: {str(e)}"}), 500
 
-@documents_bp.route('/', methods=['GET'])
+
+@documents_bp.route("/", methods=["GET"])
 @require_auth
 def list_documents(user):
     Document = current_app.Document
-    documents = Document.query.filter_by(user_id=user.id).order_by(Document.uploaded_at.desc()).all()
-    
-    return jsonify({
-        'documents': [doc.to_dict() for doc in documents]
-    })
+    documents = (
+        Document.query.filter_by(user_id=user.id)
+        .order_by(Document.uploaded_at.desc())
+        .all()
+    )
 
-@documents_bp.route('/<int:document_id>', methods=['GET'])
+    return jsonify({"documents": [doc.to_dict() for doc in documents]})
+
+
+@documents_bp.route("/<int:document_id>", methods=["GET"])
 @require_auth
 def get_document(user, document_id):
     Document = current_app.Document
     document = Document.query.get(document_id)
-    
+
     if not document:
-        return jsonify({'error': 'Document not found'}), 404
-    
+        return jsonify({"error": "Document not found"}), 404
+
     if document.user_id != user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
+        return jsonify({"error": "Unauthorized"}), 403
+
     # Add processing progress information for large files
     document_dict = document.to_dict()
-    
-    if document.status == 'processing':
+
+    if document.status == "processing":
         # Estimate processing time based on file size
         file_size_kb = document.file_size / 1024 if document.file_size else 0
         if file_size_kb > 100:
-            document_dict['processing_info'] = {
-                'estimated_time': f"{max(30, int(file_size_kb / 10))} seconds",
-                'file_size_kb': round(file_size_kb, 1),
-                'status_message': 'Processing large document - this may take a few minutes'
+            document_dict["processing_info"] = {
+                "estimated_time": f"{max(30, int(file_size_kb / 10))} seconds",
+                "file_size_kb": round(file_size_kb, 1),
+                "status_message": "Processing large document - this may take a few minutes",
             }
         else:
-            document_dict['processing_info'] = {
-                'estimated_time': '10-30 seconds',
-                'file_size_kb': round(file_size_kb, 1),
-                'status_message': 'Processing document'
+            document_dict["processing_info"] = {
+                "estimated_time": "10-30 seconds",
+                "file_size_kb": round(file_size_kb, 1),
+                "status_message": "Processing document",
             }
-    
-    return jsonify({
-        'document': document_dict
-    })
 
-@documents_bp.route('/<int:document_id>', methods=['DELETE'])
+    return jsonify({"document": document_dict})
+
+
+@documents_bp.route("/<int:document_id>", methods=["DELETE"])
 @require_auth
 def delete_document(user, document_id):
     Document = current_app.Document
     document = Document.query.get(document_id)
-    
+
     if not document:
-        return jsonify({'error': 'Document not found'}), 404
-    
+        return jsonify({"error": "Document not found"}), 404
+
     if document.user_id != user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
+        return jsonify({"error": "Unauthorized"}), 403
+
     # Delete file from filesystem
     if os.path.exists(document.file_path):
         os.remove(document.file_path)
-    
+
     if document.output_path and os.path.exists(document.output_path):
         os.remove(document.output_path)
-    
+
     # Delete from database
     db.session.delete(document)
     db.session.commit()
-    
-    return jsonify({'message': 'Document deleted successfully'})
+
+    return jsonify({"message": "Document deleted successfully"})

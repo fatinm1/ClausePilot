@@ -1,355 +1,566 @@
-import Link from 'next/link'
-import { Upload, Shield, FileText, Zap, CheckCircle, Lock, Eye, ArrowRight, Sparkles, Users, Building, Calendar, PenTool } from 'lucide-react'
+'use client'
 
-export default function LandingPage() {
+import Link from 'next/link'
+import { useEffect, useRef, useState } from 'react'
+import { Menu, X } from 'lucide-react'
+import { PaperSheets, SectionMark, Wordmark } from '../components/brand'
+
+const SECTIONS = [
+  { id: 'top', label: 'Introduction' },
+  { id: 'sequence', label: 'How a review runs' },
+  { id: 'rules', label: 'Your rules' },
+  { id: 'process', label: 'Four steps' },
+  { id: 'output', label: 'The Word file' },
+  { id: 'start', label: 'Get started' },
+]
+
+const NAV = [
+  { href: '#rules', label: 'Rules' },
+  { href: '#process', label: 'How it works' },
+  { href: '#output', label: 'Output' },
+]
+
+/* ---------- Header: wordmark starts centred, slides left on scroll ---------- */
+function SiteHeader() {
+  const [scrolled, setScrolled] = useState(false)
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    const on = () => setScrolled(window.scrollY > 48)
+    on()
+    window.addEventListener('scroll', on, { passive: true })
+    return () => window.removeEventListener('scroll', on)
+  }, [])
+
   return (
-    <div className="min-h-screen bg-[#0B1220] text-[#E5E7EB] overflow-x-hidden">
-      {/* Enhanced Animated Background */}
-      <div className="fixed inset-0 opacity-20">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#60A5FA]/10 via-transparent to-[#60A5FA]/5" />
-        <div className="absolute inset-0" style={{
-          backgroundImage: `
-            linear-gradient(rgba(96, 165, 250, 0.1) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(96, 165, 250, 0.1) 1px, transparent 1px)
-          `,
-          backgroundSize: '50px 50px'
-        }} />
-        {/* Floating elements */}
-        <div className="absolute top-20 left-20 w-2 h-2 bg-[#60A5FA]/30 rounded-full animate-pulse" />
-        <div className="absolute top-40 right-32 w-1 h-1 bg-[#60A5FA]/20 rounded-full animate-pulse delay-1000" />
-        <div className="absolute bottom-32 left-1/4 w-1.5 h-1.5 bg-[#60A5FA]/25 rounded-full animate-pulse delay-2000" />
+    <header
+      className={`fixed inset-x-0 top-0 z-50 transition-[background-color,border-color] duration-500 ${
+        scrolled || open ? 'bg-black/80 backdrop-blur-md border-b border-line' : 'border-b border-transparent'
+      }`}
+    >
+      <div className="wrap relative flex h-[76px] items-center justify-between">
+        <div
+          className="absolute top-1/2 transition-[left,transform] duration-[600ms] ease-out max-lg:!left-[var(--pad-x)] max-lg:!translate-x-0 max-lg:-translate-y-1/2"
+          style={{
+            left: scrolled ? 'var(--pad-x)' : '50%',
+            transform: scrolled ? 'translate(0,-50%)' : 'translate(-50%,-50%)',
+          }}
+        >
+          <Wordmark />
+        </div>
+        <span />
+        <nav aria-label="Primary" className="hidden items-center gap-8 lg:flex">
+          <div
+            className={`flex items-center gap-8 transition-[opacity,transform] duration-500 ease-out ${
+              scrolled ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 -translate-y-1'
+            }`}
+            aria-hidden={!scrolled}
+          >
+            {NAV.map((n) => (
+              <a key={n.href} href={n.href} tabIndex={scrolled ? 0 : -1} className="text-[0.95rem] text-fg-2 transition-colors hover:text-white">
+                {n.label}
+              </a>
+            ))}
+          </div>
+          <Link href="/login" className="text-[0.95rem] text-fg-2 transition-colors hover:text-white">
+            Sign in
+          </Link>
+          <Link
+            href="/demo"
+            tabIndex={scrolled ? 0 : -1}
+            aria-hidden={!scrolled}
+            className={`btn-metal sm transition-[opacity,transform] duration-500 ${scrolled ? 'opacity-100' : 'pointer-events-none opacity-0 translate-y-[-4px]'}`}
+          >
+            Open the demo
+          </Link>
+        </nav>
+        <button
+          type="button"
+          className="lg:hidden inline-flex h-10 w-10 items-center justify-center rounded-full border border-line text-white"
+          aria-expanded={open}
+          aria-controls="mobile-nav"
+          aria-label={open ? 'Close menu' : 'Open menu'}
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? <X className="h-4 w-4" strokeWidth={1.5} /> : <Menu className="h-4 w-4" strokeWidth={1.5} />}
+        </button>
+      </div>
+      <div
+        id="mobile-nav"
+        className={`lg:hidden overflow-hidden transition-[max-height,opacity] duration-300 ${open ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}
+      >
+        <nav aria-label="Mobile" className="wrap flex flex-col gap-1 pb-6">
+          {NAV.map((n) => (
+            <a key={n.href} href={n.href} onClick={() => setOpen(false)} className="py-3 text-lg text-fg-2 border-b border-line">
+              {n.label}
+            </a>
+          ))}
+          <Link href="/login" className="py-3 text-lg text-fg-2 border-b border-line">Sign in</Link>
+          <Link href="/demo" className="btn-metal mt-4 self-start">Open the demo</Link>
+        </nav>
+      </div>
+    </header>
+  )
+}
+
+/* ---------- Left section rail ---------- */
+function ScreenRail({ active, progress }: { active: number; progress: number }) {
+  return (
+    <nav
+      aria-label="Sections"
+      className="fixed left-6 top-1/2 z-40 hidden -translate-y-1/2 flex-col items-center gap-3 xl:flex"
+    >
+      <SectionMark className="mb-2 text-2xl text-fg-3" />
+      <div className="relative flex flex-col items-center gap-1">
+        <span
+          aria-hidden="true"
+          className="absolute left-1/2 top-0 w-px -translate-x-1/2 bg-gradient-to-b from-white/0 via-white/60 to-white/0 transition-[top] duration-300"
+          style={{ top: `calc(${progress * 100}% - 18px)`, height: 36 }}
+        />
+        {SECTIONS.map((s, i) => (
+          <a
+            key={s.id}
+            href={`#${s.id}`}
+            aria-label={`Go to ${s.label}`}
+            aria-current={active === i ? 'true' : undefined}
+            className={`grid h-8 w-8 place-items-center rounded-full text-[0.8rem] tabular-nums transition-[color,opacity] duration-300 ${
+              active === i ? 'text-white opacity-100' : 'text-fg-2 opacity-40 hover:opacity-80'
+            }`}
+          >
+            {i + 1}
+          </a>
+        ))}
+      </div>
+    </nav>
+  )
+}
+
+/* ---------- Hero ---------- */
+function Hero() {
+  const ref = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const move = (e: PointerEvent) => {
+      const r = el.getBoundingClientRect()
+      el.style.setProperty('--metal-px', `${((e.clientX - r.left) / r.width) * 100}%`)
+      el.style.setProperty('--metal-py', `${((e.clientY - r.top) / r.height) * 100}%`)
+    }
+    window.addEventListener('pointermove', move, { passive: true })
+    return () => window.removeEventListener('pointermove', move)
+  }, [])
+
+  return (
+    <section id="top" className="relative isolate flex min-h-[100svh] items-center overflow-hidden pt-[76px]">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          background:
+            'radial-gradient(50% 45% at 70% 45%, rgba(203,206,210,0.10), rgba(0,0,0,0) 70%), radial-gradient(40% 40% at 20% 90%, rgba(176,69,69,0.07), rgba(0,0,0,0) 70%)',
+        }}
+      />
+      <div aria-hidden="true" className="pointer-events-none absolute -right-[4%] top-[16%] -z-10 w-[min(520px,62vw)] opacity-60 [perspective:1600px] max-md:-right-[30%] max-md:opacity-35">
+        <div className="sheet-drift">
+          <PaperSheets id="hero" className="sheet-tilt w-full" />
+        </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="sticky top-0 z-50 backdrop-blur-md bg-[#0B1220]/80 border-b border-white/8">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-3 h-3 bg-[#60A5FA] rounded-full animate-pulse" />
-              <span className="text-xl font-semibold text-white">NDA Redline</span>
-            </div>
-            <div className="hidden md:flex items-center space-x-8">
-              <Link href="#product" className="text-[#E5E7EB] hover:text-white transition-colors">Product</Link>
-              <Link href="#how-it-works" className="text-[#E5E7EB] hover:text-white transition-colors">How it works</Link>
-              <Link href="#security" className="text-[#E5E7EB] hover:text-white transition-colors">Security</Link>
-              <Link href="/demo" className="text-[#E5E7EB] hover:text-white transition-colors">Demo</Link>
-              <Link href="/login" className="text-[#E5E7EB] hover:text-white transition-colors">Login</Link>
-              <Link href="/register" className="bg-[#60A5FA] hover:bg-[#60A5FA]/90 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200">
-                Get Started
-              </Link>
-            </div>
-          </div>
+      <div className="wrap">
+        <h1
+          ref={ref}
+          className="font-display max-w-[15ch] text-[length:var(--fs-hero)] leading-[1.04] tracking-[-0.02em]"
+        >
+          <span className="metal">Mark up the NDA you </span>
+          <span className="rl-del">were sent</span>{' '}
+          <span className="rl-ins">
+            <span className="metal">would have written.</span>
+          </span>
+        </h1>
+        <p className="rise mt-8 max-w-[46ch] text-[length:var(--fs-body-lg)] leading-[1.5] text-fg-2" style={{ animationDelay: '1.1s' }}>
+          Upload the counterparty’s draft. ClausePilot applies your firm’s standing positions and hands back a
+          Word file with every edit as a tracked change.
+        </p>
+        <div className="rise mt-10 flex flex-wrap items-center gap-4" style={{ animationDelay: '1.25s' }}>
+          <Link href="/demo" className="btn-metal">Open the demo</Link>
+          <Link href="/register" className="btn-quiet">Create an account</Link>
         </div>
-      </nav>
+      </div>
+    </section>
+  )
+}
 
-      {/* Enhanced Hero Section */}
-      <section className="relative pt-20 pb-16 px-6">
-        <div className="max-w-7xl mx-auto text-center">
-          <div className="mb-8">
-            <div className="inline-flex items-center space-x-2 bg-[#60A5FA]/10 border border-[#60A5FA]/20 rounded-full px-4 py-2 mb-6">
-              <Sparkles className="w-4 h-4 text-[#60A5FA]" />
-              <span className="text-sm text-[#60A5FA] font-medium">AI-Powered Legal Tech</span>
-            </div>
-            <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 leading-tight">
-              Redline NDAs in minutes — not days.
-            </h1>
-            <p className="text-xl md:text-2xl text-[#E5E7EB] mb-12 max-w-4xl mx-auto leading-relaxed">
-              Upload a .docx, apply your standard rules, and download a lawyer-friendly Word file with tracked changes.
-            </p>
-            <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <Link href="/demo" className="bg-[#60A5FA] hover:bg-[#60A5FA]/90 text-white px-8 py-4 rounded-lg font-semibold text-lg transition-all duration-200 hover:shadow-lg hover:shadow-[#60A5FA]/25 flex items-center justify-center space-x-2">
-                <span>Try Demo</span>
-                <ArrowRight className="w-5 h-5" />
-              </Link>
-              <Link href="/register" className="border border-white/20 hover:border-white/40 text-white px-8 py-4 rounded-lg font-medium text-lg transition-all duration-200 hover:bg-white/5">
-                Get Started
-              </Link>
-            </div>
-          </div>
-        </div>
-        
-        {/* Enhanced Hero Visual - Professional NDA Mockup */}
-        <div className="mt-20 relative">
-          <div className="max-w-5xl mx-auto">
-            <div className="relative group">
-              {/* Main Document */}
-              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8 transform rotate-1 group-hover:rotate-0 transition-transform duration-500">
-                <div className="bg-white rounded-lg p-8 shadow-2xl">
-                  {/* Document Header */}
-                  <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-3 h-3 bg-red-500 rounded-full" />
-                      <div className="w-3 h-3 bg-yellow-500 rounded-full" />
-                      <div className="w-3 h-3 bg-green-500 rounded-full" />
-                    </div>
-                    <div className="text-sm text-gray-500">NDA_Redline_Demo.docx</div>
-                  </div>
-                  
-                  {/* Document Content with Better Mockup */}
-                  <div className="space-y-4">
-                    <div className="h-5 bg-gray-200 rounded w-3/4" />
-                    <div className="h-5 bg-gray-200 rounded w-1/2" />
-                    <div className="h-5 bg-red-200 rounded w-2/3 border-l-4 border-red-500 flex items-center">
-                      <span className="text-red-700 text-sm ml-2">Confidentiality term reduced from 5 years to 2 years</span>
-                    </div>
-                    <div className="h-5 bg-gray-200 rounded w-4/5" />
-                    <div className="h-5 bg-blue-200 rounded w-1/3 border-l-4 border-blue-500 flex items-center">
-                      <span className="text-blue-700 text-sm ml-2">Added: Investors and agents to parties section</span>
-                    </div>
-                    <div className="h-5 bg-gray-200 rounded w-3/4" />
-                    <div className="h-5 bg-green-200 rounded w-2/3 border-l-4 border-green-500 flex items-center">
-                      <span className="text-green-700 text-sm ml-2">Firm details and signature block inserted</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Floating Elements */}
-              <div className="absolute -top-4 -right-4 bg-[#60A5FA]/20 backdrop-blur-sm border border-[#60A5FA]/30 rounded-xl p-4 transform rotate-12 group-hover:rotate-0 transition-transform duration-500">
-                <div className="flex items-center space-x-2">
-                  <CheckCircle className="w-5 h-5 text-[#60A5FA]" />
-                  <span className="text-sm text-[#60A5FA] font-medium">AI Processed</span>
-                </div>
-              </div>
-              
-              <div className="absolute -bottom-4 -left-4 bg-green-500/20 backdrop-blur-sm border border-green-500/30 rounded-xl p-4 transform -rotate-12 group-hover:rotate-0 transition-transform duration-500">
-                <div className="flex items-center space-x-2">
-                  <FileText className="w-5 h-5 text-green-500" />
-                  <span className="text-sm text-green-500 font-medium">Ready to Review</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+/* ---------- Pinned scroll sequence ---------- */
+const STATEMENTS = [
+  'The counterparty sends their draft.',
+  'Your rules decide what changes.',
+  'ClausePilot writes the redline.',
+]
 
-      {/* Enhanced Value Props */}
-      <section className="py-20 px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="group bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-8 hover:bg-white/10 transition-all duration-300 hover:shadow-lg hover:shadow-[#60A5FA]/10 hover:-translate-y-1">
-              <div className="w-12 h-12 bg-[#60A5FA]/20 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Zap className="w-6 h-6 text-[#60A5FA]" />
-              </div>
-              <h3 className="text-xl font-semibold text-white mb-4">Precise by design</h3>
-              <p className="text-[#E5E7EB] leading-relaxed">
-                Rules cap terms, insert missing parties, and fill signatures automatically with AI precision.
-              </p>
-            </div>
-            
-            <div className="group bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-8 hover:bg-white/10 transition-all duration-300 hover:shadow-lg hover:shadow-[#60A5FA]/10 hover:-translate-y-1">
-              <div className="w-12 h-12 bg-[#60A5FA]/20 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <FileText className="w-6 h-6 text-[#60A5FA]" />
-              </div>
-              <h3 className="text-xl font-semibold text-white mb-4">Lawyer-friendly output</h3>
-              <p className="text-[#E5E7EB] leading-relaxed">
-                Real Word tracked changes with professional formatting, ready to review and send to clients.
-              </p>
-            </div>
-            
-            <div className="group bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-8 hover:bg-white/10 transition-all duration-300 hover:shadow-lg hover:shadow-[#60A5FA]/10 hover:-translate-y-1">
-              <div className="w-12 h-12 bg-[#60A5FA]/20 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Shield className="w-6 h-6 text-[#60A5FA]" />
-              </div>
-              <h3 className="text-xl font-semibold text-white mb-4">Private by default</h3>
-              <p className="text-[#E5E7EB] leading-relaxed">
-                Short retention windows, strict security protocols, and no model training on your documents.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+function Sequence({ onProgress }: { onProgress?: (p: number) => void }) {
+  const ref = useRef<HTMLElement>(null)
+  const [p, setP] = useState(0)
+  useEffect(() => {
+    let raf = 0
+    const on = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        const el = ref.current
+        if (!el) return
+        const r = el.getBoundingClientRect()
+        const total = r.height - window.innerHeight
+        const v = Math.min(1, Math.max(0, -r.top / total))
+        setP(v)
+        onProgress?.(v)
+      })
+    }
+    on()
+    window.addEventListener('scroll', on, { passive: true })
+    window.addEventListener('resize', on)
+    return () => {
+      window.removeEventListener('scroll', on)
+      window.removeEventListener('resize', on)
+      cancelAnimationFrame(raf)
+    }
+  }, [onProgress])
 
-      {/* Enhanced How It Works */}
-      <section id="how-it-works" className="py-20 px-6">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-4xl font-bold text-white text-center mb-16">How It Works</h2>
-          <div className="grid md:grid-cols-3 gap-12">
-            <div className="text-center group">
-              <div className="relative mb-6">
-                <div className="w-20 h-20 bg-[#60A5FA]/20 rounded-full flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300">
-                  <Upload className="w-10 h-10 text-[#60A5FA]" />
-                </div>
-                <div className="absolute -top-2 -right-2 w-6 h-6 bg-[#60A5FA] rounded-full flex items-center justify-center text-white text-xs font-bold">1</div>
-              </div>
-              <h3 className="text-xl font-semibold text-white mb-4">Upload your NDA</h3>
-              <p className="text-[#E5E7EB]">Simply drag and drop your .docx file into our secure platform</p>
-            </div>
-            
-            <div className="text-center group">
-              <div className="relative mb-6">
-                <div className="w-20 h-20 bg-[#60A5FA]/20 rounded-full flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300">
-                  <Zap className="w-10 h-10 text-[#60A5FA]" />
-                </div>
-                <div className="absolute -top-2 -right-2 w-6 h-6 bg-[#60A5FA] rounded-full flex items-center justify-center text-white text-xs font-bold">2</div>
-              </div>
-              <h3 className="text-xl font-semibold text-white mb-4">Apply rules</h3>
-              <p className="text-[#E5E7EB]">Set confidentiality terms, parties, and firm details with our rule engine</p>
-            </div>
-            
-            <div className="text-center group">
-              <div className="relative mb-6">
-                <div className="w-20 h-20 bg-[#60A5FA]/20 rounded-full flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300">
-                  <FileText className="w-10 h-10 text-[#60A5FA]" />
-                </div>
-                <div className="absolute -top-2 -right-2 w-6 h-6 bg-[#60A5FA] rounded-full flex items-center justify-center text-white text-xs font-bold">3</div>
-              </div>
-              <h3 className="text-xl font-semibold text-white mb-4">Download result</h3>
-              <p className="text-[#E5E7EB]">Get your redlined Word doc with tracked changes and professional formatting</p>
-            </div>
-          </div>
-          
-          <div className="text-center mt-16">
-            <Link href="/demo" className="inline-flex items-center bg-[#60A5FA] hover:bg-[#60A5FA]/90 text-white px-8 py-4 rounded-lg font-semibold text-lg transition-all duration-200 hover:shadow-lg hover:shadow-[#60A5FA]/25 group">
-              <span>Try the Interactive Demo</span>
-              <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-            </Link>
-          </div>
-        </div>
-      </section>
+  const active = Math.min(2, Math.floor(p * 3.2))
+  const finalScale = 1 + Math.max(0, Math.min(1, (p - 0.66) / 0.3)) * 0.28
 
-      {/* Enhanced Feature Spotlight */}
-      <section className="py-20 px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <div>
-              <h2 className="text-4xl font-bold text-white mb-8">Deterministic + AI assist</h2>
-              <div className="space-y-6">
-                <div className="flex items-start space-x-4">
-                  <div className="w-8 h-8 bg-[#60A5FA]/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Calendar className="w-4 h-4 text-[#60A5FA]" />
-                  </div>
-                  <div>
-                    <h4 className="text-white font-medium mb-1">Cap confidentiality terms</h4>
-                    <p className="text-[#E5E7EB]/80 text-sm">Automatically reduce terms longer than your specified limit</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start space-x-4">
-                  <div className="w-8 h-8 bg-[#60A5FA]/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Users className="w-4 h-4 text-[#60A5FA]" />
-                  </div>
-                  <div>
-                    <h4 className="text-white font-medium mb-1">Auto-include key parties</h4>
-                    <p className="text-[#E5E7EB]/80 text-sm">Ensure investors, agents, and financing sources are included</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start space-x-4">
-                  <div className="w-8 h-8 bg-[#60A5FA]/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <PenTool className="w-4 h-4 text-[#60A5FA]" />
-                  </div>
-                  <div>
-                    <h4 className="text-white font-medium mb-1">Signature block completion</h4>
-                    <p className="text-[#E5E7EB]/80 text-sm">Automatically fill in firm details and signature blocks</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start space-x-4">
-                  <div className="w-8 h-8 bg-[#60A5FA]/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="w-4 h-4 text-[#60A5FA]" />
-                  </div>
-                  <div>
-                    <h4 className="text-white font-medium mb-1">AI-tightened clauses</h4>
-                    <p className="text-[#E5E7EB]/80 text-sm">Intelligent clause optimization for better legal protection</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="relative">
-              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8">
-                <div className="bg-white rounded-lg p-6 shadow-2xl">
-                  {/* Enhanced Document Mockup */}
-                  <div className="space-y-3">
-                    <div className="h-4 bg-gray-200 rounded w-full" />
-                    <div className="h-4 bg-gray-200 rounded w-3/4" />
-                    <div className="h-4 bg-red-200 rounded w-2/3 border-l-4 border-red-500 flex items-center">
-                      <span className="text-red-700 text-xs ml-2">Term capped at 2 years</span>
-                    </div>
-                    <div className="h-4 bg-gray-200 rounded w-4/5" />
-                    <div className="h-4 bg-blue-200 rounded w-1/2 border-l-4 border-blue-500 flex items-center">
-                      <span className="text-blue-700 text-xs ml-2">Parties added</span>
-                    </div>
-                    <div className="h-4 bg-gray-200 rounded w-3/4" />
-                    <div className="h-4 bg-green-200 rounded w-2/3 border-l-4 border-green-500 flex items-center">
-                      <span className="text-green-700 text-xs ml-2">Firm details inserted</span>
-                    </div>
-                  </div>
-                  
-                  {/* Status Indicators */}
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>Processing complete</span>
-                      <div className="flex items-center space-x-1">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <span>Ready</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+  return (
+    <section id="sequence" ref={ref} className="relative h-[300vh]" aria-label="How a review runs">
+      <div className="sticky top-0 flex h-[100svh] items-center overflow-hidden">
+        <div className="wrap">
+          <ol className="space-y-6 md:space-y-8">
+            {STATEMENTS.map((s, i) => {
+              const isLast = i === STATEMENTS.length - 1
+              return (
+                <li
+                  key={s}
+                  className="font-display origin-left text-[length:var(--fs-scroll)] leading-[1.1] tracking-[-0.015em] transition-opacity duration-500"
+                  style={{
+                    opacity: i === active ? 1 : i < active ? 0.3 : 0.14,
+                    transform: isLast ? `scale(${finalScale})` : undefined,
+                  }}
+                >
+                  {isLast ? (
+                    <>
+                      <span className={i === active ? 'metal' : ''}>ClausePilot writes the </span>
+                      <span className="relative inline-block">
+                        <span className={i === active ? 'metal' : ''}>redline.</span>
+                        <span
+                          aria-hidden="true"
+                          className="absolute left-0 right-[0.25em] top-[1.02em] h-[3px] origin-left rounded bg-redline transition-transform duration-700 ease-out"
+                          style={{ transform: `scaleX(${i === active ? 1 : 0})` }}
+                        />
+                      </span>
+                    </>
+                  ) : (
+                    <span className={i === active ? 'metal' : ''}>{s}</span>
+                  )}
+                </li>
+              )
+            })}
+          </ol>
         </div>
-      </section>
+      </div>
+    </section>
+  )
+}
 
-      {/* Enhanced Security Section */}
-      <section id="security" className="py-20 px-6">
-        <div className="max-w-7xl mx-auto text-center">
-          <h2 className="text-4xl font-bold text-white mb-8">Security and Privacy by Default</h2>
-          <p className="text-xl text-[#E5E7EB] mb-12 max-w-3xl mx-auto leading-relaxed">
-            Your documents are encrypted in transit, validated on upload, and deleted automatically after processing. Logs contain no raw contract text.
+/* ---------- Rules specimen: the proof ---------- */
+const RULES = [
+  { id: 'term', title: 'Cap the confidentiality term', body: 'Any survival period longer than your limit is struck and replaced with it. Here: two years.' },
+  { id: 'reps', title: 'Widen “Representatives”', body: 'Investors, agents, advisors and potential financing sources are added if the definition leaves them out.' },
+  { id: 'retain', title: 'Keep an archival copy', body: 'A retention carve-out is inserted after the return-or-destroy clause.' },
+  { id: 'sign', title: 'Complete the signature block', body: 'Your firm name, signer and title are filled from the firm details you saved.' },
+]
+
+function Specimen() {
+  const [focus, setFocus] = useState<string | null>(null)
+  const dim = (id: string) =>
+    `transition-[opacity,background-color] duration-300 rounded-[3px] ${
+      focus && focus !== id ? 'opacity-35' : 'opacity-100'
+    } ${focus === id ? 'bg-white/[0.06]' : ''}`
+
+  return (
+    <section id="rules" className="relative py-24 md:py-32">
+      <div className="wrap">
+        <h2 className="font-display max-w-[22ch] text-[length:var(--fs-section)] leading-[1.12] tracking-[-0.015em]">
+          <span className="metal">Write your positions once.</span>{' '}
+          <span className="text-fg-3">Every NDA after that is read against them.</span>
+        </h2>
+
+        <div className="mt-16 grid gap-10 lg:mt-24 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16">
+          <div>
+            <p className="mb-4 text-[0.95rem] text-fg-3">Point at a rule to see the edit it made.</p>
+            <ul className="border-t border-line" aria-label="Rules applied to the sample">
+              {RULES.map((r) => (
+                <li key={r.id} className="border-b border-line">
+                  <button
+                    type="button"
+                    onMouseEnter={() => setFocus(r.id)}
+                    onMouseLeave={() => setFocus(null)}
+                    onFocus={() => setFocus(r.id)}
+                    onBlur={() => setFocus(null)}
+                    aria-pressed={focus === r.id}
+                    className="group grid w-full grid-cols-[1.25rem_1fr] gap-4 py-6 text-left"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`mt-[0.55rem] h-[2px] w-full origin-left rounded bg-redline transition-transform duration-300 ease-out ${
+                        focus === r.id ? 'scale-x-100' : 'scale-x-[0.35]'
+                      }`}
+                    />
+                    <span>
+                      <span className={`block text-[1.12rem] font-[480] transition-colors ${focus && focus !== r.id ? 'text-fg-2' : 'text-white'}`}>
+                        {r.title}
+                      </span>
+                      <span className="mt-1.5 block text-[0.98rem] leading-relaxed text-fg-2">{r.body}</span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <figure className="relative">
+            <div className="rounded-[22px] border border-line bg-ink-raised p-2 shadow-[0_40px_80px_-40px_rgba(0,0,0,0.9)]">
+              <div className="rounded-[16px] bg-[#f4f4f2] px-7 py-8 text-[#1d1d1d] sm:px-12 sm:py-12">
+                <p className="text-center font-display text-[1.35rem] tracking-[0.01em] text-[#111]">Mutual Non-Disclosure Agreement</p>
+                <div className="mt-8 space-y-5 font-[Georgia,serif] text-[0.98rem] leading-[1.75]">
+                  <p className={dim('reps')}>
+                    <b>2. Representatives.</b> “Representatives” means a party’s affiliates, directors, officers and employees
+                    <ins className="doc-ins">, and its investors, agents, advisors and potential financing sources</ins>.
+                  </p>
+                  <p className={dim('term')}>
+                    <b>5. Term.</b> The obligations of the Recipient shall survive for a period of{' '}
+                    <del className="doc-del">five (5)</del> <ins className="doc-ins">two (2)</ins> years from the date hereof.
+                  </p>
+                  <p className={dim('retain')}>
+                    <b>7. Return of Materials.</b> Upon written request, the Recipient shall return or destroy all Confidential Information.
+                    <ins className="doc-ins">
+                      {' '}Notwithstanding the foregoing, Recipient may retain an electronic copy of Confidential Information if required under
+                      Recipient’s document retention policy, provided that such retained materials remain subject to the confidentiality
+                      obligations set forth herein.
+                    </ins>
+                  </p>
+                  <div className={`grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 pt-2 ${dim('sign')}`}>
+                    <span>By:</span>
+                    <span><del className="doc-del">____________</del> <ins className="doc-ins">Jordan Ellis</ins></span>
+                    <span>Title:</span>
+                    <span><ins className="doc-ins">Managing Partner</ins></span>
+                    <span>Firm:</span>
+                    <span><ins className="doc-ins">Halden Capital LLC</ins></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <figcaption className="mt-4 text-sm text-fg-3">
+              Sample clause text and names written for this page. Struck text is deleted, underlined text is inserted.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ---------- Four steps, as a stack of sheets ---------- */
+const STEPS = [
+  { t: 'Upload the counterparty’s .docx', d: 'Word documents only, so the formatting you send back is the formatting you received.' },
+  { t: 'Choose the rules to apply', d: 'Your admin maintains the rule set. Pick the ones that fit this deal.' },
+  { t: 'Accept or reject each change', d: 'Every proposed edit is listed with the rule that produced it. Nothing is applied without you.' },
+  { t: 'Download the redline', d: 'A Word file with native tracked changes, ready to send back.' },
+]
+
+function Process() {
+  return (
+    <section id="process" className="relative overflow-hidden py-24 md:py-32">
+      <div className="wrap grid items-center gap-16 lg:grid-cols-2">
+        <div>
+          <h2 className="font-display max-w-[18ch] text-[length:var(--fs-section)] leading-[1.12] tracking-[-0.015em]">
+            <span className="text-fg-3">You stay the reviewer.</span>{' '}
+            <span className="metal">ClausePilot does the typing.</span>
+          </h2>
+          <p className="mt-6 max-w-[44ch] text-[length:var(--fs-body-lg)] leading-[1.55] text-fg-2">
+            GPT-4 proposes edits inside the rules you selected. With no model configured, ClausePilot falls back to
+            rule-based edits, so a review still runs.
           </p>
-          
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="flex flex-col items-center group">
-              <div className="w-20 h-20 bg-[#60A5FA]/20 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
-                <Lock className="w-10 h-10 text-[#60A5FA]" />
-              </div>
-              <h3 className="text-lg font-semibold text-white mb-2">TLS encryption</h3>
-              <p className="text-[#E5E7EB]/60 text-sm">End-to-end encryption for all data transmission</p>
-            </div>
-            
-            <div className="flex flex-col items-center group">
-              <div className="w-20 h-20 bg-[#60A5FA]/20 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
-                <Eye className="w-10 h-10 text-[#60A5FA]" />
-              </div>
-              <h3 className="text-lg font-semibold text-white mb-2">Short retention</h3>
-              <p className="text-[#E5E7EB]/60 text-sm">Documents automatically deleted after 24 hours</p>
-            </div>
-            
-            <div className="flex flex-col items-center group">
-              <div className="w-20 h-20 bg-[#60A5FA]/20 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
-                <Shield className="w-10 h-10 text-[#60A5FA]" />
-              </div>
-              <h3 className="text-lg font-semibold text-white mb-2">Scoped access</h3>
-              <p className="text-[#E5E7EB]/60 text-sm">Role-based permissions and audit logging</p>
-            </div>
-          </div>
         </div>
-      </section>
 
-      {/* Footer */}
-      <footer className="py-12 px-6 border-t border-white/8">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="flex items-center space-x-3 mb-4 md:mb-0">
-              <div className="w-3 h-3 bg-[#60A5FA] rounded-full" />
-              <span className="text-white font-semibold">NDA Redline</span>
+        <ol className="relative mx-auto w-full max-w-[560px] [perspective:1400px]" aria-label="Four steps">
+          {STEPS.map((s, i) => (
+            <li
+              key={s.t}
+              className="relative mb-[-18px] rounded-[20px] border bg-black px-6 py-6 sm:px-7 md:translate-x-[var(--o)]"
+              style={{
+                borderColor: `rgba(255,255,255,${0.4 - i * 0.07})`,
+                ['--o' as string]: `${i * 14}px`,
+                zIndex: 10 - i,
+                boxShadow: '0 24px 40px -24px rgba(0,0,0,.95)',
+              }}
+            >
+              <div className="flex items-baseline gap-4">
+                <span className="font-display text-2xl text-fg-3 tabular-nums">{i + 1}</span>
+                <div>
+                  <h3 className="text-[1.1rem] font-[480] text-white">{s.t}</h3>
+                  <p className="mt-1 text-[0.97rem] leading-relaxed text-fg-2">{s.d}</p>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  )
+}
+
+/* ---------- Output: Word review pane ---------- */
+const REVISIONS = [
+  { kind: 'Deleted', text: 'five (5)', rule: 'Cap the confidentiality term' },
+  { kind: 'Inserted', text: 'two (2)', rule: 'Cap the confidentiality term' },
+  { kind: 'Inserted', text: ', and its investors, agents, advisors…', rule: 'Widen “Representatives”' },
+  { kind: 'Inserted', text: 'Notwithstanding the foregoing, Recipient may…', rule: 'Keep an archival copy' },
+  { kind: 'Inserted', text: 'Jordan Ellis', rule: 'Complete the signature block' },
+]
+
+function Output() {
+  return (
+    <section id="output" className="relative py-24 md:py-32">
+      <div className="wrap">
+        <h2 className="font-display max-w-[24ch] text-[length:var(--fs-section)] leading-[1.12] tracking-[-0.015em]">
+          <span className="metal">It opens in Word as tracked changes,</span>{' '}
+          <span className="text-fg-3">not as a list of suggestions you retype.</span>
+        </h2>
+
+        <div className="mt-16 grid gap-12 lg:mt-24 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)]">
+          <div className="overflow-hidden rounded-[22px] border border-line bg-ink-raised">
+            <div className="flex items-center justify-between border-b border-line px-6 py-4">
+              <span className="text-[0.95rem] text-white">Revisions</span>
+              <span className="text-sm text-fg-3 tabular-nums">5 tracked changes</span>
             </div>
-            <div className="flex space-x-8 text-sm">
-              <Link href="#" className="text-[#E5E7EB]/60 hover:text-white transition-colors">Terms</Link>
-              <Link href="#" className="text-[#E5E7EB]/60 hover:text-white transition-colors">Privacy</Link>
-              <Link href="#" className="text-[#E5E7EB]/60 hover:text-white transition-colors">Security</Link>
-              <Link href="#" className="text-[#E5E7EB]/60 hover:text-white transition-colors">Contact</Link>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[520px] text-left text-[0.95rem]">
+                <thead>
+                  <tr className="text-fg-3">
+                    <th scope="col" className="px-6 py-3 font-normal">Change</th>
+                    <th scope="col" className="px-6 py-3 font-normal">Text</th>
+                    <th scope="col" className="px-6 py-3 font-normal">Rule</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {REVISIONS.map((r, i) => (
+                    <tr key={i} className="border-t border-line">
+                      <td className="px-6 py-4 text-fg-2">{r.kind}</td>
+                      <td className="px-6 py-4">
+                        <span className={r.kind === 'Deleted' ? 'tc-del' : 'tc-ins'}>{r.text}</span>
+                      </td>
+                      <td className="px-6 py-4 text-fg-2 whitespace-nowrap">{r.rule}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-          <div className="text-center mt-8 text-sm text-[#E5E7EB]/40">
-            © 2024 NDA Redline. All rights reserved.
+
+          <div>
+            <h3 className="text-[1.15rem] font-[480] text-white">What happens to your documents</h3>
+            <dl className="mt-6 divide-y divide-line border-y border-line">
+              {[
+                ['Two roles', 'Admins write rules and manage users. Reviewers upload, review and download.'],
+                ['In transit', 'Traffic between your browser and ClausePilot runs over HTTPS.'],
+                ['Deleting', 'Deleting a document removes the upload and the redlined output from the server.'],
+                ['The model', 'Clause text is sent to OpenAI’s API to propose edits.'],
+              ].map(([t, d]) => (
+                <div key={t} className="grid gap-1 py-5 sm:grid-cols-[8rem_1fr] sm:gap-6">
+                  <dt className="text-white">{t}</dt>
+                  <dd className="text-fg-2 leading-relaxed">{d}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </div>
-      </footer>
+      </div>
+    </section>
+  )
+}
+
+/* ---------- Close ---------- */
+function Close() {
+  return (
+    <section id="start" className="py-24 md:py-32">
+      <div className="wrap">
+        <div className="relative isolate overflow-hidden rounded-[28px] border border-line bg-ink-raised px-8 py-16 sm:px-14 md:py-24">
+          <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 -right-10 -z-10 w-[420px] opacity-40 [perspective:1600px] max-md:w-[300px] max-md:opacity-25">
+            <PaperSheets id="close" className="sheet-tilt w-full" />
+          </div>
+          <h2 className="font-display max-w-[20ch] text-[length:var(--fs-section)] leading-[1.12] tracking-[-0.015em]">
+            <span className="text-fg-3">You know the positions you take.</span>{' '}
+            <span className="metal">Start there.</span>
+          </h2>
+          <div className="mt-10 flex flex-wrap gap-4">
+            <Link href="/demo" className="btn-metal">Open the demo</Link>
+            <Link href="/register" className="btn-quiet">Create an account</Link>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function Footer() {
+  return (
+    <footer className="border-t border-line py-10">
+      <div className="wrap flex flex-col gap-6 text-[0.95rem] text-fg-2 md:flex-row md:items-center md:justify-between">
+        <Wordmark />
+        <nav aria-label="Footer" className="flex flex-wrap gap-x-8 gap-y-2">
+          <Link href="/demo" className="hover:text-white">Demo</Link>
+          <Link href="/login" className="hover:text-white">Sign in</Link>
+          <Link href="/register" className="hover:text-white">Create an account</Link>
+          <a href="https://github.com/fatinm1/ClausePilot" className="hover:text-white">Source on GitHub</a>
+        </nav>
+      </div>
+    </footer>
+  )
+}
+
+export default function LandingPage() {
+  const [active, setActive] = useState(0)
+  const [progress, setProgress] = useState(0)
+
+  useEffect(() => {
+    const els = SECTIONS.map((s) => document.getElementById(s.id)).filter(Boolean) as HTMLElement[]
+    const on = () => {
+      const mid = window.innerHeight * 0.45
+      let idx = 0
+      els.forEach((el, i) => {
+        if (el.getBoundingClientRect().top <= mid) idx = i
+      })
+      setActive(idx)
+      const max = document.documentElement.scrollHeight - window.innerHeight
+      setProgress(max > 0 ? window.scrollY / max : 0)
+    }
+    on()
+    window.addEventListener('scroll', on, { passive: true })
+    return () => window.removeEventListener('scroll', on)
+  }, [])
+
+  return (
+    <div className="min-h-screen bg-black text-white">
+      <a href="#rules" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:text-black">
+        Skip to content
+      </a>
+      <SiteHeader />
+      <ScreenRail active={active} progress={progress} />
+      <main>
+        <Hero />
+        <Sequence />
+        <Specimen />
+        <Process />
+        <Output />
+        <Close />
+      </main>
+      <Footer />
     </div>
   )
 }

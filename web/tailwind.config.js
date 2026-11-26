@@ -8,39 +8,50 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        background: '#0B1220',
-        surface: '#1E293B',
-        text: {
-          primary: '#FFFFFF',
-          secondary: '#E5E7EB',
-          muted: '#9CA3AF',
+        ink: {
+          DEFAULT: '#000000',
+          raised: '#0a0a0a',
+          panel: '#121212',
+          well: '#181818',
         },
-        accent: {
-          blue: '#60A5FA',
-          'blue-dark': '#3B82F6',
+        fg: {
+          DEFAULT: '#ffffff',
+          2: '#a6a6a6',
+          3: '#7a7a7a',
         },
-        border: {
-          light: 'rgba(255, 255, 255, 0.1)',
-          medium: 'rgba(255, 255, 255, 0.2)',
-        }
+        line: {
+          DEFAULT: 'rgba(255,255,255,0.12)',
+          strong: 'rgba(255,255,255,0.35)',
+        },
+        metal: {
+          peak: '#ffffff',
+          bright: '#f6f7f9',
+          mid: '#cbced2',
+          shade: '#a9acb1',
+          floor: '#8e9196',
+        },
+        redline: {
+          DEFAULT: '#b04545',
+          text: '#e58a8a',
+          wash: 'rgba(176,69,69,0.14)',
+        },
+        ok: {
+          DEFAULT: '#7fb39a',
+          wash: 'rgba(127,179,154,0.12)',
+        },
+        warn: '#d9b56f',
       },
       fontFamily: {
-        'sora': ['Sora', 'sans-serif'],
-        'inter': ['Inter', 'sans-serif'],
+        display: ['"Libre Caslon Display"', 'Georgia', 'serif'],
+        sans: ['"Inter Variable"', 'Inter', 'system-ui', 'sans-serif'],
       },
-      animation: {
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'float': 'float 6s ease-in-out infinite',
+      maxWidth: {
+        content: '1600px',
       },
-      keyframes: {
-        float: {
-          '0%, 100%': { transform: 'translateY(0px)' },
-          '50%': { transform: 'translateY(-20px)' },
-        }
+      transitionTimingFunction: {
+        standard: 'cubic-bezier(.4,0,.2,1)',
+        out: 'cubic-bezier(.16,1,.3,1)',
       },
-      backdropBlur: {
-        xs: '2px',
-      }
     },
   },
   plugins: [],
