@@ -5,15 +5,21 @@ from dotenv import load_dotenv
 load_dotenv('.env.local')
 load_dotenv('.env')
 
+def _database_uri():
+    url = os.environ.get('DATABASE_URL') or 'postgresql://fatinmojumder@localhost:5432/nda_redline'
+    # Ask SQLAlchemy for the installed psycopg2 driver explicitly; newer
+    # SQLAlchemy releases default plain postgresql:// URLs to psycopg 3.
+    for prefix in ('postgres://', 'postgresql://'):
+        if url.startswith(prefix):
+            return 'postgresql+psycopg2://' + url[len(prefix):]
+    return url
+
+
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key'
     
     # Use local PostgreSQL connection for development
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'postgresql://fatinmojumder@localhost:5432/nda_redline'
-    
-    # Debug: Print the actual database URL being used
-    print(f"DEBUG: DATABASE_URL from env: {os.environ.get('DATABASE_URL')}")
-    print(f"DEBUG: Final SQLALCHEMY_DATABASE_URI: {SQLALCHEMY_DATABASE_URI}")
+    SQLALCHEMY_DATABASE_URI = _database_uri()
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or os.environ.get('JWT_SECRET') or 'dev-secret-key-change-in-production'
