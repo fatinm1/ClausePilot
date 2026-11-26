@@ -222,3 +222,28 @@ def test_model_edits_that_drop_numbers_or_change_scope_are_rejected():
         '"Representatives" means officers and employees.',
         '"Representatives" means officers, employees, investors and agents.',
     )
+
+
+def test_party_specific_representatives_are_flagged_not_edited():
+    p = (
+        'The term "Representatives" (i) with respect to you, shall only include your officers and financial advisors, '
+        "and (ii) with respect to the Company, shall include its directors, agents and advisors."
+    )
+    changes, notes = plan_changes([p], [RULES[1]], {}, None)
+    assert changes == [] and any(
+        "defined separately for each party" in n for n in notes
+    )
+
+
+def test_retention_uses_documents_defined_term():
+    paras = [
+        "The term “Evaluation Material” shall mean all information furnished to Recipient.",
+        "Recipient will promptly return or destroy all Evaluation Material and no copy thereof shall be retained.",
+    ]
+    rule = next(
+        r
+        for r in RULES
+        if "etention" in r["name"] or "etain" in r.get("instruction", "")
+    )
+    changes, _ = plan_changes(paras, [rule], {}, None)
+    assert changes and "copy of Evaluation Material" in changes[0]["new_text"]

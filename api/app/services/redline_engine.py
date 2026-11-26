@@ -385,6 +385,23 @@ class Planner:
             return
         i = idx[0]
         p = self.cur[i]
+        # one definition per party ("(i) with respect to you ... (ii) with respect to
+        # the Company"): which branch is ours depends on who is reviewing, so flag it
+        if (
+            len(
+                re.findall(
+                    r"\((?:i|ii|iii|a|b|c)\)\s*(?:with respect to|in the case of|as to)\b",
+                    p,
+                    re.I,
+                )
+            )
+            >= 2
+        ):
+            self.notes.append(
+                f"{name}: Representatives is defined separately for each party; "
+                "review that definition by hand"
+            )
+            return
         missing = [
             label for label, pat in REP_CATEGORIES if not re.search(pat, p, re.I)
         ]
@@ -573,6 +590,15 @@ class Planner:
     def _adapt_party(self, text: str) -> str:
         """Use the document's own name for the receiving party in standard wording."""
         doc = " ".join(self.cur)
+        # use the document's own defined term for the protected information
+        if not re.search(r"[\"“]Confidential Information[\"”]", doc):
+            m = re.search(
+                r"[\"“]((?:Evaluation|Proprietary|Confidential|Disclosed)"
+                r" (?:Material|Materials|Information))[\"”]",
+                doc,
+            )
+            if m:
+                text = text.replace("Confidential Information", m.group(1))
         if re.search(r"\bRecipient\b", doc):
             return text
         if re.search(r"\bReceiving Party\b", doc):
