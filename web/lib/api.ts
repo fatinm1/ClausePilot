@@ -41,7 +41,7 @@ class ApiClient {
     this.baseUrl = baseUrl;
   }
 
-  private async request<T>(
+  async request<T = any>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
