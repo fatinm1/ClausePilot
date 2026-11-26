@@ -1971,7 +1971,7 @@ Please provide your analysis in the specified JSON format."""
             del_elem = OxmlElement('w:del')
             change_id = str(uuid.uuid4())[:8]  # Use unique ID for each change
             del_elem.set(qn('w:id'), change_id)
-            del_elem.set(qn('w:author'), 'AI Redlining System')
+            del_elem.set(qn('w:author'), 'ClausePilot')
             del_elem.set(qn('w:date'), datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'))
             
             # Create a run element inside the deletion
@@ -2017,7 +2017,7 @@ Please provide your analysis in the specified JSON format."""
             ins_elem = OxmlElement('w:ins')
             change_id = str(uuid.uuid4())[:8]  # Use unique ID for each change
             ins_elem.set(qn('w:id'), change_id)
-            ins_elem.set(qn('w:author'), 'AI Redlining System')
+            ins_elem.set(qn('w:author'), 'ClausePilot')
             ins_elem.set(qn('w:date'), datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'))
             
             # Create a run element inside the insertion
@@ -2567,7 +2567,7 @@ class DocumentProcessor:
             del_elem = OxmlElement('w:del')
             change_id = str(uuid.uuid4())[:8]  # Use unique ID for each change
             del_elem.set(qn('w:id'), change_id)
-            del_elem.set(qn('w:author'), 'AI Redlining System')
+            del_elem.set(qn('w:author'), 'ClausePilot')
             del_elem.set(qn('w:date'), datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'))
             
             # Create a run element inside the deletion
@@ -2613,7 +2613,7 @@ class DocumentProcessor:
             ins_elem = OxmlElement('w:ins')
             change_id = str(uuid.uuid4())[:8]  # Use unique ID for each change
             ins_elem.set(qn('w:id'), change_id)
-            ins_elem.set(qn('w:author'), 'AI Redlining System')
+            ins_elem.set(qn('w:author'), 'ClausePilot')
             ins_elem.set(qn('w:date'), datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'))
             
             # Create a run element inside the insertion

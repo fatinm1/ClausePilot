@@ -1,5 +1,6 @@
 'use client';
 
+import { AppHeader, PageIntro } from '../../components/app-header'
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../lib/auth-context';
 import { useRouter } from 'next/navigation';
@@ -314,7 +315,7 @@ export default function Dashboard() {
 
   const downloadDocument = async () => {
     if (!uploadedDocument?.id) {
-      setError('No processed document available for download');
+      setError('Run the review to get a download');
       return;
     }
 
@@ -511,19 +512,13 @@ export default function Dashboard() {
     }
   };
 
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'term': return <Calendar className="w-4 h-4 text-blue-400" />;
-      case 'parties': return <Users className="w-4 h-4 text-green-400" />;
-      case 'firm': return <Building className="w-4 h-4 text-purple-400" />;
-      case 'signature': return <PenTool className="w-4 h-4 text-orange-400" />;
-      default: return <Target className="w-4 h-4 text-gray-400" />;
-    }
-  };
+  const getCategoryIcon = (_category: string) => (
+    <span aria-hidden="true" className="mt-[0.7em] block h-[2px] w-3 shrink-0 rounded bg-redline" />
+  );
 
   const getCategoryLabel = (category: string) => {
     switch (category) {
-      case 'term': return 'Term Duration';
+      case 'term': return 'Term';
       case 'parties': return 'Parties';
       case 'firm': return 'Firm Details';
       case 'signature': return 'Signature';
@@ -533,13 +528,13 @@ export default function Dashboard() {
 
   // Single return statement with conditional rendering
   return (
-    <div className="min-h-screen bg-[#0B1220] text-[#E5E7EB]">
+    <div className="min-h-screen bg-black text-white/90">
       {loading ? (
         // Loading state
         <div className="flex items-center justify-center h-screen">
           <div className="text-center">
-            <div className="w-16 h-16 border-4 border-[#60A5FA] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-xl text-[#E5E7EB]/80">Validating authentication...</p>
+            <div className="w-16 h-16 border-4 border-metal-mid border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-xl text-fg-2">Checking your session</p>
           </div>
         </div>
       ) : showChangesReview ? (
@@ -560,106 +555,80 @@ export default function Dashboard() {
         // Don't render anything while redirecting
         <div className="flex items-center justify-center h-screen">
           <div className="text-center">
-            <div className="w-16 h-16 border-4 border-[#60A5FA] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-xl text-[#E5E7EB]/80">Redirecting...</p>
+            <div className="w-16 h-16 border-4 border-metal-mid border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-xl text-fg-2">Redirecting...</p>
           </div>
         </div>
       ) : (
         // Main dashboard content (only for admin users)
         <>
-      <header className="bg-[#0B1220]/90 backdrop-blur-md border-b border-white/10 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-3 h-3 bg-[#60A5FA] rounded-full animate-pulse" />
-              <span className="text-xl font-semibold text-white">NDA Redline</span>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-[#E5E7EB]/60">Admin Dashboard</span>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30`}>
-                ADMIN
-              </span>
-              <button
-                onClick={handleLogout}
-                className="text-[#E5E7EB]/60 hover:text-[#E5E7EB]/80 transition-colors"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppHeader section="Admin" role="ADMIN" onSignOut={handleLogout}></AppHeader>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-white mb-4">Admin Dashboard</h1>
-          <p className="text-xl text-[#E5E7EB]/80 max-w-3xl mx-auto">
-            Manage your NDA redlining system, create custom rules, and process documents with AI-powered intelligence.
-          </p>
-        </div>
+      <div className="mx-auto max-w-[1400px] px-5 py-12 md:px-8 md:py-16">
+        <PageIntro title="Rules and reviews">Write the positions every NDA is checked against, manage who can review, and run documents yourself.</PageIntro>
 
         {/* Error Display */}
         {error && (
-          <div className="mb-8 bg-red-500/20 border border-red-500/30 rounded-xl p-4">
+          <div className="mb-8 bg-redline-wash border border-redline/50 rounded-xl p-4">
             <div className="flex items-center space-x-3">
-              <AlertCircle className="w-5 h-5 text-red-400" />
-              <span className="text-red-400">{error}</span>
+              <AlertCircle className="w-5 h-5 text-redline-text" />
+              <span className="text-redline-text">{error}</span>
             </div>
           </div>
         )}
 
         {/* Success Message */}
         {success && (
-          <div className="mb-8 bg-green-500/20 border border-green-500/30 rounded-xl p-4">
+          <div className="mb-8 bg-ok-wash border border-ok/40 rounded-xl p-4">
             <div className="flex items-center space-x-3">
-              <CheckCircle className="w-5 h-5 text-green-400" />
-              <span className="text-green-400">{success}</span>
+              <CheckCircle className="w-5 h-5 text-ok" />
+              <span className="text-ok">{success}</span>
             </div>
           </div>
         )}
 
         {/* Admin Section */}
-        <div className="mb-8 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
-          <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
-            <Users className="w-5 h-5 mr-2 text-[#60A5FA]" />
-            Admin Dashboard
+        <div className="mb-8 panel p-6">
+          <h2 className="mb-5 flex items-center text-[1.15rem] font-[500] text-white">
+            <Users className="w-5 h-5 mr-2 text-metal-mid" />
+            Team and rules
           </h2>
           
           <div className="grid md:grid-cols-2 gap-6">
             {/* System Statistics */}
-            <div className="bg-[#1F2937] rounded-lg p-4">
-              <h3 className="text-lg font-medium text-white mb-3">System Overview</h3>
+            <div className="bg-ink-panel rounded-lg p-4">
+              <h3 className="text-lg font-medium text-white mb-3">Overview</h3>
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-[#E5E7EB]/60">Total Users:</span>
+                  <span className="text-fg-2">Users</span>
                   <span className="text-white">{systemStats?.total_users ?? 'Loading...'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-[#E5E7EB]/60">Total Documents:</span>
+                  <span className="text-fg-2">Documents</span>
                   <span className="text-white">{systemStats?.total_documents ?? 'Loading...'}</span>
               </div>
                 <div className="flex justify-between">
-                  <span className="text-[#E5E7EB]/60">Custom Rules:</span>
+                  <span className="text-fg-2">Rules</span>
                   <span className="text-white">{systemStats?.total_rules ?? customRules.length}</span>
               </div>
             </div>
           </div>
 
-            {/* Quick Actions */}
-            <div className="bg-[#1F2937] rounded-lg p-4">
-              <h3 className="text-lg font-medium text-white mb-3">Quick Actions</h3>
+            {/* Shortcuts */}
+            <div className="bg-ink-panel rounded-lg p-4">
+              <h3 className="text-lg font-medium text-white mb-3">Shortcuts</h3>
               <div className="space-y-2">
                 <button 
                   onClick={() => setShowAdminRuleModal(true)}
-                  className="w-full bg-[#60A5FA] hover:bg-[#60A5FA]/80 text-white px-4 py-2 rounded-md text-sm transition-colors"
+                  className="btn-metal sm w-full"
                 >
-                  Create Redlining Rule
+                  Add a rule
                 </button>
                 <button 
                   onClick={() => setShowAddUserModal(true)}
-                  className="w-full bg-[#10B981] hover:bg-[#10B981]/80 text-white px-4 py-2 rounded-md text-sm transition-colors"
+                  className="btn-quiet sm w-full"
                 >
-                  Add New User
+                  Add a user
                 </button>
               </div>
             </div>
@@ -670,14 +639,14 @@ export default function Dashboard() {
           {/* Left Column - Upload & Configuration */}
           <div className="space-y-8">
             {/* File Upload */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
-              <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
-                <Upload className="w-5 h-5 mr-2 text-[#60A5FA]" />
-                Upload NDA Document
+            <div className="panel p-6">
+              <h2 className="mb-5 flex items-center text-[1.15rem] font-[500] text-white">
+                <Upload className="w-5 h-5 mr-2 text-metal-mid" />
+                Upload the NDA
               </h2>
               
               {!uploadedFile ? (
-                <div className="border-2 border-dashed border-white/20 rounded-lg p-8 text-center hover:border-[#60A5FA]/40 transition-colors">
+                <div className="border-2 border-dashed border-line rounded-lg p-8 text-center hover:border-line-strong transition-colors">
                   <input
                     type="file"
                     accept=".docx"
@@ -687,25 +656,25 @@ export default function Dashboard() {
                     ref={fileInputRef}
                   />
                   <label htmlFor="file-upload" className="cursor-pointer">
-                    <Upload className="w-12 h-12 mx-auto mb-4 text-[#60A5FA]" />
+                    <Upload className="w-12 h-12 mx-auto mb-4 text-metal-mid" />
                     <p className="text-lg font-medium text-white mb-2">Drop your NDA here</p>
-                    <p className="text-[#E5E7EB]/60">or click to browse</p>
-                    <p className="text-sm text-[#E5E7EB]/40 mt-2">Supports .docx files only</p>
+                    <p className="text-fg-2">or click to browse</p>
+                    <p className="text-sm text-fg-3 mt-2">Word .docx files only</p>
                   </label>
                 </div>
               ) : (
-                <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+                <div className="bg-white/5 rounded-lg p-4 border border-line">
                   <div className="flex items-center space-x-3">
-                    <FileText className="w-8 h-8 text-[#60A5FA]" />
+                    <FileText className="w-8 h-8 text-metal-mid" />
                     <div className="flex-1">
                       <p className="font-medium text-white">{uploadedFile.name}</p>
-                      <p className="text-sm text-[#E5E7EB]/60">
+                      <p className="text-sm text-fg-2">
                         {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
                       </p>
                     </div>
                     <button
                       onClick={() => setUploadedFile(null)}
-                      className="text-[#E5E7EB]/60 hover:text-white transition-colors"
+                      className="text-fg-2 hover:text-white transition-colors"
                     >
                       ×
                     </button>
@@ -715,10 +684,10 @@ export default function Dashboard() {
             </div>
 
             {/* Custom Rules */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
-              <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
-                <Shield className="w-5 h-5 mr-2 text-[#60A5FA]" />
-                Custom Redlining Rules
+            <div className="panel p-6">
+              <h2 className="mb-5 flex items-center text-[1.15rem] font-[500] text-white">
+                <Shield className="w-5 h-5 mr-2 text-metal-mid" />
+                Rules
               </h2>
               
               <div className="space-y-4">
@@ -726,9 +695,9 @@ export default function Dashboard() {
                   <select
                     value={adminRuleCategory}
                     onChange={(e) => setAdminRuleCategory(e.target.value)}
-                    className="flex-1 bg-[#1F2937] border border-white/20 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-[#60A5FA]"
+                    className="flex-1 bg-ink-panel border border-line rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-white/15"
                   >
-                    <option value="term">Term Duration</option>
+                    <option value="term">Term</option>
                     <option value="parties">Parties</option>
                     <option value="firm">Firm Details</option>
                     <option value="signature">Signature</option>
@@ -739,48 +708,48 @@ export default function Dashboard() {
                     value={adminRuleName}
                     onChange={(e) => setAdminRuleName(e.target.value)}
                     placeholder="Enter rule name..."
-                    className="flex-1 bg-[#1F2937] border border-white/20 rounded-md px-3 py-2 text-white placeholder-[#E5E7EB]/40 focus:outline-none focus:ring-2 focus:ring-[#60A5FA]"
+                    className="field flex-1"
                   />
                   <button
                     onClick={() => setShowAdminRuleModal(true)}
-                    className="bg-[#60A5FA] hover:bg-[#60A5FA]/80 text-white px-4 py-2 rounded-md transition-colors"
+                    className="btn-metal sm"
                   >
-                    Add Rule
+                    Add rule
                   </button>
                 </div>
                 
                 {/* Display custom rules */}
                 {customRules.length > 0 ? (
                   <div className="space-y-2">
-                    <h3 className="text-sm font-medium text-[#E5E7EB]/80">Select Rules to Apply:</h3>
+                    <h3 className="text-sm font-medium text-fg-2">Rules to apply</h3>
                     {customRules.map((rule, index) => (
-                      <div key={index} className="flex items-center justify-between bg-[#1F2937] rounded-lg p-3">
+                      <div key={index} className="flex items-center justify-between bg-ink-panel rounded-lg p-3">
                         <div className="flex items-center space-x-3">
                           <input
                             type="checkbox"
                             checked={rule.id ? selectedRules.includes(rule.id) : false}
                             onChange={() => rule.id && toggleRuleSelection(rule.id)}
-                            className="w-4 h-4 text-[#60A5FA] bg-gray-700 border-gray-600 rounded focus:ring-[#60A5FA] focus:ring-2"
+                            className="h-4 w-4 accent-[#cbced2]"
                           />
                           {getCategoryIcon(rule.category)}
                           <div>
                             {rule.name && (
                               <div className="text-sm font-medium text-white">{rule.name}</div>
                             )}
-                            <span className="text-sm text-[#E5E7EB]">{rule.instruction}</span>
+                            <span className="text-sm text-white/90">{rule.instruction}</span>
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
                           <button
                             onClick={() => handleEditRule(rule)}
-                            className="text-[#60A5FA] hover:text-[#60A5FA]/80 transition-colors"
+                            className="text-metal-mid hover:text-white transition-colors"
                             title="Edit rule"
                           >
                             <Edit className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => removeCustomRule(index)}
-                            className="text-red-400 hover:text-red-300 transition-colors"
+                            className="text-redline-text hover:text-white transition-colors"
                             title="Delete rule"
                           >
                             <X className="w-4 h-4" />
@@ -791,126 +760,126 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="text-center py-8">
-                    <Shield className="w-12 h-12 mx-auto mb-4 text-[#E5E7EB]/40" />
-                    <p className="text-[#E5E7EB]/60">No redlining rules created yet</p>
-                    <p className="text-sm text-[#E5E7EB]/40 mt-2">Create your first rule using the form above</p>
-                    <p className="text-xs text-[#E5E7EB]/30 mt-1">Rules will be available to all users</p>
+                    <Shield className="w-12 h-12 mx-auto mb-4 text-fg-3" />
+                    <p className="text-fg-2">No rules yet</p>
+                    <p className="text-sm text-fg-3 mt-2">Add your first rule with the form above.</p>
+                    <p className="text-xs text-fg-3 mt-1">Rules will be available to all users</p>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Firm Details */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
-              <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
-                <Building className="w-5 h-5 mr-2 text-[#60A5FA]" />
-                Firm Information
+            <div className="panel p-6">
+              <h2 className="mb-5 flex items-center text-[1.15rem] font-[500] text-white">
+                <Building className="w-5 h-5 mr-2 text-metal-mid" />
+                Firm details for the signature block
               </h2>
               
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm text-[#E5E7EB]/60 mb-1">Firm Name</label>
+                  <label className="block text-sm text-fg-2 mb-1">Firm name</label>
                   <input
                     type="text"
                     value={firmDetails.name}
                     onChange={(e) => updateFirmDetails('name', e.target.value)}
-                    placeholder="Enter your law firm name"
-                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-[#E5E7EB]/40 focus:outline-none focus:border-[#60A5FA]"
+                    placeholder="Halden Capital LLC"
+                    className="field"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-[#E5E7EB]/60 mb-1">Address</label>
+                  <label className="block text-sm text-fg-2 mb-1">Address</label>
                   <input
                     type="text"
                     value={firmDetails.address}
                     onChange={(e) => updateFirmDetails('address', e.target.value)}
                     placeholder="Enter street address"
-                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-[#E5E7EB]/40 focus:outline-none focus:border-[#60A5FA]"
+                    className="field"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-[#E5E7EB]/60 mb-1">City</label>
+                  <label className="block text-sm text-fg-2 mb-1">City</label>
                   <input
                     type="text"
                     value={firmDetails.city}
                     onChange={(e) => updateFirmDetails('city', e.target.value)}
                     placeholder="Enter city"
-                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-[#E5E7EB]/40 focus:outline-none focus:border-[#60A5FA]"
+                    className="field"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-[#E5E7EB]/60 mb-1">State</label>
+                  <label className="block text-sm text-fg-2 mb-1">State</label>
                   <input
                     type="text"
                     value={firmDetails.state}
                     onChange={(e) => updateFirmDetails('state', e.target.value)}
                     placeholder="Enter state (e.g., NY)"
-                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-[#E5E7EB]/40 focus:outline-none focus:border-[#60A5FA]"
+                    className="field"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-[#E5E7EB]/60 mb-1">ZIP Code</label>
+                  <label className="block text-sm text-fg-2 mb-1">ZIP code</label>
                   <input
                     type="text"
                     value={firmDetails.zipCode}
                     onChange={(e) => updateFirmDetails('zipCode', e.target.value)}
                     placeholder="Enter ZIP code"
-                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-[#E5E7EB]/40 focus:outline-none focus:border-[#60A5FA]"
+                    className="field"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-[#E5E7EB]/60 mb-1">Signer Name</label>
+                  <label className="block text-sm text-fg-2 mb-1">Signer name</label>
                   <input
                     type="text"
                     value={firmDetails.signerName}
                     onChange={(e) => updateFirmDetails('signerName', e.target.value)}
                     placeholder="Enter signer's full name"
-                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-[#E5E7EB]/40 focus:outline-none focus:border-[#60A5FA]"
+                    className="field"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-[#E5E7EB]/60 mb-1">Title</label>
+                  <label className="block text-sm text-fg-2 mb-1">Title</label>
                   <input
                     type="text"
                     value={firmDetails.signerTitle}
                     onChange={(e) => updateFirmDetails('signerTitle', e.target.value)}
                     placeholder="Enter signer's title"
-                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-[#E5E7EB]/40 focus:outline-none focus:border-[#60A5FA]"
+                    className="field"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-[#E5E7EB]/60 mb-1">Email</label>
+                  <label className="block text-sm text-fg-2 mb-1">Email</label>
                   <input
                     type="email"
                     value={firmDetails.email}
                     onChange={(e) => updateFirmDetails('email', e.target.value)}
                     placeholder="Enter email address"
-                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-[#E5E7EB]/40 focus:outline-none focus:border-[#60A5FA]"
+                    className="field"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-[#E5E7EB]/60 mb-1">Phone</label>
+                  <label className="block text-sm text-fg-2 mb-1">Phone</label>
                   <input
                     type="tel"
                     value={firmDetails.phone}
                     onChange={(e) => updateFirmDetails('phone', e.target.value)}
                     placeholder="Enter phone number"
-                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-[#E5E7EB]/40 focus:outline-none focus:border-[#60A5FA]"
+                    className="field"
                   />
                 </div>
               </div>
 
               {/* Signature Upload Section */}
-              <div className="mt-6 pt-6 border-t border-white/10">
+              <div className="mt-6 pt-6 border-t border-line">
                 <h3 className="text-lg font-medium text-white mb-4 flex items-center">
-                  <PenTool className="w-5 h-5 mr-2 text-[#60A5FA]" />
-                  Digital Signature
+                  <PenTool className="w-5 h-5 mr-2 text-metal-mid" />
+                  Signature image
                 </h3>
                 
                 <div className="space-y-4">
                   {/* Signature Upload */}
                   <div>
-                    <label className="block text-sm text-[#E5E7EB]/60 mb-2">Upload Signature Image</label>
+                    <label className="block text-sm text-fg-2 mb-2">Upload signature image</label>
                     <div className="flex items-center space-x-4">
                       <input
                         type="file"
@@ -921,29 +890,29 @@ export default function Dashboard() {
                       />
                       <label
                         htmlFor="signature-upload"
-                        className="px-4 py-2 bg-[#60A5FA] text-white rounded-md hover:bg-[#3B82F6] cursor-pointer transition-colors"
+                        className="btn-metal sm"
                       >
-                        Choose Signature
+                        Choose image
                       </label>
                       {signatureFile && (
                         <button
                           onClick={removeSignature}
-                          className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                          className="btn-danger"
                         >
                           Remove
                 </button>
                       )}
                     </div>
-                    <p className="text-xs text-[#E5E7EB]/60 mt-1">
-                      Upload a PNG, JPG, or other image format of your signature
+                    <p className="text-xs text-fg-2 mt-1">
+                      PNG or JPG. It is placed above the signer’s name.
                     </p>
                   </div>
 
-                  {/* Signature Preview */}
+                  {/* Signature preview */}
                   {signaturePreview && (
                     <div>
-                      <label className="block text-sm text-[#E5E7EB]/60 mb-2">Signature Preview</label>
-                      <div className="border-2 border-dashed border-white/20 rounded-lg p-4 bg-white/5">
+                      <label className="block text-sm text-fg-2 mb-2">Signature preview</label>
+                      <div className="border-2 border-dashed border-line rounded-lg p-4 bg-white/5">
                         <img
                           src={signaturePreview}
                           alt="Signature preview"
@@ -960,17 +929,17 @@ export default function Dashboard() {
           {/* Right Column - Processing & Results */}
           <div className="space-y-8">
             {/* Processing Controls */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
-              <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
-                <Zap className="w-5 h-5 mr-2 text-[#60A5FA]" />
-                Document Processing
+            <div className="panel p-6">
+              <h2 className="mb-5 flex items-center text-[1.15rem] font-[500] text-white">
+                <Zap className="w-5 h-5 mr-2 text-metal-mid" />
+                Run the review
               </h2>
               
               <div className="space-y-4">
                 <button
                   onClick={startProcessing}
                   disabled={!uploadedFile || isProcessing}
-                  className="w-full bg-[#60A5FA] hover:bg-[#60A5FA]/90 disabled:bg-[#60A5FA]/40 text-white py-4 rounded-lg font-semibold text-lg transition-all duration-200 hover:shadow-lg hover:shadow-[#60A5FA]/25 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                  className="btn-metal w-full"
                 >
                   {isProcessing ? (
                     <>
@@ -980,7 +949,7 @@ export default function Dashboard() {
                   ) : (
                     <>
                       <Sparkles className="w-5 h-5" />
-                      <span>Start AI Redlining Process</span>
+                      <span>Redline this NDA</span>
                     </>
                   )}
                 </button>
@@ -988,7 +957,7 @@ export default function Dashboard() {
                 {uploadedDocument && (
                   <button
                     onClick={downloadDocument}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                    className="btn-metal sm w-full"
                   >
                     <Download className="w-5 h-5 inline mr-2" />
                     Download Processed Document
@@ -999,10 +968,10 @@ export default function Dashboard() {
 
             {/* Processing Steps */}
             {isProcessing && (
-              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
-                <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
-                  <Sparkles className="w-5 h-5 mr-2 text-[#60A5FA]" />
-                  AI Agent Processing Your NDA
+              <div className="panel p-6">
+                <h2 className="mb-5 flex items-center text-[1.15rem] font-[500] text-white">
+                  <Sparkles className="w-5 h-5 mr-2 text-metal-mid" />
+                  Redlining your NDA
                 </h2>
 
               <div className="space-y-4">
@@ -1010,27 +979,27 @@ export default function Dashboard() {
                     <div key={step.id} className="space-y-2">
                     <div className="flex items-center justify-between">
                         <div className="flex-1">
-                          <span className="text-[#E5E7EB]">{step.name}</span>
+                          <span className="text-white/90">{step.name}</span>
                           {index === currentStep && step.details && (
-                            <p className="text-sm text-[#E5E7EB]/60 mt-1">{step.details}</p>
+                            <p className="text-sm text-fg-2 mt-1">{step.details}</p>
                           )}
                         </div>
                         {index === currentStep ? (
                           <div className="flex items-center space-x-2">
-                            <Sparkles className="w-4 h-4 text-[#60A5FA] animate-pulse" />
-                            <span className="text-xs text-[#60A5FA]">AI Working</span>
+                            <Sparkles className="w-4 h-4 text-metal-mid animate-pulse" />
+                            <span className="text-xs text-metal-mid">Working</span>
                           </div>
                         ) : index < currentStep ? (
-                          <CheckCircle className="w-4 h-4 text-green-400" />
+                          <CheckCircle className="w-4 h-4 text-ok" />
                         ) : (
-                          <div className="w-4 h-4 border-2 border-white/20 rounded-full" />
+                          <div className="w-4 h-4 border-2 border-line rounded-full" />
                         )}
                       </div>
                       
                       {index === currentStep && (
                         <div className="w-full bg-white/10 rounded-full h-2">
                           <div 
-                            className="bg-gradient-to-r from-[#60A5FA] to-[#3B82F6] h-2 rounded-full transition-all duration-300"
+                            className="bg-gradient-to-r from-metal-floor to-metal-peak h-2 rounded-full transition-all duration-300"
                             style={{ width: `${Math.min(100, (Date.now() % 2000) / 20)}%` }}
                           />
                         </div>
@@ -1043,59 +1012,31 @@ export default function Dashboard() {
 
             {/* Preview Section */}
             {showPreview && (
-              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
-                <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
-                  <Eye className="w-5 h-5 mr-2 text-[#60A5FA]" />
-                  AI-Redlined Document Preview
+              <div className="panel p-6">
+                <h2 className="mb-5 flex items-center text-[1.15rem] font-[500] text-white">
+                  <Eye className="w-5 h-5 mr-2 text-metal-mid" />
+                  Redline ready
                 </h2>
 
-                <div className="bg-white rounded-lg p-6 shadow-2xl mb-4">
-                  <div className="flex items-center space-x-3 mb-4">
-                    <div className="w-3 h-3 bg-red-500 rounded-full" />
-                    <div className="w-3 h-3 bg-yellow-500 rounded-full" />
-                    <div className="w-3 h-3 bg-green-500 rounded-full" />
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="h-4 bg-gray-200 rounded w-full" />
-                    <div className="h-4 bg-gray-200 rounded w-3/4" />
-                    <div className="h-4 bg-red-200 rounded w-2/3 border-l-4 border-red-500" />
-                    <div className="h-4 bg-gray-200 rounded w-4/5" />
-                    <div className="h-4 bg-blue-200 rounded w-1/2 border-l-4 border-blue-500" />
-                    <div className="h-4 bg-gray-200 rounded w-3/4" />
-                    <div className="h-4 bg-green-200 rounded w-5/6 border-l-4 border-green-500" />
-                    <div className="h-4 bg-gray-200 rounded w-2/3" />
-                    <div className="h-4 bg-purple-200 rounded w-4/5 border-l-4 border-purple-500" />
-                  </div>
-                </div>
 
                 {processingResult && (
-                  <div className="space-y-3 text-sm mb-4">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-green-500 rounded-full" />
-                      <span className="text-[#E5E7EB]">Rules Applied: {processingResult.rules_applied}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-blue-500 rounded-full" />
-                      <span className="text-[#E5E7EB]">Changes Made: {processingResult.changes_made}</span>
-                      </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-purple-500 rounded-full" />
-                      <span className="text-[#E5E7EB]">Processing Time: {processingResult.processing_time}</span>
-                    </div>
-                  </div>
+                  <dl className="mb-6 text-[0.95rem]">
+                    <div className="flex justify-between gap-4 border-b border-line py-2"><dt className="text-fg-2">Rules applied</dt><dd className="tabular-nums text-white">{processingResult.rules_applied}</dd></div>
+                    <div className="flex justify-between gap-4 border-b border-line py-2"><dt className="text-fg-2">Changes made</dt><dd className="tabular-nums text-white">{processingResult.changes_made}</dd></div>
+                    <div className="flex justify-between gap-4 border-b border-line py-2"><dt className="text-fg-2">Processing time</dt><dd className="tabular-nums text-white">{processingResult.processing_time}</dd></div>
+                  </dl>
                 )}
 
                 <button
                   onClick={downloadDocument}
                   disabled={!uploadedDocument?.id}
-                  className="w-full bg-[#10B981] hover:bg-[#10B981]/90 disabled:bg-[#10B981]/40 text-white py-3 rounded-lg font-semibold transition-all duration-200 hover:shadow-lg hover:shadow-[#10B981]/25 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                  className="btn-metal sm w-full"
                 >
                   <Download className="w-5 h-5" />
                   <span>
                     {uploadedDocument?.id
-                      ? 'Download Redlined Document'
-                      : 'No processed document available for download'
+                      ? 'Download the redline'
+                      : 'Run the review to get a download'
                     }
                   </span>
                 </button>
@@ -1109,32 +1050,32 @@ export default function Dashboard() {
 
       {/* Create/Edit Rule Modal */}
       {showAdminRuleModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#1F2937] rounded-xl p-6 w-full max-w-md mx-4">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-ink-panel rounded-xl p-6 w-full max-w-md mx-4">
             <h3 className="text-xl font-semibold text-white mb-4">
-              {editingRuleId ? 'Edit Redlining Rule' : 'Create Redlining Rule'}
+              {editingRuleId ? 'Edit rule' : 'New rule'}
             </h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-[#E5E7EB]/60 mb-1">Rule Name</label>
+                <label className="block text-sm text-fg-2 mb-1">Rule name</label>
                 <input
                   type="text"
                   value={adminRuleName}
                   onChange={(e) => setAdminRuleName(e.target.value)}
                   placeholder="Enter rule name..."
-                  className="w-full px-3 py-2 bg-[#0B1220] border border-white/20 rounded text-white placeholder-[#E5E7EB]/40 focus:outline-none focus:border-[#60A5FA]"
+                  className="field"
                 />
               </div>
 
               <div>
-                <label className="block text-sm text-[#E5E7EB]/60 mb-1">Category</label>
+                <label className="block text-sm text-fg-2 mb-1">Category</label>
                 <select
                   value={adminRuleCategory}
                   onChange={(e) => setAdminRuleCategory(e.target.value)}
-                  className="w-full px-3 py-2 bg-[#0B1220] border border-white/20 rounded text-white focus:outline-none focus:border-[#60A5FA]"
+                  className="w-full px-3 py-2 bg-black border border-line rounded text-white focus:outline-none focus:border-metal-mid"
                 >
-                  <option value="term">Term Duration</option>
+                  <option value="term">Term</option>
                   <option value="parties">Parties</option>
                   <option value="firm">Firm Details</option>
                   <option value="signature">Signature</option>
@@ -1143,13 +1084,13 @@ export default function Dashboard() {
               </div>
 
               <div>
-                <label className="block text-sm text-[#E5E7EB]/60 mb-1">Instruction</label>
+                <label className="block text-sm text-fg-2 mb-1">Instruction</label>
                 <textarea
                   value={adminRuleInstruction}
                   onChange={(e) => setAdminRuleInstruction(e.target.value)}
                   placeholder="Enter detailed instruction..."
                   rows={3}
-                  className="w-full px-3 py-2 bg-[#0B1220] border border-white/20 rounded text-white placeholder-[#E5E7EB]/40 focus:outline-none focus:border-[#60A5FA]"
+                  className="field"
                 />
               </div>
             </div>
@@ -1157,13 +1098,13 @@ export default function Dashboard() {
             <div className="flex space-x-3 mt-6">
               <button
                 onClick={handleCloseRuleModal}
-                className="flex-1 px-4 py-2 bg-[#374151] hover:bg-[#4B5563] text-white rounded-lg transition-colors"
+                className="btn-quiet sm flex-1"
               >
                 Cancel
               </button>
               <button
                 onClick={editingRuleId ? updateAdminRule : createAdminRule}
-                className="flex-1 px-4 py-2 bg-[#60A5FA] hover:bg-[#60A5FA]/80 text-white rounded-lg transition-colors"
+                className="btn-metal sm flex-1"
               >
                 {editingRuleId ? 'Update Rule' : 'Create Rule'}
               </button>
@@ -1174,39 +1115,39 @@ export default function Dashboard() {
 
       {/* Add User Modal */}
       {showAddUserModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#1F2937] rounded-xl p-6 w-full max-w-md mx-4">
-            <h3 className="text-xl font-semibold text-white mb-4">Add New User</h3>
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-ink-panel rounded-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-xl font-semibold text-white mb-4">Add a user</h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-[#E5E7EB]/60 mb-1">Username</label>
+                <label className="block text-sm text-fg-2 mb-1">Username</label>
                 <input
                   type="text"
                   value={newUserData.username}
                   onChange={(e) => setNewUserData(prev => ({ ...prev, username: e.target.value }))}
                   placeholder="Enter username..."
-                  className="w-full px-3 py-2 bg-[#0B1220] border border-white/20 rounded text-white placeholder-[#E5E7EB]/40 focus:outline-none focus:border-[#60A5FA]"
+                  className="field"
                 />
               </div>
 
               <div>
-                <label className="block text-sm text-[#E5E7EB]/60 mb-1">Email</label>
+                <label className="block text-sm text-fg-2 mb-1">Email</label>
                 <input
                   type="email"
                   value={newUserData.email}
                   onChange={(e) => setNewUserData(prev => ({ ...prev, email: e.target.value }))}
                   placeholder="Enter email..."
-                  className="w-full px-3 py-2 bg-[#0B1220] border border-white/20 rounded text-white placeholder-[#E5E7EB]/40 focus:outline-none focus:border-[#60A5FA]"
+                  className="field"
                 />
               </div>
 
               <div>
-                <label className="block text-sm text-[#E5E7EB]/60 mb-1">Role</label>
+                <label className="block text-sm text-fg-2 mb-1">Role</label>
                 <select
                   value={newUserData.role}
                   onChange={(e) => setNewUserData(prev => ({ ...prev, role: e.target.value }))}
-                  className="w-full px-3 py-2 bg-[#0B1220] border border-white/20 rounded text-white focus:outline-none focus:border-[#60A5FA]"
+                  className="w-full px-3 py-2 bg-black border border-line rounded text-white focus:outline-none focus:border-metal-mid"
                 >
                   <option value="USER">User</option>
                   <option value="ADMIN">Admin</option>
@@ -1214,13 +1155,13 @@ export default function Dashboard() {
               </div>
               
               <div>
-                <label className="block text-sm text-[#E5E7EB]/60 mb-1">Password</label>
+                <label className="block text-sm text-fg-2 mb-1">Password</label>
                 <input
                   type="password"
                   value={newUserData.password}
                   onChange={(e) => setNewUserData(prev => ({ ...prev, password: e.target.value }))}
                   placeholder="Enter password..."
-                  className="w-full px-3 py-2 bg-[#0B1220] border border-white/20 rounded text-white placeholder-[#E5E7EB]/40 focus:outline-none focus:border-[#60A5FA]"
+                  className="field"
                 />
               </div>
             </div>
@@ -1228,13 +1169,13 @@ export default function Dashboard() {
             <div className="flex space-x-3 mt-6">
               <button
                 onClick={() => setShowAddUserModal(false)}
-                className="flex-1 px-4 py-2 bg-[#374151] hover:bg-[#4B5563] text-white rounded-lg transition-colors"
+                className="btn-quiet sm flex-1"
               >
                 Cancel
               </button>
               <button
                 onClick={addNewUser}
-                className="flex-1 px-4 py-2 bg-[#10B981] hover:bg-[#10B981]/80 text-white rounded-lg transition-colors"
+                className="btn-metal sm flex-1"
               >
                 Add User
               </button>

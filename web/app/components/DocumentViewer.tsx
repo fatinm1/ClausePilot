@@ -763,8 +763,8 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">
-          <Loader className="w-12 h-12 text-[#60A5FA] animate-spin mx-auto mb-4" />
-          <p className="text-[#E5E7EB]">Analyzing document and generating changes...</p>
+          <Loader className="w-12 h-12 text-metal-mid animate-spin mx-auto mb-4" />
+          <p className="text-white/90">Analyzing document and generating changes...</p>
         </div>
       </div>
     );
@@ -772,11 +772,11 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
 
   if (error) {
     return (
-      <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-6">
-        <p className="text-red-400">{error}</p>
+      <div className="bg-redline-wash border border-redline/50 rounded-lg p-6">
+        <p className="text-redline-text">{error}</p>
         <button
           onClick={() => onComplete({ success: false })}
-          className="mt-4 px-4 py-2 bg-[#60A5FA] text-white rounded-lg hover:bg-[#60A5FA]/90"
+          className="btn-metal sm mt-4"
         >
           Go Back
         </button>
@@ -917,7 +917,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       ` }} />
       
       {/* DocuSign-style header */}
-      <div className="bg-[#0F172A] text-white rounded-2xl shadow-2xl px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-ink-raised border border-line text-white rounded-2xl shadow-2xl px-6 py-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <button
             onClick={() => onComplete({ success: false })}
@@ -928,10 +928,10 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
           </button>
           <div className="flex items-center gap-3">
             <div className="bg-white/10 p-3 rounded-xl">
-              <FileSignature className="w-6 h-6 text-blue-300" />
+              <FileSignature className="w-6 h-6 text-metal-mid" />
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wider text-blue-300">DocuSign-Style Review</p>
+              <p className="text-xs uppercase tracking-wider text-metal-mid">DocuSign-Style Review</p>
               <h2 className="text-2xl font-semibold">Confidentiality Agreement</h2>
               <p className="text-sm text-blue-200">{pendingCount} actions remaining</p>
             </div>
@@ -957,7 +957,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
           <button
             onClick={applyChanges}
             disabled={applying}
-            className="px-5 py-2 bg-blue-500 text-white rounded-xl text-sm font-semibold hover:bg-blue-400 transition flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="btn-metal sm"
           >
             {applying ? (
               <>
@@ -979,8 +979,8 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         {/* Sidebar */}
         <aside className="lg:w-80 bg-white rounded-2xl shadow-xl p-5 space-y-4 h-[calc(100vh-260px)] overflow-y-auto">
           <div>
-            <p className="text-xs uppercase tracking-widest text-slate-400 mb-1">Guided Review</p>
-            <h3 className="text-xl font-semibold text-slate-800">Required Actions</h3>
+            <p className="text-xs uppercase tracking-widest text-slate-400 mb-1">Guided review</p>
+            <h3 className="text-xl font-semibold text-slate-800">Needs your decision</h3>
             <p className="text-sm text-slate-500 mb-3">Click any card to jump to its location in the document.</p>
             <button
               onClick={() => {
@@ -1121,14 +1121,14 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
                                       <span className="inline-flex items-center ml-2 space-x-1 align-middle">
                                         <button
                                           onClick={() => handleAccept(change.id)}
-                                          className="p-0.5 bg-green-500/20 text-green-600 rounded hover:bg-green-500/30 transition-colors"
+                                          className="p-0.5 bg-ok-wash text-green-600 rounded hover:bg-ok/20 transition-colors"
                                           title="Accept change"
                                         >
                                           <CheckCircle className="w-3 h-3" />
                                         </button>
                                         <button
                                           onClick={() => handleReject(change.id)}
-                                          className="p-0.5 bg-red-500/20 text-red-600 rounded hover:bg-red-500/30 transition-colors"
+                                          className="p-0.5 bg-redline-wash text-red-600 rounded hover:bg-redline/25 transition-colors"
                                           title="Reject change"
                                         >
                                           <XCircle className="w-3 h-3" />

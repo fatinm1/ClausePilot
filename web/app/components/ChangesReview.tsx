@@ -155,7 +155,7 @@ export default function ChangesReview({
             <p className="text-red-700">{error}</p>
             <button 
               onClick={generateChanges}
-              className="mt-3 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+              className="btn-danger mt-3"
             >
               Retry
             </button>
@@ -172,7 +172,7 @@ export default function ChangesReview({
         <div className="border-b border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Review Changes</h2>
+              <h2 className="text-2xl font-semibold text-gray-900">Review changes</h2>
               <p className="text-gray-600 mt-1">
                 Review and accept/reject {changes.length} proposed changes
               </p>
@@ -180,13 +180,13 @@ export default function ChangesReview({
             <div className="flex space-x-3">
               <button
                 onClick={acceptAllChanges}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                className="btn-metal sm"
               >
                 Accept All
               </button>
               <button
                 onClick={rejectAllChanges}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                className="btn-danger"
               >
                 Reject All
               </button>
@@ -297,7 +297,7 @@ export default function ChangesReview({
             <button
               onClick={applyAcceptedChanges}
               disabled={applying || changes.filter(c => c.status === 'accepted').length === 0}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              className="btn-metal sm"
             >
               {applying ? 'Applying...' : 'Apply Accepted Changes'}
             </button>
