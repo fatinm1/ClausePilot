@@ -31,7 +31,8 @@ def stub(*replies):
     return llm
 
 
-def test_reps_uses_valid_model_wording():
+def test_reps_uses_valid_model_wording(monkeypatch):
+    monkeypatch.setenv("REPS_WORDING", "model")
     better = REPS.replace(
         "officers and employees",
         "officers, employees, investors, agents, advisors and potential financing sources",
@@ -42,7 +43,8 @@ def test_reps_uses_valid_model_wording():
     assert changes[0]["new_text"] == better
 
 
-def test_reps_rejects_model_that_deletes_words():
+def test_reps_rejects_model_that_deletes_words(monkeypatch):
+    monkeypatch.setenv("REPS_WORDING", "model")
     bad = '2. Representatives. "Representatives" means investors, agents, advisors and potential financing sources.'
     changes, _ = plan_changes(DOC, [RULES[1]], {}, stub(json.dumps({"new_text": bad})))
     new = changes[0]["new_text"]
@@ -75,7 +77,8 @@ def test_generic_rule_retries_after_bad_quote():
     assert changes[0]["new_text"].endswith("laws of Maryland.")
 
 
-def test_garbage_reply_falls_back_to_code():
+def test_garbage_reply_falls_back_to_code(monkeypatch):
+    monkeypatch.setenv("REPS_WORDING", "model")
     changes, _ = plan_changes(
         DOC, [RULES[1]], {}, stub("I think you should add investors.")
     )
@@ -199,3 +202,23 @@ def test_one_line_signature_and_other_blank_blocks():
     )
     assert new[2] == "RECIPIENT: Halden Capital LLC" and new[3] == "Name: Jordan Ellis"
     assert 5 not in new
+
+
+def test_model_edits_that_drop_numbers_or_change_scope_are_rejected():
+    from app.services.redline_engine import Planner
+
+    old = '261. "Representatives" means the Recipient\'s officers and employees.'
+    assert not Planner._only_additions(
+        old, '"Representatives" means the Recipient\'s officers, employees, investors.'
+    )
+    scoped = '1. "Representatives" means officers and employees and, solely with respect to the Recipient, its Financing Sources.'
+    moved = '1. "Representatives" means officers, employees, investors and agents and, solely with respect to the Recipient, its Financing Sources.'
+    assert not Planner._only_additions(scoped, moved)
+    assert not Planner._only_additions(
+        '"Representatives" means employees.',
+        '"Representatives" means employees. Such Representatives also include investors.',
+    )
+    assert Planner._only_additions(
+        '"Representatives" means officers and employees.',
+        '"Representatives" means officers, employees, investors and agents.',
+    )

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from collections.abc import Callable
 from typing import Any
@@ -390,15 +391,20 @@ class Planner:
         if not missing:
             return
         reason = "Representatives widened to include " + ", ".join(missing) + "."
-        proposal = self.ask(
-            "You edit NDA clauses. Make the smallest possible edit. Return JSON only.",
-            "Clause:\n"
-            + p
-            + '\n\nAdd these categories to the definition of "Representatives" in this clause, '
-            f"as categories of the party's own Representatives: {', '.join(missing)}.\n"
-            "Rules: keep every existing word; only add words; keep the clause's own style "
-            '(for example "its"); do not change anything outside the definition.\n'
-            'Return {"new_text": "<the whole clause after your edit>"}',
+        use_model = os.getenv("REPS_WORDING", "code").lower() == "model"
+        proposal = (
+            None
+            if not use_model
+            else self.ask(
+                "You edit NDA clauses. Make the smallest possible edit. Return JSON only.",
+                "Clause:\n"
+                + p
+                + '\n\nAdd these categories to the definition of "Representatives" in this clause, '
+                f"as categories of the party's own Representatives: {', '.join(missing)}.\n"
+                "Rules: keep every existing word; only add words; keep the clause's own style "
+                '(for example "its"); do not change anything outside the definition.\n'
+                'Return {"new_text": "<the whole clause after your edit>"}',
+            )
         )
         new = (proposal or {}).get("new_text", "") if isinstance(proposal, dict) else ""
         if (
@@ -412,13 +418,39 @@ class Planner:
 
     @staticmethod
     def _only_additions(old: str, new: str) -> bool:
+        """A model edit to a definition may only add words. Rejects anything that
+        removes letters or numbers (apart from a connecting 'and'/'or'), adds a new
+        sentence, or moves new categories ahead of a scoping phrase such as
+        'solely with respect to the Recipient'."""
         from .tracked_docx import word_ops
 
         for a, b, _ in word_ops(old, new):
             removed = old[a:b]
-            if re.search(r"[A-Za-z]{3,}", removed) and removed.strip().lower() not in (
-                "and",
-                "or",
+            if re.search(r"[A-Za-z0-9]", removed) and removed.strip(
+                " ,;"
+            ).lower() not in ("and", "or", ""):
+                return False
+        if new.count(". ") > old.count(". "):
+            return False
+        scope = re.search(
+            r"solely (?:with respect to|in the case of)|in the case of|with respect to the recipient",
+            old,
+            re.I,
+        )
+        if scope:
+            first_new = min(
+                (
+                    m.start()
+                    for m in re.finditer(r"investor|financing|agent", new, re.I)
+                ),
+                default=None,
+            )
+            new_scope = re.search(re.escape(scope.group(0)), new, re.I)
+            if (
+                first_new is not None
+                and new_scope
+                and first_new < new_scope.start()
+                and not re.search(r"investor|agent", old[: scope.start()], re.I)
             ):
                 return False
         return len(new) > len(old)
