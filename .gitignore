@@ -36,3 +36,14 @@ Thumbs.db
 
 # Railway
 .railway/
+
+# Runtime files and anything containing real documents or sessions
+api/uploads/
+api/outputs/
+cookies.txt
+*.docx
+!api/test.docx
+!sample_nda.docx
+!simple_nda.docx
+!test_document.docx
+!redlined_document.docx
