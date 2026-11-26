@@ -241,12 +241,6 @@ def process_document(user, document_id):
 
         try:
             # Check environment variables before creating AI service
-            api_key = os.getenv("OPENAI_API_KEY")
-            logger.warning(f"OPENAI_API_KEY available: {bool(api_key)}")
-            logger.warning(f"OPENAI_API_KEY length: {len(api_key) if api_key else 0}")
-            logger.warning(
-                f"OPENAI_API_KEY starts with: {api_key[:10] if api_key and len(api_key) > 10 else 'N/A'}"
-            )
 
             ai_service = AIRedliningService()
             logger.warning(

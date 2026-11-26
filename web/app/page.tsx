@@ -383,8 +383,8 @@ function Process() {
             <span className="metal">ClausePilot does the typing.</span>
           </h2>
           <p className="mt-6 max-w-[44ch] text-[length:var(--fs-body-lg)] leading-[1.55] text-fg-2">
-            GPT-4 proposes edits inside the rules you selected. With no model configured, ClausePilot falls back to
-            rule-based edits, so a review still runs.
+            A language model proposes edits inside the rules you selected. If no model is reachable, ClausePilot falls
+            back to rule-based edits, so a review still runs.
           </p>
         </div>
 
@@ -470,7 +470,7 @@ function Output() {
                 ['Two roles', 'Admins write rules and manage users. Reviewers upload, review and download.'],
                 ['In transit', 'Traffic between your browser and ClausePilot runs over HTTPS.'],
                 ['Deleting', 'Deleting a document removes the upload and the redlined output from the server.'],
-                ['The model', 'Clause text is sent to OpenAI’s API to propose edits.'],
+                ['The model', 'Clause text is sent to a hosted language model (Groq by default) to propose edits.'],
               ].map(([t, d]) => (
                 <div key={t} className="grid gap-1 py-5 sm:grid-cols-[8rem_1fr] sm:gap-6">
                   <dt className="text-white">{t}</dt>

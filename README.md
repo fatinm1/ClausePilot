@@ -117,7 +117,15 @@ FLASK_ENV=development
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/nda_redline
 JWT_SECRET=your-super-secret-jwt-key-change-in-production
 CORS_ORIGIN=http://localhost:3000
-OPENAI_API_KEY=your-openai-api-key
+
+# LLM providers: set any of these. They are tried in order and the first
+# that answers is used; if none is set or all fail, a rule-based pass runs.
+GROQ_API_KEY=            # free tier, console.groq.com (default model llama-3.3-70b-versatile)
+GEMINI_API_KEY=          # free tier, aistudio.google.com (default model gemini-flash-latest)
+OPENROUTER_API_KEY=      # free models, openrouter.ai
+OPENAI_API_KEY=          # paid, optional
+# LLM_PROVIDER_ORDER=groq,gemini,openrouter,openai
+# GROQ_MODEL / GEMINI_MODEL / OPENROUTER_MODEL / OPENAI_MODEL override the defaults
 ```
 
 ### Frontend (.env.local)

@@ -13,73 +13,88 @@ from openai import OpenAI
 logger = logging.getLogger(__name__)
 
 
+# Free, OpenAI-compatible providers are tried first; paid OpenAI only if a key is set.
+# Each entry: (name, api-key env var, base URL, model env var, default model)
+PROVIDERS = {
+    "groq": (
+        "GROQ_API_KEY",
+        "https://api.groq.com/openai/v1",
+        "GROQ_MODEL",
+        "llama-3.3-70b-versatile",
+    ),
+    "gemini": (
+        "GEMINI_API_KEY",
+        "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "GEMINI_MODEL",
+        "gemini-flash-latest",
+    ),
+    "openrouter": (
+        "OPENROUTER_API_KEY",
+        "https://openrouter.ai/api/v1",
+        "OPENROUTER_MODEL",
+        "meta-llama/llama-3.3-70b-instruct:free",
+    ),
+    "openai": ("OPENAI_API_KEY", None, "OPENAI_MODEL", "gpt-4o-mini"),
+}
+DEFAULT_PROVIDER_ORDER = "groq,gemini,openrouter,openai"
+PLACEHOLDER_KEYS = {"", "mock-key-for-development", "your-openai-api-key"}
+
+
 class AIRedliningService:
     def __init__(self):
-        try:
-            api_key = os.getenv("OPENAI_API_KEY")
-            logger.info(f"OpenAI API key status: {'Set' if api_key else 'Not set'}")
-            logger.info(f"API key length: {len(api_key) if api_key else 0}")
-            logger.info(
-                f"API key starts with: {api_key[:10] if api_key and len(api_key) > 10 else 'N/A'}"
-            )
+        """Build the chain of LLM providers from environment variables.
 
-            # Check if we should use real API
-            if not api_key:
-                logger.warning("No OpenAI API key found in environment variables")
-                self.client = None
-                self.model = "mock-gpt-4"
-                logger.warning(
-                    "Running in mock mode - no OpenAI API calls will be made"
-                )
-            elif api_key == "mock-key-for-development":
-                logger.warning("Mock API key detected")
-                self.client = None
-                self.model = "mock-gpt-4"
-                logger.warning(
-                    "Running in mock mode - no OpenAI API calls will be made"
-                )
-            else:
-                # Try to initialize real OpenAI client
-                logger.warning(
-                    "Attempting to initialize OpenAI client with real API key"
-                )
-                logger.warning(f"API key length: {len(api_key)}")
-                logger.warning(f"API key starts with: {api_key[:10]}")
+        Providers are tried in LLM_PROVIDER_ORDER (default: groq, gemini,
+        openrouter, openai). A provider is used only if its API key is set.
+        If none are configured, or every call fails, the rule-based mock
+        analysis runs instead, so a review always completes.
+        """
+        self.providers: list[tuple[str, Any, str]] = []
+        order = os.getenv("LLM_PROVIDER_ORDER", DEFAULT_PROVIDER_ORDER)
+        for name in [n.strip().lower() for n in order.split(",") if n.strip()]:
+            if name not in PROVIDERS:
+                logger.warning(f"Unknown LLM provider '{name}' in LLM_PROVIDER_ORDER")
+                continue
+            key_env, base_url, model_env, default_model = PROVIDERS[name]
+            api_key = (os.getenv(key_env) or "").strip()
+            if api_key in PLACEHOLDER_KEYS:
+                continue
+            model = os.getenv(model_env) or default_model
+            try:
+                kwargs = {"api_key": api_key, "max_retries": 1, "timeout": 90}
+                if base_url:
+                    kwargs["base_url"] = base_url
+                self.providers.append((name, OpenAI(**kwargs), model))
+                logger.info(f"LLM provider enabled: {name} ({model})")
+            except Exception as init_error:
+                logger.error(f"Could not initialise {name}: {init_error}")
 
-                try:
-                    # Initialize OpenAI with minimal parameters
-                    logger.warning("Creating OpenAI client...")
-                    self.client = OpenAI(api_key=api_key)
-                    self.model = "gpt-4"  # Using GPT-4 for better instruction following and higher token limits
-                    logger.warning(
-                        "OpenAI client initialized successfully with real API"
-                    )
-
-                except Exception as init_error:
-                    logger.error(
-                        f"Error during OpenAI client initialization: {str(init_error)}"
-                    )
-                    logger.error(f"Error type: {type(init_error).__name__}")
-                    logger.error(f"Error details: {repr(init_error)}")
-                    import traceback
-
-                    logger.error(f"Traceback: {traceback.format_exc()}")
-
-                    # Fallback to mock mode
-                    self.client = None
-                    self.model = "mock-gpt-4"
-                    logger.warning(
-                        "Falling back to mock mode due to OpenAI initialization errors"
-                    )
-        except Exception as e:
-            logger.error(f"Error initializing OpenAI client: {str(e)}")
-            logger.error(f"Error type: {type(e).__name__}")
-            import traceback
-
-            logger.error(f"Traceback: {traceback.format_exc()}")
+        if self.providers:
+            _, self.client, self.model = self.providers[0]
+        else:
             self.client = None
-            self.model = "mock-gpt-4"
-            logger.warning("Falling back to mock mode due to error")
+            self.model = "rule-based"
+            logger.warning("No LLM provider configured; using rule-based analysis")
+
+    def _complete(self, messages: list[dict[str, str]]):
+        """Call each configured provider in order; return (provider, response)."""
+        last_error = None
+        for name, client, model in self.providers:
+            try:
+                logger.warning(f"Calling LLM provider {name} ({model})")
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=0.1,
+                    max_tokens=3000,
+                )
+                if response.choices and response.choices[0].message.content:
+                    return name, response
+                last_error = RuntimeError("empty response")
+            except Exception as api_error:
+                last_error = api_error
+                logger.error(f"LLM provider {name} failed: {api_error}")
+        raise RuntimeError(f"All LLM providers failed: {last_error}")
 
     def analyze_document(
         self,
@@ -123,12 +138,10 @@ class AIRedliningService:
             logger.warning(f"AI Service - Client available: {self.client is not None}")
             logger.warning(f"AI Service - Model: {self.model}")
             if not self.client:
-                logger.warning("Using mock analysis - OpenAI client not available")
+                logger.warning("No LLM provider available - using rule-based analysis")
                 return self._mock_analysis(document_text, custom_rules, firm_details)
             else:
-                logger.warning("Using REAL OpenAI API - client is available")
-                logger.warning(f"Client type: {type(self.client)}")
-                logger.warning(f"Client attributes: {dir(self.client)}")
+                logger.warning(f"LLM providers: {[p[0] for p in self.providers]}")
 
             # Prepare the prompt for GPT-4
             logger.info("Using REAL OpenAI API for analysis")
@@ -148,26 +161,17 @@ class AIRedliningService:
                 document_text, custom_rules, firm_details
             )
 
-            logger.warning("Making OpenAI API call...")
             try:
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
+                provider, response = self._complete(
+                    [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
-                    ],
-                    temperature=0.1,  # Low temperature for consistent legal work
-                    max_tokens=3000,  # Reduced to fit within GPT-4's 8192 token limit (prompt ~5000 tokens + response 3000 = 8000 total)
+                    ]
                 )
-                logger.warning("OpenAI API call successful")
+                logger.warning(f"LLM call succeeded via {provider}")
             except Exception as api_error:
-                logger.error(f"OpenAI API call failed: {str(api_error)}")
-                logger.error(f"API error type: {type(api_error).__name__}")
-                import traceback
-
-                logger.error(f"API error traceback: {traceback.format_exc()}")
-                # Fall back to mock analysis
-                logger.warning("Falling back to mock analysis due to API error")
+                logger.error(str(api_error))
+                logger.warning("Falling back to rule-based analysis")
                 return self._mock_analysis(document_text, custom_rules, firm_details)
 
             # Parse the AI response
@@ -1465,7 +1469,7 @@ class AIRedliningService:
                 "summary": f"Mock analysis completed with {len(mock_modifications)} modifications based on {len(custom_rules)} rules",
                 "risk_assessment": "Mock assessment - modifications based on provided rules for testing purposes",
             },
-            "ai_analysis": f"Mock AI analysis generated {len(mock_modifications)} redlining suggestions based on the provided rules. In production, this would be generated by OpenAI GPT-4.",
+            "ai_analysis": f"Mock AI analysis generated {len(mock_modifications)} redlining suggestions based on the provided rules. No LLM provider was available, so these come from the rule-based pass.",
         }
 
     def _build_system_prompt(

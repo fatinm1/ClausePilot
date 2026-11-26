@@ -18,7 +18,7 @@ ClausePilot takes an uploaded NDA (.docx), applies the firm's standard redlining
 
 ## Positioning
 
-Rules come first: an admin writes the firm's positions once (cap the confidentiality term, add investors/agents/financing sources to Representatives, add a retention carve-out, fill firm details and signature block), and every NDA is redlined against them. AI (OpenAI GPT-4, with a deterministic/mock fallback) proposes edits inside those rules; the output is native Word tracked changes, not a PDF or a diff view.
+Rules come first: an admin writes the firm's positions once (cap the confidentiality term, add investors/agents/financing sources to Representatives, add a retention carve-out, fill firm details and signature block), and every NDA is redlined against them. AI (a chain of OpenAI-compatible providers: Groq, Gemini, OpenRouter free tiers, then OpenAI if a key is set; rule-based fallback) proposes edits inside those rules; the output is native Word tracked changes, not a PDF or a diff view.
 
 ## Operating Context
 
