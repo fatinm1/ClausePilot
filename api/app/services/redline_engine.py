@@ -106,6 +106,11 @@ DEFAULT_CARVE_OUT = (
     "Information if required under Recipient's document retention policy, provided that such "
     "retained materials remain subject to the confidentiality obligations set forth herein."
 )
+NO_LIABILITY = re.compile(
+    r"(?:shall|will)\s+(?:not\s+)?have\s+(?:any|no)\s+liability|shall\s+not\s+be\s+liable"
+    r"|without\s+liability|no\s+liability\s+(?:whatsoever|of any kind)",
+    re.I,
+)
 REP_CATEGORIES = [
     ("investors", r"investor"),
     ("agents", r"\bagents?\b"),
@@ -208,7 +213,7 @@ def classify(rule: dict) -> str:
     ).lower()
     if re.search(r"signature|signer|sign(?:ing)? block|firm details", text):
         return "signature"
-    if "representative" in text:
+    if "representative" in text or re.search(r"investors?\b|financing sources?", text):
         return "representatives"
     if re.search(r"\bretain\b|retention|archiv", text):
         return "retention"
@@ -216,6 +221,8 @@ def classify(rule: dict) -> str:
         r"\bterm\b|duration|surviv|confidentiality period|perpetu", text
     ) and re.search(r"year|month|perpetu", text):
         return "term"
+    if re.search(r"liabilit|damages", text):
+        return "liability"
     return "generic"
 
 
@@ -778,20 +785,47 @@ class Planner:
             if new != p:
                 self.edit(i, new, "Firm details", "Filled firm details.")
 
-    # -- generic rules: one focused LLM call
-    def rule_generic(self, rule):
+    # -- liability: never turn a disclaimer ("shall have no liability") into a damages cap,
+    # which would give the other side a liability it had excluded
+    def rule_liability(self, rule):
+        idx = [
+            i
+            for i in self._relevant(rule)
+            if re.search(r"liab|damages|indemn", self.cur[i], re.I)
+            and not NO_LIABILITY.search(self.cur[i])
+        ]
+        if not idx:
+            self.notes.append(
+                f"{rule.get('name') or 'Rule'}: no clause makes the receiving party liable "
+                "for damages; nothing to limit"
+            )
+            return
+        self.llm_edit(
+            rule,
+            idx,
+            extra=(
+                "Only limit the receiving party's own liability. Never edit a clause so that "
+                "the disclosing party becomes liable for something it was not liable for before."
+            ),
+        )
+
+    def _relevant(self, rule) -> list[int]:
         kw = _keywords(" ".join(str(rule.get(k, "")) for k in ("name", "instruction")))
         scored = sorted(
             ((len(kw & _keywords(p)), i) for i, p in enumerate(self.cur) if p.strip()),
             reverse=True,
         )
-        idx = sorted(i for s, i in scored[:6] if s > 0)
+        return sorted(i for s, i in scored[:6] if s > 0)
+
+    # -- generic rules: one focused LLM call
+    def rule_generic(self, rule):
+        idx = self._relevant(rule)
         if not idx:
             self.notes.append(f"{rule.get('name')}: no relevant clause found")
             return
         self.llm_edit(rule, idx)
 
-    def llm_edit(self, rule, idx: list[int]):
+    def llm_edit(self, rule, idx: list[int], extra: str = ""):
         if not self.llm:
             self.notes.append(
                 f"{rule.get('name')}: needs a language model; none configured"
@@ -803,6 +837,7 @@ class Planner:
             "You are a careful NDA reviewer making tracked-change edits for the receiving party. "
             "Make only the edits the rule requires, as small as possible. Copy text exactly. "
             "If the clauses already satisfy the rule, return no edits. Return JSON only."
+            + (" " + extra if extra else "")
         )
         user = (
             f"Rule: {name}\nInstruction: {rule.get('instruction', '')}\n\n"

@@ -247,3 +247,33 @@ def test_retention_uses_documents_defined_term():
     )
     changes, _ = plan_changes(paras, [rule], {}, None)
     assert changes and "copy of Evaluation Material" in changes[0]["new_text"]
+
+
+def test_liability_rule_leaves_disclaimers_alone():
+    doc = [
+        "Neither the Discloser nor its Representatives shall have any liability to Recipient "
+        "relating to the use of the Evaluation Material.",
+        "This Agreement is governed by Delaware law.",
+    ]
+    rule = {
+        "name": "Limit liability",
+        "instruction": "Limit liability to actual damages, exclude consequential damages",
+    }
+    called = []
+    changes, notes = plan_changes(
+        doc, [rule], {}, lambda s, u: called.append(u) or '{"edits": []}'
+    )
+    assert changes == [] and not called and any("nothing to limit" in n for n in notes)
+
+
+def test_financing_rule_without_the_word_representatives_uses_reps_logic():
+    doc = [
+        "The term “Representatives” means your directors, officers, agents, advisors and the "
+        "institutional investors and potential debt financing sources listed on Annex A."
+    ]
+    rule = {
+        "name": "Rule",
+        "instruction": "Include investors, potential financing sources, and agents if not included",
+    }
+    changes, _ = plan_changes(doc, [rule], {}, None)
+    assert changes == []
