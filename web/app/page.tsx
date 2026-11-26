@@ -383,8 +383,8 @@ function Process() {
             <span className="metal">ClausePilot does the typing.</span>
           </h2>
           <p className="mt-6 max-w-[44ch] text-[length:var(--fs-body-lg)] leading-[1.55] text-fg-2">
-            A language model proposes edits inside the rules you selected. If no model is reachable, ClausePilot falls
-            back to rule-based edits, so a review still runs.
+            Standard positions like the term cap and signature block are applied by code, the same way every time. A
+            language model only handles wording that varies, and every edit it suggests is checked before it is used.
           </p>
         </div>
 
@@ -470,7 +470,7 @@ function Output() {
                 ['Two roles', 'Admins write rules and manage users. Reviewers upload, review and download.'],
                 ['In transit', 'Traffic between your browser and ClausePilot runs over HTTPS.'],
                 ['Deleting', 'Deleting a document removes the upload and the redlined output from the server.'],
-                ['The model', 'Clause text is sent to a hosted language model (Groq by default) to propose edits.'],
+                ['The model', 'Only the clauses a rule needs are sent to a hosted language model (Groq by default).'],
               ].map(([t, d]) => (
                 <div key={t} className="grid gap-1 py-5 sm:grid-cols-[8rem_1fr] sm:gap-6">
                   <dt className="text-white">{t}</dt>

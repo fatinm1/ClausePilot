@@ -238,3 +238,260 @@ NDAS = [
         "term_para": "2. Confidentiality Period.",
     },
 ]
+
+
+# ---------------------------------------------------------------------------
+# Held-out set: written after the engine, in styles it was not tuned on.
+# Paragraph entries can be a string, ("Bold heading.", " rest of clause") to
+# get two differently formatted runs, or {"table": [[cell, cell], ...]}.
+HOLDOUT = [
+    {
+        "id": "H1_bold_headings_table_sig",
+        "description": "Bold run headings, 'Receiving Party' wording, one-year term (compliant), signature block in a two-column table with Name and Title lines.",
+        "paragraphs": [
+            "CONFIDENTIAL DISCLOSURE AGREEMENT",
+            'Effective as of October 1, 2026, Calder Bio, LLC ("Disclosing Party") and the receiving party '
+            'identified below ("Receiving Party") agree as follows:',
+            (
+                "1. Purpose.",
+                " Receiving Party will receive information to evaluate a licensing arrangement.",
+            ),
+            (
+                "2. Representatives.",
+                ' Receiving Party may disclose Confidential Information to its "Representatives", '
+                "meaning its officers, employees, attorneys and accountants, in each case who need to know it.",
+            ),
+            (
+                "3. Term of Agreement.",
+                " This Agreement expires one (1) year after the Effective Date, and the "
+                "confidentiality obligations herein survive for the same period.",
+            ),
+            (
+                "4. Return.",
+                " On termination, Receiving Party will promptly deliver to Disclosing Party all documents "
+                "containing Confidential Information, or destroy them at Disclosing Party's direction.",
+            ),
+            (
+                "5. Non-Solicitation.",
+                " For thirty-six (36) months, Receiving Party will not solicit Disclosing Party's employees.",
+            ),
+            "Agreed and accepted:",
+            {
+                "table": [
+                    ["CALDER BIO, LLC", "RECEIVING PARTY"],
+                    ["By: Mina Okafor", "By: ____________________"],
+                    ["Name: Mina Okafor", "Name: ____________________"],
+                    ["Title: General Counsel", "Title: ____________________"],
+                ]
+            },
+        ],
+        "expect": {
+            "term": "keep",
+            "reps": "change",
+            "retain": "change",
+            "sign": "change",
+        },
+        "term_old": "one (1) year",
+        "reps_para": "2. Representatives.",
+        "return_para": "4. Return.",
+        "term_para": "3. Term of Agreement.",
+        "sign_len": 9,
+        "discloser_lines": ["By: Mina Okafor", "Title: General Counsel"],
+    },
+    {
+        "id": "H2_perpetual_numbered_defs",
+        "description": "Definitions section, perpetual obligations with no number, 'Evaluation Material', signature lines with a 'Print Name' field.",
+        "paragraphs": [
+            "NONDISCLOSURE AGREEMENT",
+            'This Agreement is made between Larkspur Foods Holdings, Inc. (the "Company") and the party signing below (the "Recipient").',
+            "Section 1. Definitions.",
+            '(a) "Evaluation Material" means all information furnished by the Company to the Recipient in connection with a possible acquisition of the Company.',
+            '(b) "Representatives" includes, with respect to the Recipient, its affiliates and its and their respective directors, officers, employees, agents and advisors.',
+            "Section 2. Confidentiality. The Recipient shall keep the Evaluation Material confidential and shall not use it except to evaluate the possible acquisition.",
+            "Section 3. Survival. The obligations under Section 2 shall survive indefinitely.",
+            "Section 4. Return or Destruction of Evaluation Material. If the Recipient decides not to proceed, it shall promptly return or destroy all Evaluation Material.",
+            "Section 5. Miscellaneous. This Agreement is governed by New York law.",
+            "LARKSPUR FOODS HOLDINGS, INC.",
+            "By: /s/ Dana Whitfield",
+            "Title: Chief Financial Officer",
+            "RECIPIENT",
+            "Signature: ______________________",
+            "Print Name: ______________________",
+            "Title: ______________________",
+        ],
+        "expect": {
+            "term": "change",
+            "reps": "change",
+            "retain": "change",
+            "sign": "change",
+        },
+        "term_old": "indefinitely",
+        "reps_para": '(b) "Representatives"',
+        "return_para": "Section 4.",
+        "term_para": "Section 3.",
+        "sign_len": 7,
+        "discloser_lines": ["By: /s/ Dana Whitfield", "Title: Chief Financial Officer"],
+    },
+    {
+        "id": "H3_inline_term_in_obligations",
+        "description": "Term buried mid-sentence in the obligations clause, uses 'Recipient Representatives' without a quoted definition, '24 months' style numbers elsewhere.",
+        "paragraphs": [
+            "Confidentiality Undertaking",
+            'In consideration of being given access to information about Brightwater Logistics Ltd ("Brightwater"), '
+            'the undersigned ("Recipient") undertakes as follows.',
+            "1. Recipient will keep the Information confidential for 5 years from the date of this letter and will "
+            "use it only for assessing a potential investment in Brightwater.",
+            '2. Recipient may disclose the Information to its directors and employees (its "Representatives") who '
+            "need to know it, and will be responsible for any breach by them.",
+            "3. If requested by Brightwater, Recipient will return or destroy the Information within 14 days.",
+            "4. For 24 months, Recipient will not contact Brightwater's customers about the Information without consent.",
+            "Signed for and on behalf of the Recipient:",
+            "Name: ______________",
+            "Position: ______________",
+            "Company: ______________",
+        ],
+        "expect": {
+            "term": "change",
+            "reps": "change",
+            "retain": "change",
+            "sign": "change",
+        },
+        "term_old": "5 years",
+        "reps_para": "2. Recipient may disclose",
+        "return_para": "3. If requested",
+        "term_para": "1. Recipient will keep",
+        "sign_len": 4,
+        "discloser_lines": [],
+    },
+]
+
+
+def flat_paragraphs(nda: dict) -> list[str]:
+    out = []
+    for item in nda["paragraphs"]:
+        if isinstance(item, tuple):
+            out.append("".join(item))
+        elif isinstance(item, dict):
+            for row in item["table"]:
+                out.extend(row)
+        else:
+            out.append(item)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Blind set: written after all engine changes and run once without tuning.
+BLIND = [
+    {
+        "id": "X1_notice_termination_lenders",
+        "description": "Agreement terminable on notice with a 5-year survival tail; Representatives lists financial advisors and lenders; recipient block listed first.",
+        "paragraphs": [
+            "MUTUAL CONFIDENTIALITY AGREEMENT",
+            'This agreement is between Osprey Grid Systems Inc. ("Osprey") and the counterparty signing below. '
+            'Each of them may be a "Disclosing Party" or a "Receiving Party".',
+            "1. Representatives. A Receiving Party may share Confidential Information with its affiliates and its and "
+            'their directors, officers, employees, financial advisors, legal counsel and lenders ("Representatives").',
+            "2. Duration. This Agreement continues until terminated by either party on thirty (30) days' written notice. "
+            "The obligations of each Receiving Party survive termination for five (5) years.",
+            "3. Return. Upon the written request of the Disclosing Party, the Receiving Party shall cease use of and, "
+            "at its option, return or certify the destruction of all Confidential Information.",
+            "4. General. This agreement is governed by the laws of Illinois.",
+            "AGREED:",
+            "COUNTERPARTY",
+            "By: ____________________",
+            "Name: ____________________",
+            "Title: ____________________",
+            "OSPREY GRID SYSTEMS INC.",
+            "By: Priya Raman",
+            "Name: Priya Raman",
+            "Title: Vice President, Corporate Development",
+        ],
+        "expect": {
+            "term": "change",
+            "reps": "change",
+            "retain": "change",
+            "sign": "change",
+        },
+        "term_old": "five (5) years",
+        "reps_para": "1. Representatives.",
+        "return_para": "3. Return.",
+        "term_para": "2. Duration.",
+        "sign_len": 10,
+        "discloser_lines": [
+            "By: Priya Raman",
+            "Title: Vice President, Corporate Development",
+        ],
+    },
+    {
+        "id": "X2_letter_style",
+        "description": "Letter agreement written to 'you'; 18-month term (compliant); definition of Representatives appears after first use; 'For and on behalf of' signature.",
+        "paragraphs": [
+            "Private and Confidential",
+            "Dear Sir or Madam,",
+            'In connection with your consideration of a possible purchase of Tamsin Outdoor Co. (the "Company"), we are '
+            'prepared to make available to you certain information concerning the Company (the "Information").',
+            "You agree to keep the Information confidential and not to disclose it to anyone other than your "
+            "Representatives, for a period of eighteen (18) months from the date of this letter.",
+            'As used in this letter, "Representatives" shall mean your partners, officers and employees.',
+            "If you decide not to proceed, you will promptly return to us or destroy all copies of the Information.",
+            "This letter is governed by English law.",
+            "Yours faithfully,",
+            "For and on behalf of Tamsin Outdoor Co.",
+            "Accepted and agreed by:",
+            "Name: ____________________",
+            "Title: ____________________",
+            "For and on behalf of: ____________________",
+        ],
+        "expect": {
+            "term": "keep",
+            "reps": "change",
+            "retain": "change",
+            "sign": "change",
+        },
+        "term_old": "eighteen (18) months",
+        "reps_para": "As used in this letter",
+        "return_para": "If you decide not to proceed",
+        "term_para": "You agree to keep",
+        "sign_len": 6,
+        "discloser_lines": ["For and on behalf of Tamsin Outdoor Co."],
+    },
+    {
+        "id": "X3_existing_archive_and_label_table",
+        "description": "Already has an archiving carve-out and complete Representatives; term is 'the later of three (3) years or ...'; signature is a label/value table.",
+        "paragraphs": [
+            "NON-DISCLOSURE AGREEMENT",
+            'Fernhill Therapeutics, Inc. ("Fernhill") will disclose information to the recipient identified below '
+            '("Recipient") for the purpose of evaluating a research collaboration.',
+            '1. Representatives. "Representatives" means Recipient\'s affiliates, directors, officers, employees, '
+            "investors, agents, advisors and potential financing sources.",
+            "2. Term. Recipient's obligations end on the later of three (3) years from the date hereof and two (2) years "
+            "after the end of any collaboration between the parties.",
+            "3. Return. On request, Recipient will return or destroy Confidential Information, except to the extent it is "
+            "retained in automatic electronic archiving and back-up systems, which shall remain confidential.",
+            "4. Miscellaneous. Delaware law governs this Agreement.",
+            {
+                "table": [
+                    ["RECIPIENT", ""],
+                    ["By:", "____________________"],
+                    ["Name:", "____________________"],
+                    ["Title:", "____________________"],
+                ]
+            },
+            "FERNHILL THERAPEUTICS, INC.",
+            "By: Theo Brandt",
+            "Title: Chief Business Officer",
+        ],
+        "expect": {
+            "term": "change",
+            "reps": "keep",
+            "retain": "keep",
+            "sign": "change",
+        },
+        "term_old": "three (3) years",
+        "reps_para": "1. Representatives.",
+        "return_para": "3. Return.",
+        "term_para": "2. Term.",
+        "sign_len": 11,
+        "discloser_lines": ["By: Theo Brandt", "Title: Chief Business Officer"],
+    },
+]

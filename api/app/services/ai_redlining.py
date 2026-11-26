@@ -76,25 +76,66 @@ class AIRedliningService:
             self.model = "rule-based"
             logger.warning("No LLM provider configured; using rule-based analysis")
 
-    def _complete(self, messages: list[dict[str, str]]):
+    def _complete(self, messages: list[dict[str, str]], json_mode: bool = False):
         """Call each configured provider in order; return (provider, response)."""
         last_error = None
         for name, client, model in self.providers:
-            try:
-                logger.warning(f"Calling LLM provider {name} ({model})")
-                response = client.chat.completions.create(
-                    model=model,
-                    messages=messages,
-                    temperature=0.1,
-                    max_tokens=3000,
-                )
-                if response.choices and response.choices[0].message.content:
-                    return name, response
-                last_error = RuntimeError("empty response")
-            except Exception as api_error:
-                last_error = api_error
-                logger.error(f"LLM provider {name} failed: {api_error}")
+            for use_json in ([True, False] if json_mode else [False]):
+                try:
+                    logger.warning(f"Calling LLM provider {name} ({model})")
+                    kwargs = {
+                        "model": model,
+                        "messages": messages,
+                        "temperature": 0,
+                        "max_tokens": 1500,
+                    }
+                    if use_json:
+                        kwargs["response_format"] = {"type": "json_object"}
+                    response = client.chat.completions.create(**kwargs)
+                    if response.choices and response.choices[0].message.content:
+                        return name, response
+                    last_error = RuntimeError("empty response")
+                    break
+                except Exception as api_error:
+                    last_error = api_error
+                    logger.error(f"LLM provider {name} failed: {api_error}")
+                    # retry without JSON mode only if the provider rejected that option
+                    if not (use_json and "response_format" in str(api_error).lower()):
+                        break
         raise RuntimeError(f"All LLM providers failed: {last_error}")
+
+    def _llm_text(self, messages: list[dict[str, str]]) -> str:
+        _, response = self._complete(messages, json_mode=True)
+        return response.choices[0].message.content
+
+    @staticmethod
+    def normalize_firm(firm_details: dict | None) -> dict:
+        """Accept both the web app's keys and older backend keys."""
+        f = dict(firm_details or {})
+        aliases = {
+            "name": ["firm_name", "company", "company_name"],
+            "signerName": ["signatory_name", "signer_name", "signer"],
+            "signerTitle": ["title", "signer_title", "signatory_title"],
+            "zipCode": ["zip_code", "zip"],
+        }
+        for key, alts in aliases.items():
+            if not f.get(key):
+                for a in alts:
+                    if f.get(a):
+                        f[key] = f[a]
+                        break
+        return f
+
+    def plan_changes(
+        self, paragraphs: list[str], custom_rules: list[dict], firm_details: dict | None
+    ):
+        """Plan tracked changes for a document given as a list of paragraphs."""
+        from .redline_engine import plan_changes
+
+        llm = self._llm_text if self.providers else None
+        return plan_changes(
+            paragraphs, custom_rules or [], self.normalize_firm(firm_details), llm
+        )
 
     def analyze_document(
         self,
@@ -102,684 +143,21 @@ class AIRedliningService:
         custom_rules: list[dict[str, Any]],
         firm_details: dict[str, Any] = None,
     ) -> dict[str, Any]:
-        """
-        Analyze the document using OpenAI GPT-4 and return redlining instructions
-        """
-        # Normalize firm_details keys (frontend sends different key names)
-        if firm_details:
-            normalized = {}
-            # Map frontend keys to backend keys
-            key_mapping = {
-                "name": "firm_name",
-                "signerName": "signatory_name",
-                "signerTitle": "title",
-                "address": "address",
-                "city": "city",
-                "state": "state",
-                "zipCode": "zip_code",
-                "email": "email",
-                "phone": "phone",
-            }
-            for frontend_key, backend_key in key_mapping.items():
-                if frontend_key in firm_details:
-                    normalized[backend_key] = firm_details[frontend_key]
-            firm_details = normalized
-
-        # Debug: Log the firm details received by AI service
-        logger.warning(f"AI Service received firm_details: {firm_details}")
-        logger.warning(
-            f"Firm details keys: {list(firm_details.keys()) if firm_details else 'None'}"
-        )
-        if firm_details:
-            for key, value in firm_details.items():
-                logger.warning(f"  {key}: '{value}'")
+        """Plan redlines for plain document text (one paragraph per line)."""
         try:
-            # Check if we're in mock mode
-            logger.warning(f"AI Service - Client available: {self.client is not None}")
-            logger.warning(f"AI Service - Model: {self.model}")
-            if not self.client:
-                logger.warning("No LLM provider available - using rule-based analysis")
-                return self._mock_analysis(document_text, custom_rules, firm_details)
-            else:
-                logger.warning(f"LLM providers: {[p[0] for p in self.providers]}")
-
-            # Prepare the prompt for GPT-4
-            logger.info("Using REAL OpenAI API for analysis")
-
-            # Log all rules being sent to AI
-            logger.warning("=" * 80)
-            logger.warning("RULES BEING SENT TO AI:")
-            for idx, rule in enumerate(custom_rules, 1):
-                logger.warning(f"  Rule {idx}: {rule.get('name', 'Unnamed')}")
-                logger.warning(
-                    f"    Instruction: {rule.get('instruction', 'No instruction')}"
-                )
-            logger.warning("=" * 80)
-
-            system_prompt = self._build_system_prompt(custom_rules, firm_details)
-            user_prompt = self._build_user_prompt(
-                document_text, custom_rules, firm_details
+            changes, notes = self.plan_changes(
+                document_text.split("\n"), custom_rules, firm_details
             )
-
-            try:
-                provider, response = self._complete(
-                    [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ]
-                )
-                logger.warning(f"LLM call succeeded via {provider}")
-            except Exception as api_error:
-                logger.error(str(api_error))
-                logger.warning("Falling back to rule-based analysis")
-                return self._mock_analysis(document_text, custom_rules, firm_details)
-
-            # Parse the AI response
-            ai_response = response.choices[0].message.content
-            logger.info(f"AI Response: {ai_response}")
-            logger.info(f"AI Response length: {len(ai_response)} characters")
-            modifications = self._parse_ai_response(ai_response)
-            logger.info(f"Parsed modifications: {len(modifications)}")
-
-            # Validate that all rules resulted in modifications
-            if custom_rules and len(custom_rules) > len(modifications):
-                logger.warning("=" * 80)
-                logger.warning(
-                    f"⚠️  WARNING: Only {len(modifications)} modifications for {len(custom_rules)} rules!"
-                )
-                logger.warning("Expected at least one modification per rule.")
-                logger.warning("Rules sent:")
-                for idx, rule in enumerate(custom_rules, 1):
-                    logger.warning(
-                        f"  {idx}. {rule.get('name', 'Unnamed')}: {rule.get('instruction', '')[:100]}"
-                    )
-                logger.warning("Modifications received:")
-                for idx, mod in enumerate(modifications, 1):
-                    logger.warning(
-                        f"  {idx}. {mod.get('type')} - {mod.get('reason', 'No reason')[:100]}"
-                    )
-                logger.warning("=" * 80)
-
-            # Post-process: Ensure firm details are used correctly
-            logger.warning(
-                f"POST-PROCESSING: Checking {len(modifications)} modifications for hardcoded values"
-            )
-            logger.warning(f"POST-PROCESSING: Firm details provided: {firm_details}")
-            logger.warning("POST-PROCESSING: All modifications from AI:")
-            for i, mod in enumerate(modifications):
-                logger.warning(
-                    f"  Mod {i+1}: {mod.get('type')} - '{mod.get('current_text', 'N/A')[:50]}...' -> '{mod.get('new_text', 'N/A')[:50]}...'"
-                )
-
-            # VALIDATION: Remove any modifications that incorrectly replace "Company" or dates in wrong contexts
-            invalid_modifications = []
-            for i, mod in enumerate(modifications):
-                current_text = mod.get("current_text", "")
-                new_text_val = mod.get("new_text", "")
-
-                # Check for date replacements in wrong locations (e.g., document title)
-                # Dates should ONLY be in dedicated date fields, nowhere else!
-                if any(
-                    month in new_text_val
-                    for month in [
-                        "January",
-                        "February",
-                        "March",
-                        "April",
-                        "May",
-                        "June",
-                        "July",
-                        "August",
-                        "September",
-                        "October",
-                        "November",
-                        "December",
-                    ]
-                ):
-                    # This is a date replacement - STRICT validation
-
-                    # ONLY ALLOW if current_text is:
-                    # 1. Just a date pattern (e.g., "September __, 2025" with nothing else)
-                    # 2. A date field label (e.g., "Date: ___")
-
-                    # Check 1: Is it JUST a date pattern with minimal text?
-                    current_lower = current_text.lower()
-                    forbidden_words = [
-                        "company",
-                        "agreement",
-                        "confidentiality",
-                        "nda",
-                        "business",
-                        "dear",
-                        "name",
-                        "for:",
-                        "by:",
-                        "title:",
-                        "effective",
-                        "mutual",
-                    ]
-                    is_pure_date = (
-                        len(current_text.strip()) < 25  # Very short text
-                        and current_text.count(",") == 1  # Has one comma (date format)
-                        and not any(word in current_lower for word in forbidden_words)
-                    )
-
-                    # Check 2: Does it have an explicit date label?
-                    has_date_label = current_text.strip().startswith(
-                        ("Date:", "Dated:", "DATE:", "DATED:")
-                    )
-
-                    # REJECT if it doesn't meet either criteria
-                    if not is_pure_date and not has_date_label:
-                        logger.warning("⚠️  REJECTING DATE - Not in a date field!")
-                        logger.warning(f"    Text: '{current_text[:100]}'")
-                        logger.warning(
-                            f"    Length: {len(current_text)}, Pure date: {is_pure_date}, Has label: {has_date_label}"
-                        )
-                        invalid_modifications.append(i)
-                        continue
-
-                # Check if this modification is trying to replace "Company" in an invalid context
-                # SKIP validation for TEXT_INSERT - these are adding new clauses, not replacing Company
-                mod_type = mod.get("type", "")
-                if mod_type == "TEXT_INSERT":
-                    # TEXT_INSERT modifications are adding new text, not replacing Company
-                    # Allow them (they might be retention carve-outs or other valid clauses)
-                    continue
-
-                if "Company" in current_text:
-                    # These are INVALID contexts where Company should NEVER be replaced
-                    invalid_contexts = [
-                        '(the "Company")',
-                        "(the 'Company')",
-                        "the Company",
-                        "concerning the Company",
-                        "regarding the Company",
-                        "about the Company",
-                        "of the Company",
-                        "business (the",
-                        "machining business",
-                    ]
-                    is_invalid = any(
-                        invalid_ctx in current_text for invalid_ctx in invalid_contexts
-                    )
-                    # VALID contexts are signature blocks only
-                    valid_contexts = [
-                        "For: Company",
-                        "For:\tCompany",
-                        "For: \tCompany",
-                        "Company (name to be provided upon execution)",
-                    ]
-                    is_valid = any(
-                        current_text.strip() == valid_ctx
-                        or current_text.strip().startswith(valid_ctx)
-                        for valid_ctx in valid_contexts
-                    )
-
-                    if is_invalid or (
-                        not is_valid and len(current_text) > 20
-                    ):  # Longer text = likely body text, not signature
-                        logger.warning(
-                            f"⚠️  REJECTING INVALID 'Company' MODIFICATION: '{current_text[:100]}'"
-                        )
-                        invalid_modifications.append(i)
-
-            # Remove invalid modifications
-            if invalid_modifications:
-                logger.warning(
-                    f"Removing {len(invalid_modifications)} invalid Company replacements"
-                )
-                for idx in reversed(invalid_modifications):
-                    removed_mod = modifications.pop(idx)
-                    logger.warning(f"Removed: {removed_mod}")
-
-            if firm_details:
-                # Fix any modifications that use hardcoded values instead of firm details
-                hardcoded_names = ["John Bagge", "Jane Doe"]
-                hardcoded_companies = ["JMC Investment LLC", "Welch Capital Partners"]
-                hardcoded_titles = ["Vice President", "President", "CEO"]
-
-                for i, mod in enumerate(modifications):
-                    logger.warning(f"POST-PROCESSING Mod {i+1}: {mod}")
-
-                    # FIX: Expand signature fields to include underscores if AI didn't include them
-                    current = mod.get("current_text", "").strip()
-
-                    # Check if this is a By:/Title:/Date: modification without underscores
-                    if mod.get("type") == "TEXT_REPLACE":
-                        import re
-
-                        # By: field expansion
-                        if current == "By:" or (
-                            current.startswith("By:") and len(current) < 10
-                        ):
-                            by_pattern = r"By:[\t\s]+_+"
-                            by_matches = list(re.finditer(by_pattern, document_text))
-                            if by_matches:
-                                by_full_text = by_matches[0].group(0)
-                                logger.warning(
-                                    f"  🔧 EXPANDING 'By:' → '{by_full_text}' (added underscores)"
-                                )
-                                mod["current_text"] = by_full_text
-
-                        # Title: field expansion
-                        elif current == "Title:" or (
-                            current.startswith("Title:")
-                            and len(current) < 15
-                            and "_" not in current
-                        ):
-                            title_pattern = r"Title:[\t\s]+_+"
-                            title_matches = list(
-                                re.finditer(title_pattern, document_text)
-                            )
-                            if title_matches:
-                                title_full_text = title_matches[0].group(0)
-                                logger.warning(
-                                    f"  🔧 EXPANDING 'Title:' → '{title_full_text}' (added underscores)"
-                                )
-                                mod["current_text"] = title_full_text
-
-                        # Date: field expansion (if needed)
-                        elif current == "Date:" or (
-                            current.startswith("Date:")
-                            and len(current) < 15
-                            and "_" not in current
-                        ):
-                            date_pattern = r"Date:[\t\s]+_+"
-                            date_matches = list(
-                                re.finditer(date_pattern, document_text)
-                            )
-                            if date_matches:
-                                date_full_text = date_matches[0].group(0)
-                                logger.warning(
-                                    f"  🔧 EXPANDING 'Date:' → '{date_full_text}' (added underscores)"
-                                )
-                                mod["current_text"] = date_full_text
-
-                    # Replace hardcoded names with actual signer name
-                    signer_name = firm_details.get(
-                        "signatory_name"
-                    ) or firm_details.get("signerName")
-                    if signer_name:
-                        for hardcoded in hardcoded_names:
-                            if "new_text" in mod and hardcoded in mod["new_text"]:
-                                logger.warning(
-                                    f"Fixing hardcoded name in modification: '{mod['new_text']}'"
-                                )
-                                mod["new_text"] = mod["new_text"].replace(
-                                    hardcoded, signer_name
-                                )
-                                logger.warning(f"Fixed to: '{mod['new_text']}'")
-
-                    # Replace hardcoded companies with actual firm name
-                    company_name = firm_details.get("firm_name") or firm_details.get(
-                        "name"
-                    )
-                    if company_name:
-                        for hardcoded in hardcoded_companies:
-                            if "new_text" in mod and hardcoded in mod["new_text"]:
-                                logger.warning(
-                                    f"Fixing hardcoded company in modification: '{mod['new_text']}'"
-                                )
-                                mod["new_text"] = mod["new_text"].replace(
-                                    hardcoded, company_name
-                                )
-                                logger.warning(f"Fixed to: '{mod['new_text']}'")
-
-                    # Replace hardcoded titles with actual title
-                    title = firm_details.get("title") or firm_details.get("signerTitle")
-                    if title:
-                        for hardcoded in hardcoded_titles:
-                            if "new_text" in mod and hardcoded in mod["new_text"]:
-                                logger.warning(
-                                    f"Fixing hardcoded title in modification: '{mod['new_text']}'"
-                                )
-                                mod["new_text"] = mod["new_text"].replace(
-                                    hardcoded, title
-                                )
-                                logger.warning(f"Fixed to: '{mod['new_text']}'")
-
-                # Ensure "Dear NAME:" is replaced if it exists
-                if firm_details.get("signatory_name") and "Dear NAME:" in document_text:
-                    has_dear_modification = any(
-                        mod.get("current_text", "").strip() == "Dear NAME:"
-                        for mod in modifications
-                    )
-                    if not has_dear_modification:
-                        logger.warning(
-                            "AI didn't generate 'Dear NAME:' modification - adding it manually"
-                        )
-                        modifications.insert(
-                            0,
-                            {
-                                "type": "TEXT_REPLACE",
-                                "section": "recipient",
-                                "current_text": "Dear NAME:",
-                                "new_text": f"Dear {firm_details['signatory_name']}:",
-                                "reason": "Replace recipient name placeholder with signer name",
-                                "location_hint": "Salutation",
-                            },
-                        )
-
-                # Ensure "By:" field is filled - find FULL text with underscores
-                if firm_details.get("signatory_name"):
-                    import re
-
-                    # Match "By:" followed by tabs/spaces and underscores
-                    by_pattern = r"By:[\t\s]+_+"
-                    by_matches = list(re.finditer(by_pattern, document_text))
-                    if by_matches:
-                        # Get the FULL matched text including ALL underscores (don't rstrip!)
-                        by_full_text = by_matches[0].group(0)
-                        has_by_modification = any(
-                            by_full_text in mod.get("current_text", "")
-                            or (
-                                "By:" in mod.get("current_text", "")
-                                and "_" in mod.get("current_text", "")
-                            )
-                            for mod in modifications
-                        )
-                        if not has_by_modification:
-                            logger.warning(
-                                "Auto-fix: Replacing full By line including underscores"
-                            )
-                            logger.warning(f"  Current: '{by_full_text}'")
-                            logger.warning(
-                                f"  New: 'By: {firm_details['signatory_name']}'"
-                            )
-                            modifications.append(
-                                {
-                                    "type": "TEXT_REPLACE",
-                                    "section": "signature_block",
-                                    "current_text": by_full_text,
-                                    "new_text": f"By: {firm_details['signatory_name']}",
-                                    "reason": "Fill in signature block with signer name",
-                                    "location_hint": "Signature block",
-                                }
-                            )
-
-                # Ensure "Title:" field is filled - find FULL text with underscores
-                if firm_details.get("title"):
-                    import re
-
-                    # Match "Title:" followed by tabs/spaces and underscores
-                    title_pattern = r"Title:[\t\s]+_+"
-                    title_matches = list(re.finditer(title_pattern, document_text))
-                    if title_matches:
-                        # Get the FULL matched text including ALL underscores (don't rstrip!)
-                        title_full_text = title_matches[0].group(0)
-                        has_title_modification = any(
-                            title_full_text in mod.get("current_text", "")
-                            or (
-                                "Title:" in mod.get("current_text", "")
-                                and "_" in mod.get("current_text", "")
-                            )
-                            for mod in modifications
-                        )
-                        if not has_title_modification:
-                            logger.warning(
-                                "Auto-fix: Replacing full Title line including underscores"
-                            )
-                            logger.warning(f"  Current: '{title_full_text}'")
-                            logger.warning(f"  New: 'Title: {firm_details['title']}'")
-                            modifications.append(
-                                {
-                                    "type": "TEXT_REPLACE",
-                                    "section": "signature_block",
-                                    "current_text": title_full_text,
-                                    "new_text": f"Title: {firm_details['title']}",
-                                    "reason": "Fill in signature block with title",
-                                    "location_hint": "Signature block",
-                                }
-                            )
-
-                # Ensure "For: Company" field is filled if it exists
-                if firm_details.get("firm_name") and (
-                    "For: Company" in document_text
-                    or "For:\tCompany" in document_text
-                    or "For: \tCompany" in document_text
-                ):
-                    has_for_modification = any(
-                        "For:" in mod.get("current_text", "")
-                        and "Company" in mod.get("current_text", "")
-                        and firm_details["firm_name"] in mod.get("new_text", "")
-                        for mod in modifications
-                    )
-                    if not has_for_modification:
-                        logger.warning(
-                            "AI didn't generate 'For: Company' modification - adding it manually"
-                        )
-                        modifications.append(
-                            {
-                                "type": "TEXT_REPLACE",
-                                "section": "signature_block",
-                                "current_text": "For: Company",
-                                "new_text": f"For: {firm_details['firm_name']}",
-                                "reason": "Fill in signature block with firm name",
-                                "location_hint": "Signature block",
-                            }
-                        )
-
-            # Extract target duration from custom rules
-            import re
-
-            target_years = 2  # Default fallback
-            term_rule_instruction = ""
-
-            for rule in custom_rules:
-                rule_name = rule.get("name", "").lower()
-                if (
-                    "duration" in rule_name
-                    or "term" in rule_name
-                    or "confidentiality" in rule_name
-                ):
-                    term_rule_instruction = rule.get("instruction", "")
-                    year_match = re.search(
-                        r"(\d+)\s*(?:\(\d+\))?\s*years?",
-                        term_rule_instruction,
-                        re.IGNORECASE,
-                    )
-                    if year_match:
-                        target_years = int(year_match.group(1))
-                        logger.info(
-                            f"📅 Extracted target duration from custom rule: {target_years} years"
-                        )
-                        break
-
-            target_years_text = f"{target_years} ({target_years}) years"
-            target_years_simple = f"{target_years} years"
-
-            # Check if document already has the target duration - if so, skip all modifications
-            target_patterns_in_doc = [
-                target_years_text.lower(),
-                target_years_simple.lower(),
-                f"{target_years} ({target_years}) year".lower(),  # singular
-                f"{target_years} year".lower(),  # singular
-            ]
-
-            # Also check word forms if target is 1-10
-            word_to_num = {
-                1: "one",
-                2: "two",
-                3: "three",
-                4: "four",
-                5: "five",
-                6: "six",
-                7: "seven",
-                8: "eight",
-                9: "nine",
-                10: "ten",
-            }
-            if target_years in word_to_num:
-                word = word_to_num[target_years]
-                target_patterns_in_doc.extend(
-                    [f"{word} ({target_years}) years".lower(), f"{word} years".lower()]
-                )
-
-            # Check if any target pattern already exists in document
-            doc_already_has_target = any(
-                pattern in document_text.lower() for pattern in target_patterns_in_doc
-            )
-
-            if doc_already_has_target:
-                logger.info(
-                    f"✅ Document already contains target duration '{target_years_text}' - skipping all term modifications"
-                )
-                # Remove any existing term modifications that would change to the target (already correct)
-                modifications = [
-                    mod
-                    for mod in modifications
-                    if not (
-                        mod.get("section") == "term"
-                        and (
-                            target_years_text.lower() in mod.get("new_text", "").lower()
-                            or target_years_simple.lower()
-                            in mod.get("new_text", "").lower()
-                        )
-                    )
-                ]
-            else:
-                # Ensure "three years" is changed to target duration if it exists
-                if "three years" in document_text.lower():
-                    has_term_modification = any(
-                        "three years" in mod.get("current_text", "").lower()
-                        or "three (3) years" in mod.get("current_text", "").lower()
-                        for mod in modifications
-                    )
-                    if not has_term_modification:
-                        logger.warning(
-                            f"AI didn't generate 'three years' modification - adding it manually with target: {target_years} years"
-                        )
-                        # Try to find the exact text in the document
-                        if "three years" in document_text:
-                            modifications.append(
-                                {
-                                    "type": "TEXT_REPLACE",
-                                    "section": "term",
-                                    "current_text": "three years",
-                                    "new_text": target_years_text,
-                                    "reason": term_rule_instruction
-                                    or f"Change confidentiality term to {target_years} years",
-                                    "location_hint": "Section 13 - Term",
-                                }
-                            )
-                        elif "three (3) years" in document_text:
-                            modifications.append(
-                                {
-                                    "type": "TEXT_REPLACE",
-                                    "section": "term",
-                                    "current_text": "three (3) years",
-                                    "new_text": target_years_text,
-                                    "reason": term_rule_instruction
-                                    or f"Change confidentiality term to {target_years} years",
-                                    "location_hint": "Section 13 - Term",
-                                }
-                            )
-
-            # Auto-fix date placeholders with today's date - be more specific to avoid over-redlining
-            import re
-            from datetime import datetime
-
-            # Common date patterns - be more specific to avoid over-redlining
-            # More flexible date pattern recognition - matches various date placeholder formats
-            today = datetime.now()
-            today_formatted = today.strftime(
-                "%B %d, %Y"
-            )  # "November 04, 2025" (current date)
-
-            # Auto-fix header date specifically (check for any month pattern)
-            header_date_pattern = r"([A-Z][a-z]+ _{2,}, \d{4})"
-            header_date_matches = re.findall(header_date_pattern, document_text)
-            if header_date_matches:
-                for header_date_text in header_date_matches:
-                    has_header_date_modification = any(
-                        header_date_text in mod.get("current_text", "")
-                        for mod in modifications
-                    )
-                    if not has_header_date_modification:
-                        logger.warning(
-                            f"AI didn't generate header date modification for '{header_date_text}' - adding with today's date"
-                        )
-                        modifications.insert(
-                            0,
-                            {
-                                "type": "TEXT_REPLACE",
-                                "section": "header",
-                                "current_text": header_date_text,
-                                "new_text": today_formatted,
-                                "reason": "Fill in header date with today's date",
-                                "location_hint": "Document header",
-                            },
-                        )
-
-            # Flexible date patterns - using regex to match variations
-            flexible_date_patterns = [
-                # Month __, Year patterns (any number of underscores)
-                (
-                    r"[A-Za-z]+ _{2,}, \d{4}",
-                    today_formatted,
-                ),  # "October __, 2025" or "October ___, 2025"
-                # Date: _____ patterns
-                (r"Date:\s*_+", f"Date: {today_formatted}"),
-                # Dated: _____ patterns
-                (r"Dated:\s*_+", f"Dated: {today_formatted}"),
-                # [DATE] or [date] patterns
-                (r"\[DATE\]", today_formatted),
-                (r"\[date\]", today_formatted),
-                (r"\(DATE\)", today_formatted),
-                (r"\(date\)", today_formatted),
-                # [Insert date] or [Enter date] patterns
-                (r"\[Insert date\]", today_formatted),
-                (r"\[Enter date\]", today_formatted),
-                (r"\[insert date\]", today_formatted),
-                # Month blank, Year - flexible blank matching
-                (
-                    r"[A-Za-z]+\s+_{2,}\s*,\s*\d{4}",
-                    today_formatted,
-                ),  # Handles spacing variations
-            ]
-
-            # Search for date patterns in document
-            for pattern, replacement_text in flexible_date_patterns:
-                matches = re.finditer(
-                    pattern, document_text, re.IGNORECASE | re.MULTILINE
-                )
-                for match_obj in matches:
-                    match_text = match_obj.group(0)
-                    # Check if AI already handled this date pattern
-                    has_date_modification = any(
-                        match_text.lower() in mod.get("current_text", "").lower()
-                        or re.sub(r"\s+", " ", match_text).lower()
-                        in re.sub(r"\s+", " ", mod.get("current_text", "")).lower()
-                        for mod in modifications
-                    )
-                    if not has_date_modification:
-                        logger.warning(
-                            f"AI didn't generate date modification for pattern '{match_text}' - adding auto-fix: '{match_text}' -> '{replacement_text}'"
-                        )
-                        modifications.append(
-                            {
-                                "type": "TEXT_REPLACE",
-                                "section": "date",
-                                "current_text": match_text,
-                                "new_text": replacement_text,
-                                "reason": "Insert today's date using flexible pattern recognition",
-                                "location_hint": "Date field",
-                            }
-                        )
-
+            summary = f"{len(changes)} change(s) proposed"
+            if notes:
+                summary += ". Not applied: " + "; ".join(notes)
             return {
                 "success": True,
-                "redlining_instructions": {
-                    "modifications": modifications,
-                    "summary": f"AI analysis generated {len(modifications)} modifications",
-                    "risk_assessment": "AI-generated risk assessment",
-                },
-                "ai_analysis": ai_response,
+                "redlining_instructions": {"modifications": changes},
+                "ai_analysis": summary,
             }
-
         except Exception as e:
-            logger.error(f"Error in AI analysis: {str(e)}")
+            logger.exception("Planning failed")
             return {"success": False, "error": str(e)}
 
     def _mock_analysis(
@@ -2077,72 +1455,30 @@ Please provide your analysis in the specified JSON format."""
     def apply_accepted_changes(
         self, doc_path: str, accepted_changes: list[dict], signature_path: str = None
     ) -> dict[str, Any]:
-        """Apply only the accepted changes to create final document"""
-        accepted_count = len(
-            [c for c in accepted_changes if c.get("status") == "accepted"]
-        )
-        logger.warning(
-            f"========== APPLYING {accepted_count} ACCEPTED CHANGES =========="
-        )
-        logger.warning(f"Total changes received: {len(accepted_changes)}")
+        """Apply only the accepted changes, as Word tracked changes."""
+        from .tracked_docx import apply_changes, enable_track_revisions
 
         try:
-            # Load the document
             doc = DocxDocument(doc_path)
-            logger.warning(f"Document loaded: {doc_path}")
-            logger.warning(f"Document has {len(doc.paragraphs)} paragraphs")
-
-            # Enable Track Changes mode in the document settings
-            try:
-                settings = doc.settings
-                settings_element = settings.element
-                # Add trackRevisions setting if it doesn't exist
-                track_changes = settings_element.find(qn("w:trackRevisions"))
-                if track_changes is None:
-                    track_changes = OxmlElement("w:trackRevisions")
-                    settings_element.append(track_changes)
-                logger.warning("Track Changes mode enabled in document settings")
-            except Exception as tc_error:
-                logger.warning(f"Could not enable Track Changes mode: {tc_error}")
-
-            # Apply each accepted change
-            changes_actually_applied = 0
-            for idx, change in enumerate(accepted_changes):
-                if change.get("status") == "accepted":
-                    logger.warning(
-                        f"\nApplying change {idx+1}/{len(accepted_changes)}:"
-                    )
-                    logger.warning(f"  Old: '{change.get('current_text', '')[:80]}'")
-                    logger.warning(f"  New: '{change.get('new_text', '')[:80]}'")
-                    result = self._apply_single_change(doc, change)
-                    if result:
-                        changes_actually_applied += 1
-                        logger.warning("  ✅ Applied successfully")
-                    else:
-                        logger.warning("  ❌ Failed to apply")
-
-            logger.warning(
-                f"Successfully applied {changes_actually_applied} out of {accepted_count} accepted changes"
-            )
-
-            # Apply signature if provided
+            accepted = [
+                c for c in accepted_changes if c.get("status", "accepted") == "accepted"
+            ]
+            applied, failed = apply_changes(doc, accepted)
+            for c in failed:
+                logger.warning(
+                    f"Could not apply change: {str(c.get('current_text'))[:80]}"
+                )
+            enable_track_revisions(doc)
             if signature_path and os.path.exists(signature_path):
                 self._apply_signature(doc, signature_path)
-
-            # Generate output path
             output_path = self._generate_output_path(doc_path)
-            logger.warning(f"Saving final document to: {output_path}")
-
-            # Save the final document
             doc.save(output_path)
-            logger.warning("Document saved successfully")
-
             return {
                 "success": True,
                 "output_path": output_path,
-                "changes_applied": changes_actually_applied,
+                "changes_applied": len(applied),
+                "changes_failed": len(failed),
             }
-
         except Exception as e:
             logger.error(f"Error applying accepted changes: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -2617,29 +1953,41 @@ class DocumentProcessor:
         firm_details: dict[str, Any],
         signature_path: str = None,
     ) -> dict[str, Any]:
-        """
-        Process a Word document with AI redlining and return the modified document
-        Optimized for large files with memory efficiency
-        """
+        """Redline a Word document: plan changes, write them as tracked changes, save."""
+        from .tracked_docx import (
+            apply_changes,
+            body_paragraphs,
+            enable_track_revisions,
+            paragraph_text,
+        )
+
         try:
-            # Check file size and use appropriate processing method
-            file_size = os.path.getsize(doc_path)
-            logger.info(
-                f"Processing document: {file_size} bytes ({file_size/1024:.1f} KB)"
+            doc = DocxDocument(doc_path)
+            paragraphs = [paragraph_text(p) for p in body_paragraphs(doc)]
+            changes, notes = self.ai_service.plan_changes(
+                paragraphs, custom_rules, firm_details
             )
-
-            # For large files (>100KB), use chunked processing
-            if file_size > 100 * 1024:  # 100KB threshold
-                return self._process_large_document(
-                    doc_path, custom_rules, firm_details, signature_path
-                )
-            else:
-                return self._process_small_document(
-                    doc_path, custom_rules, firm_details, signature_path
-                )
-
+            applied, failed = apply_changes(doc, changes)
+            enable_track_revisions(doc)
+            if signature_path and os.path.exists(signature_path):
+                self._apply_signature(doc, signature_path)
+            output_path = self._generate_output_path(doc_path)
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            doc.save(output_path)
+            analysis = f"{len(applied)} tracked change(s) applied"
+            if failed:
+                analysis += f", {len(failed)} could not be placed"
+            if notes:
+                analysis += ". Not applied: " + "; ".join(notes)
+            return {
+                "success": True,
+                "output_path": output_path,
+                "modifications_applied": len(applied),
+                "changes": changes,
+                "ai_analysis": analysis,
+            }
         except Exception as e:
-            logger.error(f"Error processing document: {str(e)}")
+            logger.exception("Document processing failed")
             return {"success": False, "error": str(e)}
 
     def _process_small_document(

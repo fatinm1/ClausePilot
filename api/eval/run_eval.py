@@ -38,7 +38,7 @@ try:
 except Exception:
     pass
 
-from eval.ndas import FIRM, NDAS, RULES  # noqa: E402
+from eval.ndas import BLIND, FIRM, HOLDOUT, NDAS, RULES, flat_paragraphs  # noqa: E402
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 RULE_KEYS = ["term", "reps", "retain", "sign"]
@@ -53,8 +53,19 @@ RULE_LABEL = {
 # --------------------------------------------------------------------------- docs
 def build_docx(nda: dict, path: Path):
     doc = Document()
-    for text in nda["paragraphs"]:
-        doc.add_paragraph(text)
+    for item in nda["paragraphs"]:
+        if isinstance(item, tuple):
+            p = doc.add_paragraph()
+            p.add_run(item[0]).bold = True
+            p.add_run(item[1])
+        elif isinstance(item, dict):
+            rows = item["table"]
+            t = doc.add_table(rows=len(rows), cols=len(rows[0]))
+            for r, row in enumerate(rows):
+                for c, text in enumerate(row):
+                    t.cell(r, c).text = text
+        else:
+            doc.add_paragraph(item)
     doc.save(path)
 
 
@@ -166,14 +177,12 @@ def score(nda: dict, paras) -> dict:
     all_acc = " ".join(a for _, a, _ in paras)
     retention_hits = len(re.findall(r"retention polic", all_acc, re.I))
     if exp["retain"] == "keep":
-        ok = retention_hits <= 1
+        rp = find_para(paras, nda["return_para"])
+        unchanged = rp is not None and norm(rp[0]) == norm(rp[1])
+        ok = retention_hits <= 1 and unchanged
         res["retain"] = (
             ok,
-            (
-                "no duplicate carve-out"
-                if ok
-                else f"carve-out added again ({retention_hits} mentions)"
-            ),
+            "left alone" if ok else "carve-out added although one already exists",
         )
     else:
         ok = retention_hits >= 1 and re.search(r"retain", all_acc, re.I) is not None
@@ -183,15 +192,16 @@ def score(nda: dict, paras) -> dict:
         )
 
     # Signature
-    sig_text = " ".join(a for _, a, _ in paras[-8:])
+    sig_text = " ".join(a for _, a, _ in paras[-nda.get("sign_len", 8) - 2 :])
     have = {
         "firm": FIRM["name"].lower() in sig_text.lower(),
         "signer": FIRM["signerName"].lower() in sig_text.lower(),
         "title": FIRM["signerTitle"].lower() in sig_text.lower(),
     }
-    discloser_intact = any(
-        norm(a) == "by: avery castellanos" for _, a, _ in paras
-    ) and any(norm(a) == "title: chief executive officer" for _, a, _ in paras)
+    lines = nda.get(
+        "discloser_lines", ["By: Avery Castellanos", "Title: Chief Executive Officer"]
+    )
+    discloser_intact = all(any(norm(a) == norm(x) for _, a, _ in paras) for x in lines)
     ok = all(have.values()) and discloser_intact
     why = [k for k, v in have.items() if not v]
     if not discloser_intact:
@@ -206,8 +216,8 @@ def score(nda: dict, paras) -> dict:
 def collateral(nda: dict, paras) -> dict:
     """Paragraphs no rule should touch: count edits (tracked or silent)."""
     targets = [nda["term_para"], nda["reps_para"], nda["return_para"]]
-    sig_start = len(nda["paragraphs"]) - 8
-    src = nda["paragraphs"]
+    src = flat_paragraphs(nda)
+    sig_start = len(src) - nda.get("sign_len", 8)
     touched, silent = [], []
     out_by_orig = {norm(o): (o, a, t) for o, a, t in paras}
     for i, text in enumerate(src):
@@ -254,11 +264,11 @@ def run_one(provider: str, nda: dict, workdir: Path, run_idx: int):
 
     orig_complete = svc._complete
 
-    def timed_complete(messages):
+    def timed_complete(messages, **kw):
         t0 = time.perf_counter()
         stats["llm_calls"] += 1
         try:
-            name, resp = orig_complete(messages)
+            name, resp = orig_complete(messages, **kw)
             u = getattr(resp, "usage", None)
             if u:
                 stats["tokens_in"] += getattr(u, "prompt_tokens", 0) or 0
@@ -271,23 +281,15 @@ def run_one(provider: str, nda: dict, workdir: Path, run_idx: int):
             stats["llm_seconds"] += time.perf_counter() - t0
 
     svc._complete = timed_complete
-    orig_mock = svc._mock_analysis
-
-    def flag_mock(*a, **k):
-        stats["fell_back"] = provider != "rule-based"
-        return orig_mock(*a, **k)
-
-    svc._mock_analysis = flag_mock
-
     captured = {}
-    orig_analyze = svc.analyze_document
+    orig_plan = svc.plan_changes
 
     def capture(*a, **k):
-        r = orig_analyze(*a, **k)
-        captured["result"] = r
+        r = orig_plan(*a, **k)
+        captured["changes"], captured["notes"] = r
         return r
 
-    svc.analyze_document = capture
+    svc.plan_changes = capture
 
     src = workdir / f"{nda['id']}.docx"
     if not src.exists():
@@ -301,7 +303,7 @@ def run_one(provider: str, nda: dict, workdir: Path, run_idx: int):
 
     row = {
         "provider": provider,
-        "model": svc.model if provider != "rule-based" else "rule-based",
+        "model": svc.model if provider != "rule-based" else "code only",
         "nda": nda["id"],
         "run": run_idx,
         "success": bool(result.get("success")),
@@ -330,9 +332,9 @@ def run_one(provider: str, nda: dict, workdir: Path, run_idx: int):
     row["collateral"] = collateral(nda, paras)
     row["output_file"] = keep.name
 
-    mods = (captured.get("result") or {}).get("redlining_instructions") or []
-    if isinstance(mods, dict):
-        mods = mods.get("modifications", [])
+    mods = captured.get("changes") or []
+    row["notes"] = captured.get("notes") or []
+    row["fell_back"] = bool(stats["llm_error"])
     sim, applied, matched, needs_match = simulate(nda, mods)
     ms = score(nda, sim)
     row["proposed"] = {
@@ -350,7 +352,7 @@ def run_one(provider: str, nda: dict, workdir: Path, run_idx: int):
 def simulate(nda: dict, mods):
     """Apply the model's instructions to plain paragraph text, the way a
     perfect pipeline would, to score the model separately from the .docx writer."""
-    orig = list(nda["paragraphs"])
+    orig = flat_paragraphs(nda)
     acc = list(orig)
     tracked = [False] * len(orig)
     applied = matched = needs = 0
@@ -396,12 +398,12 @@ def report(rows, out_dir: Path, args):
     lines = [
         "# ClausePilot redlining evaluation",
         "",
-        f"Run {datetime.now():%Y-%m-%d %H:%M}. {len(NDAS)} synthetic NDAs x {args.runs} runs per provider, "
+        f"Run {datetime.now():%Y-%m-%d %H:%M}. {len({r['nda'] for r in rows})} synthetic NDAs x {args.runs} runs per provider, "
         f"4 rules each, real pipeline end to end. Pause between LLM calls: {args.pause}s.",
         "",
         "## Delivered document (what the pipeline actually wrote)",
         "",
-        "| Provider | Model | Runs OK | Rule checks passed | Perfect docs | Fell back to rules | Collateral edits | Untracked edits | Invalid change IDs | p50 time | p95 time | Avg tokens in/out |",
+        "| Provider | Model | Runs OK | Rule checks passed | Perfect docs | LLM errors | Collateral edits | Untracked edits | Invalid change IDs | p50 time | p95 time | Avg tokens in/out |",
         "|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     providers = list(dict.fromkeys(r["provider"] for r in rows))
@@ -486,16 +488,17 @@ def report(rows, out_dir: Path, args):
             cells.append(f"{n}/{len(ok)} ({pct(n, len(ok))})")
         lines.append(f"| {prov} | " + " | ".join(cells) + " |")
 
+    ran = [n for n in NDAS + HOLDOUT + BLIND if any(r["nda"] == n["id"] for r in rows)]
     lines += [
         "",
         "## Pass rate by document",
         "",
-        "| Provider | " + " | ".join(n["id"] for n in NDAS) + " |",
-        "|---|" + "---|" * len(NDAS),
+        "| Provider | " + " | ".join(n["id"] for n in ran) + " |",
+        "|---|" + "---|" * len(ran),
     ]
     for prov in providers:
         cells = []
-        for n in NDAS:
+        for n in ran:
             rs = [
                 r
                 for r in rows
@@ -519,7 +522,9 @@ def report(rows, out_dir: Path, args):
         ]
         extra = []
         if r.get("fell_back"):
-            extra.append(f"LLM failed, rule-based fallback used ({r.get('llm_error')})")
+            extra.append(f"an LLM call failed ({r.get('llm_error')})")
+        if r.get("notes"):
+            extra.append(f"planner notes: {r['notes']}")
         c = r["collateral"]
         if c["unrelated_edited"]:
             extra.append(f"edited unrelated clauses: {c['unrelated_edited']}")
@@ -556,9 +561,15 @@ def main():
     )
     ap.add_argument("--runs", type=int, default=2)
     ap.add_argument(
-        "--pause", type=float, default=35.0, help="seconds to wait between LLM calls"
+        "--pause", type=float, default=3.0, help="seconds to wait between LLM calls"
     )
     ap.add_argument("--only", default="", help="comma list of NDA ids to run")
+    ap.add_argument(
+        "--set",
+        default="all",
+        choices=["all", "dev", "holdout", "blind"],
+        help="which NDAs to run",
+    )
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.ERROR)
@@ -574,7 +585,13 @@ def main():
     else:
         provs = [p.strip() for p in args.providers.split(",") if p.strip()]
 
-    ndas = [n for n in NDAS if not args.only or n["id"] in args.only.split(",")]
+    pool = {
+        "dev": NDAS,
+        "holdout": HOLDOUT,
+        "blind": BLIND,
+        "all": NDAS + HOLDOUT + BLIND,
+    }[args.set]
+    ndas = [n for n in pool if not args.only or n["id"] in args.only.split(",")]
     out_dir = HERE / "results" / datetime.now().strftime("%Y%m%d-%H%M%S")
     out_dir.mkdir(parents=True, exist_ok=True)
     print(

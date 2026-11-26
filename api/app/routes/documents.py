@@ -366,11 +366,11 @@ def get_document_text(user, document_id):
         # Load the document
         doc = DocxDocument(document.file_path)
 
-        # Extract all text from paragraphs, preserving exact structure
-        text_parts = []
-        for paragraph in doc.paragraphs:
-            # Keep ALL paragraphs including empty ones to preserve spacing
-            text_parts.append(paragraph.text)
+        # One line per paragraph, in the same order the redline planner and the
+        # tracked-changes writer use (tables included, read column by column)
+        from app.services.tracked_docx import body_paragraphs, paragraph_text
+
+        text_parts = [paragraph_text(p) for p in body_paragraphs(doc)]
 
         # Join with single newline to preserve exact document structure
         full_text = "\n".join(text_parts)
