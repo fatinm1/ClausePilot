@@ -125,12 +125,6 @@ def _segments(p_el):
     return segs
 
 
-def _is_simple(r) -> bool:
-    return (
-        all(c.tag in (W_RPR, W_T) for c in r) and sum(1 for c in r if c.tag == W_T) <= 1
-    )
-
-
 def _set_text(r, text: str):
     t = r.find(W_T)
     if t is None:
@@ -140,19 +134,50 @@ def _set_text(r, text: str):
     t.set(XML_SPACE, "preserve")
 
 
+def _child_len(c) -> int:
+    if c.tag == W_T:
+        return len(c.text or "")
+    if c.tag in (qn("w:tab"), qn("w:br"), qn("w:cr")):
+        return 1
+    return 0
+
+
 def _split_at(p_el, pos: int) -> bool:
-    """Ensure a run boundary at character offset pos. Returns False if a
-    complex run (tabs, images) would need splitting."""
+    """Ensure a run boundary at character offset pos. Handles runs that mix
+    text with tabs and breaks; images and fields count as zero-width."""
     for r, a, b in _segments(p_el):
-        if a < pos < b:
-            if not _is_simple(r):
-                return False
-            text = _run_text(r)
-            right = copy.deepcopy(r)
-            _set_text(r, text[: pos - a])
-            _set_text(right, text[pos - a :])
-            r.addnext(right)
-            return True
+        if not (a < pos < b):
+            continue
+        k = pos - a
+        rpr = r.find(W_RPR)
+        right = r.makeelement(W_R, dict(r.attrib))
+        if rpr is not None:
+            right.append(copy.deepcopy(rpr))
+        acc = 0
+        moving = False
+        for c in list(r):
+            if c.tag == W_RPR:
+                continue
+            n = _child_len(c)
+            if moving:
+                right.append(c)
+            elif acc + n <= k:
+                acc += n
+                if acc == k:
+                    moving = True
+            else:  # split inside this w:t
+                text = c.text or ""
+                cut = k - acc
+                c.text = text[:cut]
+                c.set(XML_SPACE, "preserve")
+                t2 = c.makeelement(W_T, {XML_SPACE: "preserve"})
+                t2.text = text[cut:]
+                right.append(t2)
+                moving = True
+            if acc == k and not moving:
+                moving = True
+        r.addnext(right)
+        return True
     return True
 
 

@@ -33,36 +33,61 @@ logger = logging.getLogger(__name__)
 LLM = Callable[[list[dict[str, str]]], str]  # messages -> response text
 
 NUM_WORDS = {
-    "one": 1,
-    "two": 2,
-    "three": 3,
-    "four": 4,
-    "five": 5,
-    "six": 6,
-    "seven": 7,
-    "eight": 8,
-    "nine": 9,
-    "ten": 10,
-    "eleven": 11,
-    "twelve": 12,
-    "eighteen": 18,
-    "twenty-four": 24,
-    "thirty": 30,
-    "thirty-six": 36,
-    "forty-eight": 48,
-    "sixty": 60,
+    w: i
+    for i, w in enumerate(
+        "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen "
+        "fifteen sixteen seventeen eighteen nineteen twenty".split()
+    )
 }
+NUM_WORDS.update(
+    {
+        "twenty-four": 24,
+        "thirty": 30,
+        "thirty-six": 36,
+        "forty-eight": 48,
+        "sixty": 60,
+        "seventy-two": 72,
+    }
+)
+ORDINALS = {
+    "first": 1,
+    "second": 2,
+    "third": 3,
+    "fourth": 4,
+    "fifth": 5,
+    "sixth": 6,
+    "seventh": 7,
+    "eighth": 8,
+    "ninth": 9,
+    "tenth": 10,
+}
+ORDINAL_OF = {v: k for k, v in ORDINALS.items()}
+_WORDS = "|".join(sorted(NUM_WORDS, key=len, reverse=True))
 DURATION = re.compile(
-    r"\b(?:(?P<word>[A-Za-z]+(?:-[A-Za-z]+)?)\s*\((?P<num1>\d+)\)|(?P<num2>\d+))\s*(?P<unit>years?|months?)\b",
+    r"\b(?:(?P<word>[A-Za-z]+(?:-[A-Za-z]+)?)\s*\((?P<num1>\d+)\)|(?P<num2>\d+)|(?P<word2>"
+    + _WORDS
+    + r"))"
+    r"(?P<sep>\s*-\s*|\s*)(?P<unit>years?|months?)\b",
     re.I,
 )
-TERM_HINTS = re.compile(
-    r"\bterm\b|duration|surviv|remain in (?:full force and )?effect|confidential|obligation|"
-    r"period of|this agreement|this letter|effective date|date hereof|expire",
+ANNIVERSARY = re.compile(
+    r"\b(?P<ord>"
+    + "|".join(ORDINALS)
+    + r")\s*(?:\((?P<n1>\d+)(?:st|nd|rd|th)\)\s*)?anniversary"
+    r"|\b(?P<n2>\d+)(?:st|nd|rd|th)\s+anniversary",
     re.I,
 )
-TERM_EXCLUDE = re.compile(
-    r"solicit|standstill|\bhire|non-?compete|acquire any|securities|not contact",
+# A duration counts as the agreement's or the confidentiality obligations' term only if
+# its own clause says so and says nothing that marks it as some other kind of period.
+TERM_POSITIVE = re.compile(
+    r"surviv|remain in (?:full force and )?effect|in effect|terminat|expir|continu|\blast\b|confidentiality period|"
+    r"obligations?|confidential for|keep[^.;]{0,60}confidential|\bterm\b|anniversary|ending on",
+    re.I,
+)
+TERM_NEGATIVE = re.compile(
+    r"\bbefore\b|prior to|\brecords?\b|maintain|preserve|audit|solicit|standstill|\bhire|non-?compete|"
+    r"acquire|securities|notice|\bwithin\b|litigation|legal hold|\bexceed|renew|warrant|insurance|"
+    r"not contact|disclosed during",
     re.I,
 )
 PERPETUAL_ADVERB = re.compile(r"\b(?:in perpetuity|perpetually|indefinitely)\b", re.I)
@@ -70,7 +95,9 @@ PERPETUAL = re.compile(r"in perpetuity|perpetual(?:ly)?|indefinite(?:ly)?", re.I
 REPS_DEF = re.compile(r"[\"“]Representatives[\"”]")
 RETURN_HINTS = re.compile(r"\breturn\b|\bdestroy|\bdestruction", re.I)
 RETAIN_EXISTS = re.compile(
-    r"\bretain(?:ed|s|ing)?\b[^.]{0,120}(?:retention|backup|back-up|archiv|law|regulat|polic)|retention polic|archiv\w*[^.]{0,60}back-?up",
+    r"\b(?:retain|keep|maintain)(?:ed|s|ing)?\b[^.]{0,120}"
+    r"(?:retention|backup|back-up|archiv|law|regulat|polic|cop(?:y|ies))"
+    r"|retention polic|archiv\w*[^.]{0,60}(?:back-?up|cop(?:y|ies)|purpose)",
     re.I,
 )
 DEFAULT_CARVE_OUT = (
@@ -86,10 +113,47 @@ REP_CATEGORIES = [
 ]
 FIELD = re.compile(
     r"^\s*(?P<label>name of company[^:]{0,40}|for and on behalf of|on behalf of|company|for|recipient|receiving party|by|name|"
-    r"printed name|print name|signer|title|position|its|signature|signed|date)\s*:\s*(?P<value>.*?)\s*$",
+    r"printed name|print name|signer|title|position|its|signature|signed|date|counterparty|discloser|disclosing party)"
+    r"\s*:\s*(?P<value>.*?)\s*$",
     re.I,
 )
 BLANK = re.compile(r"^[\s_.\-–—]*$|^\[[^\]]*\]$|^\(?name to be provided\)?$", re.I)
+BLANK_LINE = re.compile(r"\s*[_.\-–—]{3,}\s*")
+PARTY_LABELS = (
+    "recipient",
+    "receiving party",
+    "counterparty",
+    "discloser",
+    "disclosing party",
+)
+COMPANY_LABELS = (
+    "company",
+    "for",
+    "recipient",
+    "receiving party",
+    "counterparty",
+    "for and on behalf of",
+    "on behalf of",
+    "entity",
+    "name of entity",
+    "entity name",
+    "company name",
+    "organization",
+    "organisation",
+    "firm",
+    "party",
+)
+GENERIC_FIELD = re.compile(
+    r"^\s*(?P<label>[A-Za-z][A-Za-z .'’/]{0,30}?)\s*:\s*(?P<value>.*?)\s*$"
+)
+RECIPIENT_WORDS = re.compile(
+    r"recipient|receiving|undersigned|counterparty|accepted and agreed|agreed and accepted|acknowledged",
+    re.I,
+)
+PLACEHOLDER_PARTY = re.compile(
+    r"\[(?:RECIPIENT|COUNTERPARTY|RECEIVING PARTY|INVESTOR|BUYER)(?:['’]S)?(?: NAME)?\]",
+    re.I,
+)
 PLACEHOLDERS = {
     "[FIRM_NAME]": "name",
     "[FIRM_ADDRESS]": "address",
@@ -104,10 +168,28 @@ PLACEHOLDERS = {
 # --------------------------------------------------------------------------- utils
 def months_of(m: re.Match) -> int | None:
     n = m.group("num1") or m.group("num2")
+    if n is None and m.group("word2"):
+        n = NUM_WORDS.get(m.group("word2").lower())
     if n is None:
         return None
     n = int(n)
     return n * 12 if m.group("unit").lower().startswith("year") else n
+
+
+def sentence_around(text: str, start: int, end: int) -> str:
+    """The clause containing text[start:end], split on sentence and semicolon breaks."""
+    left = max(text.rfind(". ", 0, start), text.rfind(";", 0, start))
+    rights = [i for i in (text.find(". ", end), text.find(";", end)) if i >= 0]
+    return text[left + 1 : min(rights) if rights else len(text)]
+
+
+def is_term_duration(text: str, start: int, end: int) -> bool:
+    s = sentence_around(text, start, end)
+    return (
+        bool(TERM_POSITIVE.search(s))
+        and not TERM_NEGATIVE.search(s)
+        and not re.search(r"trade secret", s, re.I)
+    )
 
 
 def cap_from_instruction(text: str) -> tuple[int, str]:
@@ -152,6 +234,15 @@ def _keywords(text: str) -> set[str]:
         "information confidential include includes including add replace ensure".split()
     )
     return {w for w in re.findall(r"[a-z]{4,}", text.lower()) if w not in stop}
+
+
+def _next_label(lab: str) -> str:
+    romans = ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"]
+    if lab in romans and lab != "x":
+        return romans[romans.index(lab) + 1]
+    if len(lab) == 1 and lab.isalpha():
+        return chr(ord(lab) + 1)
+    return lab
 
 
 # --------------------------------------------------------------------------- planner
@@ -228,54 +319,55 @@ class Planner:
     def rule_term(self, rule):
         name = rule.get("name") or "Term"
         cap_months, cap_phrase = cap_from_instruction(rule.get("instruction", ""))
-        hits = 0
+        cap_years = cap_months // 12 if cap_months % 12 == 0 else None
+        unresolved = []
         for i, p in enumerate(self.cur):
-            if not TERM_HINTS.search(p) or TERM_EXCLUDE.search(p):
-                continue
             new = p
-            for m in reversed(list(PERPETUAL_ADVERB.finditer(p))):
-                sentence = (
-                    re.split(r"[.;]", p[: m.start()])[-1] + p[m.start() : m.end() + 40]
+            # "survive indefinitely" / "in perpetuity" (trade secrets excepted)
+            for m in reversed(list(PERPETUAL_ADVERB.finditer(new))):
+                if is_term_duration(new, m.start(), m.end()):
+                    new = new[: m.start()] + "for " + cap_phrase + new[m.end() :]
+            # "ending on the third (3rd) anniversary"
+            for m in reversed(list(ANNIVERSARY.finditer(new))):
+                n = ORDINALS.get((m.group("ord") or "").lower()) or int(
+                    m.group("n1") or m.group("n2") or 0
                 )
-                if re.search(r"trade secret", sentence, re.I):
-                    continue
-                new = new[: m.start()] + "for " + cap_phrase + new[m.end() :]
+                if (
+                    n
+                    and cap_years
+                    and n > cap_years
+                    and is_term_duration(new, m.start(), m.end())
+                ):
+                    word = ORDINAL_OF.get(cap_years, str(cap_years))
+                    suffix = {1: "st", 2: "nd", 3: "rd"}.get(cap_years, "th")
+                    new = (
+                        new[: m.start()]
+                        + f"{word} ({cap_years}{suffix}) anniversary"
+                        + new[m.end() :]
+                    )
+            # "five (5) years", "36 months", "five years", "a five (5)-year period"
+            cap_m = DURATION.search(cap_phrase)
             for m in reversed(list(DURATION.finditer(new))):
                 mo = months_of(m)
-                if mo and mo > cap_months:
-                    # skip durations that are clearly about something else in the sentence
-                    ctx = new[max(0, m.start() - 80) : m.start()].lower()
-                    after = new[m.end() : m.end() + 25].lower()
-                    if re.search(
-                        r"\bwithin\b[^.]{0,25}$|solicit|standstill", ctx
-                    ) or re.match(
-                        r"[’']?s?\s*(?:prior\s+)?(?:written\s+)?notice", after
-                    ):
-                        continue
-                    new = new[: m.start()] + cap_phrase + new[m.end() :]
+                if mo and mo > cap_months and is_term_duration(new, m.start(), m.end()):
+                    repl = cap_phrase
+                    if "-" in m.group("sep") and cap_m:
+                        # keep the adjective form: "a two (2)-year period"
+                        repl = (
+                            cap_phrase[: cap_m.start("sep")]
+                            + "-"
+                            + cap_m.group("unit").rstrip("s")
+                        )
+                    new = new[: m.start()] + repl + new[m.end() :]
             if new != p:
-                hits += 1
                 self.edit(
                     i, new, name, f"Confidentiality period capped at {cap_phrase}."
                 )
-        if hits:
-            return
-        # Perpetual obligations with no number, or wording code couldn't parse: ask the model.
-        cands = [
-            i
-            for i, p in enumerate(self.cur)
-            if TERM_HINTS.search(p)
-            and not TERM_EXCLUDE.search(p)
-            and (PERPETUAL.search(p) or DURATION.search(p))
-        ]
-        perpetual_only = [
-            i
-            for i in cands
-            if PERPETUAL.search(self.cur[i])
-            and not re.search(r"trade secret", self.cur[i], re.I)
-        ]
-        if perpetual_only:
-            self.llm_edit(rule, perpetual_only[:3])
+            elif PERPETUAL.search(p) and is_term_duration(p, 0, len(p)):
+                unresolved.append(i)
+        # Perpetual wording code could not rewrite safely ("perpetual obligations"): ask the model.
+        if unresolved:
+            self.llm_edit(rule, unresolved[:3])
 
     def rule_representatives(self, rule):
         name = rule.get("name") or "Representatives"
@@ -365,10 +457,28 @@ class Planner:
                     pos -= 1
                 return p[:pos] + addition + p[pos:]
         start = m.end() if m else 0
+        # enumerated list "(i) a; (ii) b; and (iii) c." -> "(i) a; (ii) b; (iii) c; and (iv) new."
+        roman = list(re.finditer(r"\((?P<n>[ivx]+|[a-h])\)\s", p[start:]))
+        if len(roman) >= 2:
+            last = roman[-1]
+            lab = last.group("n")
+            nxt = _next_label(lab)
+            seg_start = start + last.start()
+            end_m = re.search(r"[.;]|$", p[seg_start:])
+            end = seg_start + end_m.start()
+            before = p[:seg_start]
+            before = re.sub(r";\s*and\s*$", "; ", before)
+            before = re.sub(r",\s*and\s*$", ", ", before)
+            sep = ";" if ";" in p[start:seg_start] else ","
+            return before + p[seg_start:end] + f"{sep} and ({nxt}) {listed}" + p[end:]
         tail = p[start:]
         stops = [
             tail.find(s)
             for s in (
+                " (but ",
+                " (other than",
+                " (excluding",
+                " (except",
                 " (collectively",
                 ", including",
                 ", in each case",
@@ -449,6 +559,7 @@ class Planner:
         return re.sub(r"\bRecipient\b", name, text)
 
     def rule_signature(self, rule):
+        """Fill blank fields in the receiving party's signature block only."""
         name = rule.get("name") or "Signature block"
         firm, signer, title = (
             self.firm.get("name"),
@@ -457,62 +568,87 @@ class Planner:
         )
         if not (firm or signer or title):
             return
-        # signature area: after the last "IN WITNESS" line, or the last 30 paragraphs
-        start = max(
-            [
-                i
-                for i, p in enumerate(self.cur)
-                if re.search(
-                    r"in witness|executed this agreement|signature page", p, re.I
-                )
-            ]
-            or [max(0, len(self.cur) - 30)]
-        )
+        why = "Filled the recipient's signature block from your firm details."
+        witness = [
+            i
+            for i, p in enumerate(self.cur)
+            if re.search(r"in witness|executed this agreement|signature page", p, re.I)
+        ]
+        start = witness[-1] if witness else max(0, len(self.cur) - 30)
+
+        # 1. split the signature area into one block per party
         blocks, current = [], None
         for i in range(start, len(self.cur)):
             p = self.cur[i]
-            if not p.strip() or re.fullmatch(r"\s*[_.\-–—]{3,}\s*", p):
+            if not p.strip() or BLANK_LINE.fullmatch(p):
                 continue
-            m = FIELD.match(p)
-            label = m.group("label").lower() if m else ""
-            is_header = (
-                (not m)
-                or label in ("recipient", "receiving party")
-                and not BLANK.match(m.group("value") or "x")
-            )
-            if re.match(
-                r"^\s*(recipient|receiving party|discloser|disclosing party|company)\b[^:]*:?\s*$",
-                p,
-                re.I,
-            ):
-                is_header = True
-            if is_header or current is None:
+            m = FIELD.match(p) or GENERIC_FIELD.match(p)
+            label = m.group("label").lower().strip() if m else ""
+            if m and not FIELD.match(p) and not BLANK.match(m.group("value") or "x"):
+                m, label = (
+                    None,
+                    "",
+                )  # "MARLOW: something" style line is a heading, not a blank field
+            starts_block = (not m) or label in PARTY_LABELS
+            if starts_block or current is None:
                 current = {
-                    "header": p if is_header else "",
-                    "header_i": i if is_header else None,
+                    "header": p,
+                    "header_i": i if starts_block else None,
                     "fields": [],
                 }
                 blocks.append(current)
-            if m and not is_header:
+            if m and not (starts_block and label not in PARTY_LABELS):
                 current["fields"].append((i, label, m.group("value")))
 
-        def recipient_score(b):
-            h = b["header"].lower()
-            blanks = sum(1 for _, _, v in b["fields"] if BLANK.match(v or ""))
-            return (
-                (
-                    2
-                    if re.search(
-                        r"recipient|receiving|undersigned|counterparty|accepted and agreed|agreed and accepted|acknowledged",
-                        h,
-                    )
-                    else 0
-                )
-                - (2 if re.search(r"disclos", h) else 0)
-                + (1 if blanks else 0)
-            )
+        # 2. decide which block belongs to the receiving party
+        def says_recipient(b):
+            return bool(RECIPIENT_WORDS.search(b["header"]))
 
-        targets = [b for b in blocks if b["fields"] and recipient_score(b) > 0]
+        def says_other(b):
+            return bool(re.search(r"disclos", b["header"], re.I))
+
+        def blank_count(b):
+            return sum(1 for _, _, v in b["fields"] if BLANK.match(v or ""))
+
+        named = [b for b in blocks if says_recipient(b)]
+        if named:
+            targets = named
+        else:
+            # no block names the recipient: use the single block left blank, if there is exactly one
+            open_blocks = [b for b in blocks if blank_count(b) and not says_other(b)]
+            targets = open_blocks if len(open_blocks) == 1 else []
+            if len(open_blocks) > 1:
+                self.notes.append(
+                    f"{name}: several blank signature blocks and none names the recipient; left for review"
+                )
+
+        # 3a. one-line signatures: "Signed by ____ for and on behalf of ____ (the Recipient)"
+        for i in range(start, len(self.cur)):
+            p = self.cur[i]
+            if (
+                FIELD.match(p)
+                or GENERIC_FIELD.match(p)
+                or not re.search(r"_{3,}", p)
+                or not RECIPIENT_WORDS.search(p)
+            ):
+                continue
+            new = p
+            for m in reversed(list(re.finditer(r"_{3,}", p))):
+                cue = p[max(0, m.start() - 30) : m.start()].lower()
+                if re.search(r"on behalf of\s*$|\bfor\s*$|company\s*$|entity\s*$", cue):
+                    value = firm
+                elif re.search(r"(?:signed by|\bby|name)\s*:?\s*$", cue):
+                    value = signer
+                elif re.search(r"(?:title|position|capacity)\s*:?\s*$", cue):
+                    value = title
+                else:
+                    value = None
+                if value:
+                    new = new[: m.start()] + value + new[m.end() :]
+            if new != p:
+                self.edit(i, new, name, why)
+
+        # 3. fill blanks in the target block(s)
         for b in targets:
             labels = [lab for _, lab, _ in b["fields"]]
             has_name_line = any(
@@ -522,21 +658,22 @@ class Planner:
             for i, lab, val in b["fields"]:
                 if not BLANK.match(val or ""):
                     continue
-                if lab in (
-                    "company",
-                    "for",
-                    "recipient",
-                    "receiving party",
-                    "for and on behalf of",
-                    "on behalf of",
-                ) or lab.startswith("name of company"):
+                if lab in COMPANY_LABELS or lab.startswith("name of company"):
                     value = firm
-                    filled_company = True
-                elif lab in ("name", "printed name", "print name", "signer"):
+                    filled_company = bool(firm)
+                elif lab in (
+                    "name",
+                    "printed name",
+                    "print name",
+                    "signer",
+                    "full name",
+                    "name of signatory",
+                ):
                     value = signer
                 elif lab == "by":
-                    # "By:" is the signature line when a separate "Name:" line exists
-                    value = None if has_name_line else signer
+                    value = (
+                        None if has_name_line else signer
+                    )  # "By:" is the signature line if "Name:" exists
                 elif lab in ("title", "position", "its"):
                     value = title
                 else:
@@ -544,37 +681,32 @@ class Planner:
                 if not value:
                     continue
                 p = self.cur[i]
-                m = FIELD.match(p)
+                m = FIELD.match(p) or GENERIC_FIELD.match(p)
                 vs, ve = m.span("value")
-                why = "Filled the recipient's signature block from your firm details."
                 nxt = i + 1
                 if (
                     ve == vs
                     and nxt < len(self.cur)
-                    and re.fullmatch(r"\s*[_.\-–—]{3,}\s*", self.cur[nxt])
+                    and BLANK_LINE.fullmatch(self.cur[nxt])
                 ):
-                    # label and blank line are separate (e.g. a label/value table): fill the blank
-                    self.edit(nxt, value, name, why)
+                    self.edit(
+                        nxt, value, name, why
+                    )  # label/value table: fill the value cell
                     continue
                 new = p[:vs] + value + p[ve:] if ve > vs else p.rstrip() + " " + value
                 self.edit(i, new, name, why)
             hi = b["header_i"]
-            if (
-                firm
-                and not filled_company
-                and hi is not None
-                and re.match(
-                    r"^\s*(the )?(recipient|receiving party|counterparty)\s*:?\s*$",
-                    self.cur[hi],
-                    re.I,
-                )
+            if not firm or filled_company or hi is None:
+                continue
+            h = self.cur[hi]
+            if PLACEHOLDER_PARTY.fullmatch(h.strip()):
+                self.edit(hi, firm, name, why)  # "[RECIPIENT NAME]" heading
+            elif re.match(
+                r"^\s*(the )?(recipient|receiving party|counterparty)\s*:?\s*$", h, re.I
             ):
-                h = self.cur[hi].rstrip()
+                h = h.rstrip()
                 self.edit(
-                    hi,
-                    h + ("" if h.endswith(":") else ":") + " " + firm,
-                    name,
-                    "Filled the recipient's signature block from your firm details.",
+                    hi, h + ("" if h.endswith(":") else ":") + " " + firm, name, why
                 )
 
     def fill_placeholders(self):
@@ -583,6 +715,8 @@ class Planner:
             for ph, key in PLACEHOLDERS.items():
                 if ph in new and self.firm.get(key):
                     new = new.replace(ph, self.firm[key])
+            if self.firm.get("name"):
+                new = PLACEHOLDER_PARTY.sub(self.firm["name"], new)
             if new != p:
                 self.edit(i, new, "Firm details", "Filled firm details.")
 

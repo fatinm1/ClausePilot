@@ -77,7 +77,14 @@ def read_output(path: Path):
     for p in root.iter(W + "p"):
         original, accepted, tracked = [], [], False
         for node in p.iter():
-            if node.tag == W + "t":
+            if node.tag == W + "tab" and node.getparent().tag == W + "r":
+                in_ins = any(a.tag == W + "ins" for a in node.iterancestors())
+                in_del = any(a.tag == W + "del" for a in node.iterancestors())
+                if not in_del:
+                    accepted.append("\t")
+                if not in_ins:
+                    original.append("\t")
+            elif node.tag == W + "t":
                 in_ins = any(a.tag == W + "ins" for a in node.iterancestors())
                 accepted.append(node.text or "")
                 if in_ins:

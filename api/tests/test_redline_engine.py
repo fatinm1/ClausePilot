@@ -142,3 +142,60 @@ def test_signature_fills_recipient_only():
         and new[6] == "Title: Managing Partner"
     )
     assert new[4] == "RECIPIENT: Halden Capital LLC"
+
+
+def test_tab_runs_split_and_failed_edits_roll_back():
+    d = Document()
+    p = d.add_paragraph()
+    p.add_run("Name:\t____________")
+    from app.services.tracked_docx import paragraph_text
+
+    assert apply_edit(p, "Name:\t____________", "Name:\tJordan Ellis", ChangeIds(d))
+    assert paragraph_text(p) == "Name:\tJordan Ellis"
+
+
+def test_reps_go_at_end_of_numbered_list_and_before_exclusions():
+    doc = [
+        "“Representatives” shall include a party’s: (i) affiliates; (ii) directors and officers; and (iii) employees.",
+        '"Representatives" means its directors and consultants (but excluding anyone not given information).',
+    ]
+    first = plan_changes(doc[:1], [RULES[1]], {}, None)[0][0]["new_text"]
+    second = plan_changes(doc[1:], [RULES[1]], {}, None)[0][0]["new_text"]
+    assert "(iii) employees; and (iv) investors" in first
+    assert second.index("investors") < second.index("(but excluding")
+
+
+def test_term_judged_by_its_own_clause():
+    doc = [
+        "1.2 Confidential Information includes information disclosed during the five (5) years before the Effective Date.",
+        "3. Recipient shall maintain records of disclosures for five (5) years.",
+        "4. Sections 4 and 5 survive termination for three (3) years; Section 7 survives for one (1) year.",
+        "5. The Recipient agrees to keep the Information confidential for a five (5)-year period.",
+        "6. “Term” means the period ending on the third (3rd) anniversary of the Effective Date.",
+        "7. Sections 3 through 6 survive for a period of five years.",
+    ]
+    changes, _ = plan_changes(doc, [RULES[0]], {}, None)
+    new = {c["paragraph_index"]: c["new_text"] for c in changes}
+    assert 0 not in new and 1 not in new
+    assert "for two (2) years; Section 7 survives for one (1) year" in new[2]
+    assert "a two (2)-year period" in new[3]
+    assert "second (2nd) anniversary" in new[4]
+    assert "period of two (2) years" in new[5]
+
+
+def test_one_line_signature_and_other_blank_blocks():
+    doc = [
+        "IN WITNESS WHEREOF",
+        "Signed by ____________ for and on behalf of ____________ (the Recipient)",
+        "RECIPIENT: [●]",
+        "Name: ______",
+        "ADVISOR: Halyard Partners LLC",
+        "Name: ______",
+    ]
+    changes, _ = plan_changes(doc, [RULES[3]], FIRM, None)
+    new = {c["paragraph_index"]: c["new_text"] for c in changes}
+    assert new[1].startswith(
+        "Signed by Jordan Ellis for and on behalf of Halden Capital LLC"
+    )
+    assert new[2] == "RECIPIENT: Halden Capital LLC" and new[3] == "Name: Jordan Ellis"
+    assert 5 not in new
