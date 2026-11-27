@@ -2,6 +2,12 @@
 
 Minimal, trustworthy NDA redlining web app with AI assistance
 
+## Demo
+
+A 60-second narrated walkthrough, recorded on the live app.
+
+https://github.com/user-attachments/assets/949325c3-772a-4238-8d1d-6526e8f9bcaf
+
 ## Quickstart
 
 ### Prerequisites
