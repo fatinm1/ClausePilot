@@ -303,7 +303,8 @@ export default function Dashboard() {
     setShowChangesReview(false);
     
     if (result.success) {
-      setSuccess('Document processed successfully! You can now download the redlined document.');
+      setSuccess('Redline saved with your decisions. Downloading it now.');
+      await downloadDocument();
       // Refresh the document to get the updated final_file_path
       if (uploadedDocument?.id) {
         // Document has been updated, user can now download

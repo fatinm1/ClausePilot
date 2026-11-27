@@ -198,12 +198,27 @@ def is_term_duration(text: str, start: int, end: int) -> bool:
     )
 
 
+NUMBER_WORDS = dict(
+    enumerate(
+        "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen "
+        "fifteen sixteen seventeen eighteen nineteen twenty".split()
+    )
+)
+NUMBER_WORDS.update({24: "twenty-four", 30: "thirty", 36: "thirty-six"})
+
+
 def cap_from_instruction(text: str) -> tuple[int, str]:
     m = DURATION.search(text or "")
     if not m:
         return 24, "two (2) years"
     months = months_of(m) or 24
     phrase = m.group(0)
+    # contracts write durations as "two (2) years"; turn a bare "2 years" into that form
+    bare = re.fullmatch(r"(\d{1,2})[\s-]+(years?|months?)", phrase.strip(), re.I)
+    if bare and int(bare.group(1)) in NUMBER_WORDS:
+        n = int(bare.group(1))
+        unit = bare.group(2).lower().rstrip("s") + ("s" if n != 1 else "")
+        phrase = f"{NUMBER_WORDS[n]} ({n}) {unit}"
     return months, phrase
 
 

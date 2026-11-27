@@ -44,6 +44,82 @@ const fileToDataUrl = (file: File): Promise<string> => {
   });
 };
 
+
+// ---- tracked-change rendering -------------------------------------------------
+const escapeHtml = (t: string) =>
+  t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;');
+
+const normalizeText = (t: string) => t.replace(/ /g, ' ').replace(/_+/g, '_').replace(/\s+/g, ' ').trim();
+
+// Word-level diff (LCS) so a reviewer sees exactly which words change, like Word's track changes.
+export const diffWordsHtml = (oldText: string, newText: string): string => {
+  const tok = (t: string) => t.match(/\S+\s*/g) || [];
+  const a = tok(oldText), b = tok(newText);
+  const key = (w: string) => w.trim();
+  const n = a.length, m = b.length;
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--)
+    for (let j = m - 1; j >= 0; j--)
+      dp[i][j] = key(a[i]) === key(b[j]) ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const out: string[] = [];
+  let del: string[] = [], ins: string[] = [];
+  const flush = () => {
+    if (del.length) out.push(`<del class="cp-del">${escapeHtml(del.join(''))}</del>`);
+    if (ins.length) out.push(`<ins class="cp-ins">${escapeHtml(ins.join(''))}</ins>`);
+    del = []; ins = [];
+  };
+  let i = 0, j = 0;
+  while (i < n || j < m) {
+    if (i < n && j < m && key(a[i]) === key(b[j])) { flush(); out.push(escapeHtml(b[j])); i++; j++; }
+    else if (j < m && (i >= n || dp[i][j + 1] >= dp[i + 1][j])) { ins.push(b[j]); j++; }
+    else { del.push(a[i]); i++; }
+  }
+  flush();
+  return out.join('');
+};
+
+// Place every change on the paragraph (or table cell) whose text it replaces.
+export const renderChangesInHtml = (html: string, changesList: { id: string; current_text: string; new_text: string; status: string }[]): string => {
+  if (typeof window === 'undefined' || !html) return html;
+  const doc = new DOMParser().parseFromString(`<div id="cp-root">${html}</div>`, 'text/html');
+  const root = doc.getElementById('cp-root');
+  if (!root) return html;
+  const blocks = Array.from(root.querySelectorAll('p, td'));
+  const used = new Set<Element>();
+  changesList.forEach((change) => {
+    const target = normalizeText(change.current_text);
+    if (!target) return;
+    const el =
+      blocks.find((b) => !used.has(b) && normalizeText(b.textContent || '') === target) ||
+      blocks.find((b) => !used.has(b) && normalizeText(b.textContent || '').includes(target));
+    if (!el) return;
+    used.add(el);
+    const whole = normalizeText(el.textContent || '') === target;
+    let body: string;
+    if (change.status === 'accepted') {
+      body = `<span class="new-text" style="font-weight: normal; text-decoration: none;">${escapeHtml(change.new_text)}</span><span class="docu-status docu-status--accepted">✓ Accepted</span>`;
+    } else if (change.status === 'rejected') {
+      body = `<span class="old-text">${escapeHtml(change.current_text)}</span><span class="docu-status docu-status--rejected">✗ Rejected</span>`;
+    } else {
+      body = diffWordsHtml(change.current_text, change.new_text) +
+        `<button data-action="accept" data-change-id="${change.id}">✓ Accept</button>` +
+        `<button data-action="reject" data-change-id="${change.id}">✗ Reject</button>`;
+    }
+    const cls = change.status === 'accepted' ? ' docu-tag-complete' : change.status === 'rejected' ? ' docu-tag-rejected' : '';
+    const container = `<span class="change-container${cls}" data-change-id="${change.id}">${body}</span>`;
+    if (whole) {
+      el.innerHTML = container;
+    } else {
+      // change covers part of the block: swap the matching text, keep the rest
+      const full = el.textContent || '';
+      const at = full.indexOf(change.current_text);
+      if (at === -1) { el.innerHTML = container; return; }
+      el.innerHTML = escapeHtml(full.slice(0, at)) + container + escapeHtml(full.slice(at + change.current_text.length));
+    }
+  });
+  return root.innerHTML;
+};
+
 export default function DocumentViewer({ documentId, documentText, onComplete, firmDetails, customRules, signatureFile }: DocumentViewerProps) {
   const [changes, setChanges] = useState<Change[]>([]);
   const [loading, setLoading] = useState(true);
@@ -148,7 +224,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       if (!html) {
         buildDocumentSegments(text, generatedChanges);
       }
-      let injectedHtml = injectChangesIntoHtml(html, generatedChanges);
+      let injectedHtml = renderChangesInHtml(html, generatedChanges);
       
       // Inject signature preview if available (check both state and prop)
       const currentSignatureUrl = signatureDataUrl || (signatureFile ? await fileToDataUrl(signatureFile) : null);
@@ -506,11 +582,24 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
   };
 
   const scrollToChange = (changeId: string) => {
-    const node = changeRefs.current[changeId];
-    if (!node) return;
+    // look the node up now: re-renders can replace the document HTML, leaving stored refs detached
+    const node =
+      documentRef.current?.querySelector<HTMLElement>(`.change-container[data-change-id="${changeId}"]`) ||
+      changeRefs.current[changeId];
+    if (!node || !node.isConnected) return;
     
     setActiveChangeId(changeId);
-    node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // scroll only the document pane, not the whole page
+    let pane: HTMLElement | null = node.parentElement;
+    while (pane && !(pane.scrollHeight > pane.clientHeight && /(auto|scroll)/.test(getComputedStyle(pane).overflowY))) {
+      pane = pane.parentElement;
+    }
+    if (pane) {
+      const top = node.getBoundingClientRect().top - pane.getBoundingClientRect().top + pane.scrollTop;
+      pane.scrollTo({ top: top - pane.clientHeight / 3, behavior: 'smooth' });
+    } else {
+      node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
     node.classList.add('active', 'docu-highlight');
     setTimeout(() => node.classList.remove('docu-highlight'), 1500);
     // Remove active class after a delay
@@ -662,7 +751,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       if (originalHtml) {
         // Use setTimeout to avoid blocking UI
         setTimeout(() => {
-          let html = injectChangesWithStatus(originalHtml, updated);
+          let html = renderChangesInHtml(originalHtml, updated);
           if (signatureDataUrl) {
             html = injectSignaturePreview(html, signatureDataUrl);
           }
@@ -685,7 +774,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
       if (originalHtml) {
         // Use setTimeout to avoid blocking UI
         setTimeout(() => {
-          let html = injectChangesWithStatus(originalHtml, updated);
+          let html = renderChangesInHtml(originalHtml, updated);
           if (signatureDataUrl) {
             html = injectSignaturePreview(html, signatureDataUrl);
           }
@@ -825,6 +914,21 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
           padding: 2px 4px;
           border-radius: 3px;
         }
+        .document-content del.cp-del {
+          color: #B91C1C !important;
+          text-decoration: line-through;
+          text-decoration-color: #B91C1C;
+        }
+        .document-content ins.cp-ins {
+          color: #1D4ED8 !important;
+          text-decoration: underline;
+          text-decoration-color: #1D4ED8;
+          background: rgba(29, 78, 216, 0.07);
+        }
+        .document-content .change-container button[data-action] {
+          margin-left: 6px;
+          vertical-align: baseline;
+        }
         .document-content .change-container .change-actions {
           position: absolute;
           top: -50px;
@@ -931,7 +1035,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
               <FileSignature className="w-6 h-6 text-metal-mid" />
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wider text-metal-mid">DocuSign-Style Review</p>
+              <p className="text-xs uppercase tracking-wider text-metal-mid">Tracked-change review</p>
               <h2 className="text-2xl font-semibold">Confidentiality Agreement</h2>
               <p className="text-sm text-blue-200">{pendingCount} actions remaining</p>
             </div>
@@ -1038,7 +1142,7 @@ export default function DocumentViewer({ documentId, documentText, onComplete, f
         
         {/* Document Viewer */}
         <div className="flex-1">
-          <div className="bg-[#F3F4F6] rounded-3xl shadow-inner p-6">
+          <div className="bg-[#F3F4F6] rounded-3xl shadow-inner p-6 lg:h-[calc(100vh-260px)] lg:overflow-y-auto">
             <div className="flex items-center justify-between mb-4 text-sm text-slate-500">
               <div>
                 Page <span className="font-semibold text-slate-700">1</span> of{' '}

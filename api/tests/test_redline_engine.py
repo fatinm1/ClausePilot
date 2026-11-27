@@ -277,3 +277,17 @@ def test_financing_rule_without_the_word_representatives_uses_reps_logic():
     }
     changes, _ = plan_changes(doc, [rule], {}, None)
     assert changes == []
+
+
+def test_bare_number_cap_is_written_in_contract_style():
+    from app.services.redline_engine import cap_from_instruction
+
+    assert cap_from_instruction("Cap the confidentiality term at 2 years") == (
+        24,
+        "two (2) years",
+    )
+    assert (
+        cap_from_instruction("Cap obligations at 18 months")[1]
+        == "eighteen (18) months"
+    )
+    assert cap_from_instruction("cap at two (2) years")[1] == "two (2) years"
