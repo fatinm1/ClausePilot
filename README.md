@@ -6,7 +6,7 @@ Minimal, trustworthy NDA redlining web app with AI assistance
 
 A 60-second narrated walkthrough, recorded on the live app.
 
-https://github.com/user-attachments/assets/949325c3-772a-4238-8d1d-6526e8f9bcaf
+[![Watch the 60-second ClausePilot demo](https://raw.githubusercontent.com/fatinm1/portfolio/master/public/demos/clausepilot-poster.jpg)](https://fatin.dev/demos/clausepilot-demo.mp4)
 
 ## Quickstart
 
